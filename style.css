@@ -1,0 +1,54 @@
+/* ===== Custom Styles for PUP-CITE CCIS Sign-Up Page ===== */
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Input focus state */
+.input-field:focus {
+  border-color: #800000;
+  box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
+}
+
+/* Role button states */
+.role-btn {
+  border-color: #d1d5db;
+  background-color: #ffffff;
+  color: #374151;
+}
+
+.role-btn:hover {
+  border-color: #800000;
+  color: #800000;
+}
+
+.role-btn.active {
+  background-color: #800000;
+  border-color: #800000;
+  color: #ffffff;
+}
+
+.role-btn.active:hover {
+  background-color: #5c0000;
+  border-color: #5c0000;
+  color: #ffffff;
+}
+
+/* Password strength bar colors (applied via JS) */
+.strength-weak { background-color: #f87171; }
+.strength-medium { background-color: #fbbf24; }
+.strength-strong { background-color: #22c55e; }
+
+/* Smooth transition for info banner */
+#infoBanner {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* Mobile tweaks */
+@media (max-width: 480px) {
+  main {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}

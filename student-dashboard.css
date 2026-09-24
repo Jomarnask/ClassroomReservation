@@ -1,0 +1,41 @@
+/* Custom PUP Color Utility Classes */
+.bg-pup-maroon {
+    background-color: #800000;
+}
+
+.bg-pup-darkmaroon {
+    background-color: #5c0000;
+}
+
+.text-pup-maroon {
+    color: #800000;
+}
+
+.border-pup-maroon {
+    border-color: #800000;
+}
+
+/* Hover States */
+.hover\:bg-pup-darkmaroon:hover {
+    background-color: #5c0000;
+}
+
+/* Custom Active Filter Button State */
+.filter-btn.active {
+    background-color: #800000 !important;
+    color: #ffffff !important;
+    border-color: #800000 !important;
+}
+
+/* Transitions for Filter Interactions */
+.room-card {
+    transition: all 0.2s ease-in-out;
+}
+
+    .room-card.hidden {
+        display: none !important;
+    }
+
+.notif-item.read {
+    opacity: 0.5;
+}
