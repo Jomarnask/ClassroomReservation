@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP-CITE CRS | Login to CITE Portal</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config for custom colors -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: {
+              maroon: '#800000',
+              darkmaroon: '#5c0000',
+              lightmaroon: '#a30000',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-slate-100 font-sans text-gray-800 min-h-screen flex flex-col justify-between">
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="bg-white border-b border-gray-200 text-xs py-2 px-6">
+    <div class="max-w-7xl mx-auto flex justify-between items-center text-gray-600">
+      <div class="flex items-center gap-2">
+        <img src="puplogo.png" alt="PUP Logo" class="w-14 h-14 object-contain" />
+        <span class="font-semibold text-gray-800">REPUBLIC OF THE PHILIPPINES</span>
+        <span>·</span>
+        <span class="opacity-80">STATE UNIVERSITY</span>
+      </div>
+      <div class="flex items-center gap-1.5 opacity-90 text-gray-500 font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        ISO 9001:2015
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== MAIN ===== -->
+  <main class="flex-grow flex items-center justify-center py-10 px-4">
+
+    <!-- Card Container -->
+    <div class="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-gray-100 p-8 md:p-10">
+
+      <!-- Header / Logos -->
+      <div class="text-center mb-6">
+        <div class="flex flex-col items-center gap-2 mb-3">
+          <img src="puplogo.png" alt="PUP Logo" class="w-14 h-14 object-contain" />
+
+        <h1 class="text-base font-bold text-gray-900 tracking-wide uppercase">
+          Polytechnic University of the Philippines
+        </h1>
+        <div class="flex items-center justify-center gap-2 mt-1">
+          <span class="text-sm font-semibold text-pup-maroon">College of Information Technology and Engineering</span>
+          <span class="bg-pup-maroon/10 text-pup-maroon text-[11px] font-bold px-2 py-0.5 rounded">CITE</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Official Academic Facility & Laboratory Reservation Portal</p>
+      </div>
+
+      <!-- Role Selector -->
+      <div class="grid grid-cols-3 gap-2 p-1.5 bg-gray-100 rounded-xl mb-6" id="roleSelector">
+        <button type="button" data-role="student"
+          class="role-tab active flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.42A12 12 0 0112 21a12 12 0 01-6.16-10.42L12 14z" />
+          </svg>
+          Student
+        </button>
+        <button type="button" data-role="faculty"
+          class="role-tab flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          Faculty
+        </button>
+        <button type="button" data-role="admin"
+          class="role-tab flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          Admin
+        </button>
+      </div>
+
+      <!-- Information Banner -->
+      <div id="infoBanner" class="flex items-start gap-2.5 bg-blue-50/70 border border-blue-100 text-blue-900 text-xs rounded-xl px-4 py-3 mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
+        </svg>
+        <span id="infoText">
+          Use your assigned Student Webmail (<strong>@iskolarngbayan.pup.edu.ph</strong>) for lab slot access.
+        </span>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" class="space-y-5" action="#" method="POST">
+
+        <!-- Webmail ID Field -->
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <label for="webmail" class="block text-xs font-bold text-gray-700">PUP Student Number</label>
+          </div>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              <span class="text-sm font-semibold">@</span>
+            </span>
+            <input type="text" id="studentNumber" name="studentNumber" required
+              placeholder="e.g. 2000-00000-BN-0"
+              class="input-field w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:outline-none transition" />
+          </div>
+        </div>
+
+        <!-- Password Field -->
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <label for="password" class="block text-xs font-bold text-gray-700">Portal Password</label>
+            <a href="#" class="text-xs font-bold text-pup-maroon hover:underline">Forgot PUP-CRS Password?</a>
+          </div>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+              </svg>
+            </span>
+            <input type="password" id="password" name="password" required placeholder="••••••••••••"
+              class="input-field w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:outline-none transition" />
+            <button type="button" class="toggle-password absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600" data-target="password">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Session & Security Row -->
+        <div class="flex items-center justify-between text-xs text-gray-600 pt-1">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" class="w-4 h-4 rounded border-gray-300 text-pup-maroon accent-pup-maroon focus:ring-pup-maroon" />
+            <span>Keep session active for 8 hours</span>
+          </label>
+          <div class="flex items-center gap-1.5 font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
+            SSL Enforced
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit"
+          class="w-full bg-pup-maroon hover:bg-pup-darkmaroon text-white font-bold py-3.5 px-4 rounded-xl text-sm transition shadow-md shadow-pup-maroon/20 flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+          Log in to CITE Portal
+        </button>
+      </form>
+
+      <!-- New Account Register Card -->
+      <div class="mt-8 bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-start gap-3 text-left">
+          <div class="p-2 bg-blue-100/60 rounded-lg text-blue-700 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-xs font-bold text-gray-800">New Student or Faculty member?</p>
+            <p class="text-[11px] text-gray-500 mt-0.5">Register an account using your official <strong>@pup.edu.ph</strong> institutional email.</p>
+          </div>
+        </div>
+        <a href="signup.html"
+          class="shrink-0 bg-white border border-gray-200 hover:border-pup-maroon text-gray-800 hover:text-pup-maroon text-xs font-bold px-3.5 py-2 rounded-lg transition flex items-center gap-1 shadow-sm">
+          Register Account
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      </div>
+
+      <!-- Footer Info & System Status -->
+      <div class="mt-6 text-center text-gray-500 text-[11px] space-y-2">
+        <p class="flex items-center justify-center gap-1.5 text-gray-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          Protected by PUP ICT Office 2-Factor Authentication &amp; Data Privacy Act of 2012 (RA 10173) compliance
+        </p>
+
+        <div class="flex items-center justify-center gap-3 text-[11px] text-gray-500 font-medium">
+          <a href="#" class="hover:underline">Lab Guidelines</a>
+          <span>·</span>
+          <a href="#" class="hover:underline">CCRS IT Helpdesk</a>
+          <span>·</span>
+          <span class="inline-flex items-center gap-1">
+            Server Status: <span class="text-emerald-600 font-bold">Online</span>
+          </span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

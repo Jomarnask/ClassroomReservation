@@ -1,17 +1,27 @@
-/* ===== Custom Styles for PUP-CITE CCIS Sign-Up Page ===== */
+/* ==========================================================================
+   PUP-CITE CCIS Shared Portal Stylesheet
+   ========================================================================== */
 
+/* Base & Typography Settings */
 body {
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Input focus state */
+/* Common Form Input Focus State */
 .input-field:focus {
   border-color: #800000;
   box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
 }
 
-/* Role button states */
+/* Smooth transition for information banners */
+#infoBanner {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* ==========================================================================
+   SIGN-UP PAGE SPECIFIC STYLES (.role-btn)
+   ========================================================================== */
 .role-btn {
   border-color: #d1d5db;
   background-color: #ffffff;
@@ -35,17 +45,35 @@ body {
   color: #ffffff;
 }
 
-/* Password strength bar colors (applied via JS) */
+/* Password Strength Indicator Dynamic Colors */
 .strength-weak { background-color: #f87171; }
 .strength-medium { background-color: #fbbf24; }
 .strength-strong { background-color: #22c55e; }
 
-/* Smooth transition for info banner */
-#infoBanner {
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+/* ==========================================================================
+   LOGIN PAGE SPECIFIC STYLES (.role-tab)
+   ========================================================================== */
+.role-tab {
+  background-color: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  border: none;
 }
 
-/* Mobile tweaks */
+.role-tab.active {
+  background-color: #800000 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.role-tab:hover:not(.active) {
+  background-color: #e5e7eb;
+  color: #800000;
+}
+
+/* ==========================================================================
+   RESPONSIVE MOBILE ADJUSTMENTS
+   ========================================================================== */
 @media (max-width: 480px) {
   main {
     padding-left: 1rem;
