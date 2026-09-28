@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP-CITE CCIS | Student Dashboard</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Tailwind Custom Configuration -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: {
+              maroon: '#800000',
+              darkmaroon: '#5c0000',
+              lightmaroon: '#a30000',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Custom CSS File -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between text-gray-800">
+
+  <!-- TOP NAVBAR -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        
+        <!-- Logo & Header Text -->
+        <div class="flex items-center space-x-3">
+          <img src="PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain" />
+          <div>
+            <h1 class="text-sm font-bold text-pup-maroon leading-tight">PUP-CITE Reservation</h1>
+            <p class="text-[10px] text-gray-500 font-medium">COLLEGE OF COMPUTER AND INFORMATION SCIENCES</p>
+          </div>
+        </div>
+
+        <!-- Navigation Links -->
+      <nav class="hidden md:flex items-center space-x-2 text-xs font-semibold">
+        <a href="#" class="px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 transition">Login/Portal</a>
+        <a href="student-dashboard.html" class="px-3 py-1.5 rounded bg-pup-maroon text-white shadow-sm">Student Dashboard</a>
+        <a href="#" class="px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 transition">Reserve Room</a>
+        <a href="#" class="px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 transition">Faculty Schedule</a>
+        <a href="#" class="px-3 py-1.5 rounded text-gray-600 hover:bg-gray-100 transition">Admin Panel</a>
+      </nav>
+
+      <!-- Role Status -->
+      <div class="text-xs text-gray-600 flex items-center space-x-1.5 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200">
+        <span class="w-2 h-2 rounded-full bg-pup-maroon"></span>
+        <span class="font-medium">Role: <span class="font-bold text-gray-800">Student / Faculty</span></span>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-4 py-6 w-full space-y-6">
+
+    <!-- WELCOME BANNER -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+      <div>
+        <p class="text-xs font-bold tracking-wide text-pup-maroon uppercase">CITE ACADEMIC PORTAL &bull; AY 2024�2025 &bull; FIRST SEMESTER</p>
+        <h2 class="text-2xl font-bold text-gray-900 mt-0.5">Welcome back, Danilo Santos!</h2>
+        <p class="text-xs text-gray-500 font-medium mt-0.5">BS Information Technology &bull; 3rd Year &bull; Student ID: 2022-04912-MN-0</p>
+      </div>
+      
+      <div class="flex items-center space-x-3">
+        <select id="floorFilter" class="text-xs border border-gray-300 rounded-lg px-3 py-2 bg-white font-medium focus:ring-1 focus:ring-pup-maroon focus:outline-none">
+          <option value="all">Filter by Floor/Wing</option>
+          <option value="2nd">2nd Floor</option>
+          <option value="3rd">3rd Floor</option>
+          <option value="4th">4th Floor</option>
+          <option value="5th">5th Floor</option>
+        </select>
+        <button id="btnNewReservation" class="bg-pup-maroon hover:bg-pup-darkmaroon text-white text-xs font-semibold px-4 py-2 rounded-lg shadow flex items-center space-x-1.5 transition">
+          <span>+</span>
+          <span>New Room Reservation</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- MAIN GRID LAYOUT -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- LEFT 2 COLUMNS (Rooms & Reservations) -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- CLASSROOM & LAB AVAILABILITY SECTION -->
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 class="font-bold text-sm text-gray-800">Classroom & Computer Lab Availability</h3>
+              <p class="text-xs text-gray-500">Real-time occupancy status across CEA/CITE academic blocks</p>
+            </div>
+          <div class="relative w-full sm:w-60">
+            <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+            <input type="text" id="searchInput" placeholder="Search Room No. (e.g. 301)" class="text-xs w-full pl-9 pr-3 py-2 rounded-full border border-gray-200 bg-[#edf2f9] text-gray-700 placeholder:text-gray-500 font-medium focus:outline-none focus:ring-2 focus:ring-pup-maroon focus:bg-white focus:border-pup-maroon transition duration-150" />
+          </div>
+          </div>
+          <!-- Status Filters -->
+          <div class="flex flex-wrap items-center gap-2 text-xs font-semibold">
+            <button class="filter-btn active px-3 py-1 rounded-full bg-pup-maroon text-white border border-pup-maroon shadow-sm" data-status="all">All Rooms (<span id="count-all">4</span>)</button>
+            <button class="filter-btn px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition" data-status="available">Available (<span id="count-available">2</span>)</button>
+            <button class="filter-btn px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition" data-status="in-process">In-Process (<span id="count-inprocess">1</span>)</button>
+            <button class="filter-btn px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition" data-status="reserved">Reserved (<span id="count-reserved">1</span>)</button>
+          </div>
+
+          <!-- Room Cards Grid -->
+          <div id="roomContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+
+            <!-- Room Card 1 -->
+            <div class="room-card border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50 hover:border-gray-300 transition" data-status="available" data-floor="3rd" data-name="lab 301 - advanced networking lab 301">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] font-bold text-gray-400 uppercase">CITE-301</span>
+                  <h4 class="font-bold text-sm text-gray-800">Lab 301 - Advanced Networking Lab</h4>
+                  <p class="text-[11px] text-gray-500">45 Students &bull; CEA/CITE Bldg 3rd Floor</p>
+                </div>
+                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Available</span>
+              </div>
+              <p class="text-xs text-gray-600">Equipped with Cisco Racks, Dual Projectors</p>
+              <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span class="text-[11px] text-gray-500">Open until 5:30 PM</span>
+                <button class="bg-pup-maroon hover:bg-pup-darkmaroon text-white text-xs px-3 py-1.5 rounded font-semibold transition btn-reserve" data-room="Lab 301">Reserve Room &rarr;</button>
+              </div>
+            </div>
+
+            <!-- Room Card 2 -->
+            <div class="room-card border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50 hover:border-gray-300 transition" data-status="available" data-floor="4th" data-name="room 402 - lecture hall 402">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] font-bold text-gray-400 uppercase">CITE-402</span>
+                  <h4 class="font-bold text-sm text-gray-800">Room 402 - Lecture Hall</h4>
+                  <p class="text-[11px] text-gray-500">60 Students &bull; Main Academic Wing 4th Flr</p>
+                </div>
+                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Available</span>
+              </div>
+              <p class="text-xs text-gray-600">Smart TV &bull; Split-type Airconditioned</p>
+              <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span class="text-[11px] text-gray-500">Next slot: 1:30 PM Fri</span>
+                <button class="bg-pup-maroon hover:bg-pup-darkmaroon text-white text-xs px-3 py-1.5 rounded font-semibold transition btn-reserve" data-room="Room 402">Reserve Room &rarr;</button>
+              </div>
+            </div>
+
+            <!-- Room Card 3 -->
+            <div class="room-card border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50 hover:border-gray-300 transition" data-status="in-process" data-floor="3rd" data-name="lab 305 - software engineering lab 305">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] font-bold text-gray-400 uppercase">CITE-305</span>
+                  <h4 class="font-bold text-sm text-gray-800">Lab 305 - Software Engineering Lab</h4>
+                  <p class="text-[11px] text-gray-500">40 Workstations &bull; 3rd Floor East Wing</p>
+                </div>
+                <span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">In-Process</span>
+              </div>
+              <p class="text-xs text-amber-700 bg-amber-50 p-1.5 rounded text-[11px]">Pending verification for CS301 class</p>
+              <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span class="text-[11px] text-gray-500">Queue pos: #1</span>
+                <button class="text-pup-maroon text-xs font-semibold hover:underline">View Details / Queue</button>
+              </div>
+            </div>
+
+            <!-- Room Card 4 -->
+            <div class="room-card border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50/50 hover:border-gray-300 transition" data-status="reserved" data-floor="2nd" data-name="room 208 - multimedia room 208">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[10px] font-bold text-gray-400 uppercase">CITE-208</span>
+                  <h4 class="font-bold text-sm text-gray-800">Room 208 - Multimedia Room</h4>
+                  <p class="text-[11px] text-gray-500">50 Students &bull; 2nd Floor West Wing</p>
+                </div>
+                <span class="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">Reserved</span>
+              </div>
+              <p class="text-xs text-gray-500 italic">Reserved for Prof. Morales (IT Elective)</p>
+              <div class="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span class="text-[11px] text-gray-500">Until 4:00 PM</span>
+                <button class="bg-gray-200 text-gray-500 text-xs px-3 py-1.5 rounded font-semibold cursor-not-allowed" disabled>Reserved</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- MY ACTIVE RESERVATIONS SECTION -->
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-sm text-gray-800">My Active Reservations</h3>
+            <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2.5 py-0.5 rounded-full">3 Active</span>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Reservation 1 -->
+            <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-amber-50/30">
+              <div class="space-y-0.5">
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-xs text-gray-800">#RES-8921</span>
+                  <span class="text-xs text-gray-600 font-medium">CS314 - Operating Systems Laboratory</span>
+                </div>
+                <p class="text-xs text-gray-500">Dr. Alicia Reyes &bull; Lab 301</p>
+                <p class="text-[11px] text-gray-400">Tomorrow, Oct 24 &bull; 10:00 AM - 1:00 PM</p>
+              </div>
+              <span class="text-[10px] font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">Pending Admin Confirmation</span>
+            </div>
+
+            <!-- Reservation 2 -->
+            <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-emerald-50/30">
+              <div class="space-y-0.5">
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-xs text-gray-800">#RES-8840</span>
+                  <span class="text-xs text-gray-600 font-medium">IT305 - Web Development Capstone</span>
+                </div>
+                <p class="text-xs text-gray-500">Engr. Roberto Cruz &bull; Room 402</p>
+                <p class="text-[11px] text-gray-400">Friday, Oct 27 &bull; 1:30 PM - 4:30 PM</p>
+              </div>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full">Confirmed & Key Released</span>
+            </div>
+
+            <!-- Reservation 3 -->
+            <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-rose-50/30">
+              <div class="space-y-0.5">
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-xs text-gray-800">#RES-8702</span>
+                  <span class="text-xs text-gray-600 font-medium">CS201 - Data Structures Consultation</span>
+                </div>
+                <p class="text-xs text-gray-500">Prof. Maria Gonzales &bull; Room 208</p>
+                <p class="text-[11px] text-gray-400">Oct 15 &bull; 8:00 AM - 10:00 AM</p>
+              </div>
+              <span class="text-[10px] font-bold text-rose-700 bg-rose-100 px-2.5 py-1 rounded-full">Rejected - Schedule Overlap</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN (Notifications & Guidelines) -->
+      <div class="space-y-6">
+
+        <!-- NOTIFICATIONS PANEL -->
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+          <div class="flex justify-between items-center border-b border-gray-100 pb-2">
+            <h3 class="font-bold text-sm text-gray-800">Notifications & Broadcasts</h3>
+            <button id="btnMarkRead" class="text-xs text-pup-maroon hover:underline font-semibold">Mark all read</button>
+          </div>
+
+          <div id="notifContainer" class="space-y-3">
+            <div class="notif-item p-2.5 bg-gray-50 rounded-lg text-xs space-y-1 border border-gray-100">
+              <p class="font-semibold text-gray-800"><span class="text-emerald-600">Admin Approved:</span> Your reservation for Room 402 on Oct 27 has been officially granted.</p>
+              <p class="text-[10px] text-gray-400">10m ago &bull; Facilities Unit</p>
+            </div>
+
+            <div class="notif-item p-2.5 bg-gray-50 rounded-lg text-xs space-y-1 border border-gray-100">
+              <p class="font-semibold text-gray-800"><span class="text-amber-600">Schedule Alert:</span> Room 305 AC maintenance scheduled from 4:00 PM today.</p>
+              <p class="text-[10px] text-gray-400">2h ago &bull; Facilities Unit</p>
+            </div>
+
+            <div class="notif-item p-2.5 bg-gray-50 rounded-lg text-xs space-y-1 border border-gray-100">
+              <p class="font-semibold text-gray-800">Prof. Roberto Cruz tagged you in reservation <span class="text-pup-maroon font-bold">#RES-8840</span>.</p>
+              <p class="text-[10px] text-gray-400">1d ago &bull; Faculty Notice</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- RESERVATION GUIDELINES -->
+        <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-3">
+          <h3 class="font-bold text-sm text-gray-800 border-b border-gray-100 pb-2">Reservation Guidelines</h3>
+          <ul class="text-xs text-gray-600 space-y-2">
+            <li><strong>Endorsement Rule:</strong> All lab requests require professor endorsement 24 hours prior to schedule.</li>
+            <li><strong>Key Handling:</strong> Claim room physical key at CITE Office (Rm 300) with valid student ID card.</li>
+            <li><strong>Housekeeping:</strong> Ensure air conditioners, projectors, and terminal stations are powered off after session.</li>
+          </ul>
+          <div class="pt-2 flex justify-between items-center text-xs border-t border-gray-100">
+            <span class="text-gray-400">CCIS Lab Manual v2.4</span>
+            <a href="#" class="text-pup-maroon font-semibold hover:underline">Download PDF &boxbox;</a>
+          </div>
+        </div>
+
+        <!-- FACILITY SPOTLIGHT CARD -->
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div class="bg-gray-200 h-32 flex items-center justify-center text-xs text-gray-500 font-bold border-b border-gray-200">
+            [CITE Innovation Hub Image]
+          </div>
+          <div class="p-4 space-y-1">
+            <p class="text-[10px] font-bold text-pup-maroon uppercase">Department Facility Spotlight</p>
+            <h4 class="font-bold text-xs text-gray-800">CITE Innovation Hub (5th Floor)</h4>
+            <p class="text-xs text-gray-500">Now open for capstone research teams with designated high-performance AI workstations.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-[11px] text-gray-500 gap-2">
+      <p class="font-bold text-gray-700">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; <span class="font-normal text-gray-500">College of Computer and Information Sciences (CCIS)</span></p>
+      <p>&copy; 2024 PUP-CITE Reservation System. All institutional rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Custom JavaScript File -->
+  <script src="script.js"></script>
+</body>
+</html>
