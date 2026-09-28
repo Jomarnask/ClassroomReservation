@@ -1,0 +1,146 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PUP-CITE Reservation | Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin-dashboard.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <img src="PUPLogo.png" alt="PUP Logo" class="brand-logo" />
+            <div>
+                <div class="brand-title">PUP-CITE Reservation</div>
+                <div class="brand-sub">COLLEGE OF COMPUTER AND INFORMATION SCIENCES</div>
+            </div>
+        </div>
+        <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+        <nav class="nav" id="nav">
+            <a href="#">Login/Portal</a>
+            <a href="#">Student Dashboard</a>
+            <a href="#">Reserve Room</a>
+            <a href="#">Faculty Schedule</a>
+            <a href="#" class="active" aria-current="page">Admin Panel</a>
+        </nav>
+        <div class="role-badge"><span class="dot"></span>Role: <strong>Super Admin</strong></div>
+    </header>
+
+    <main class="container">
+        <section class="card banner">
+            <div>
+                <p class="eyebrow">CITE ADMIN CONSOLE • AY 2024–2025 • FIRST SEMESTER</p>
+                <h1>Welcome back, Engr. Cruz!</h1>
+                <p class="meta">
+                    <span>CCIS Facilities &amp; Lab Administrator</span>
+                    <span>Employee ID: <code>2018-0142-CCIS</code></span>
+                    <span>System Role: <strong>Super Admin</strong></span>
+                </p>
+            </div>
+            <div class="controls">
+                <select id="floorFilter" aria-label="Filter by floor">
+                    <option value="all">All Floors</option>
+                    <option value="1">1st Floor</option>
+                    <option value="2">2nd Floor</option>
+                    <option value="3">3rd Floor</option>
+                    <option value="4" selected>4th Floor</option>
+                </select>
+                <button class="btn-primary" id="editToggle" aria-pressed="false">+ Edit Rooms</button>
+            </div>
+        </section>
+
+        <div class="edit-notice" id="editNotice" hidden>
+            Room Editing Mode is on. Select a room to change its configuration.
+        </div>
+
+        <section class="card directory">
+            <div class="dir-head">
+                <div>
+                    <h2>PUP Canlalay Campus Floor Directory</h2>
+                    <p class="muted">Select a classroom across floors to view availability or initiate reservations</p>
+                </div>
+                <span class="pill" id="totalRooms">Total: 16 Rooms</span>
+            </div>
+            <div class="floors" id="floors"></div>
+        </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="overlay" id="overlay" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-head">
+                <span class="cal" aria-hidden="true">📅</span>
+                <div class="mh-text">
+                    <div class="mh-title" id="modalTitle">Edit Room Configuration</div>
+                    <div class="mh-sub">PUP College of Computer and Information Sciences</div>
+                </div>
+                <button class="close" id="closeModal" aria-label="Close">✕</button>
+            </div>
+
+            <form id="roomForm" novalidate>
+                <div class="modal-body">
+                    <div class="tag">
+                        <div class="avatar">EC</div>
+                        <div class="tag-info">
+                            <strong>Engr. Cruz (Super Admin)</strong>
+                            <span>2018-0142-CCIS • Facilities &amp; Lab Administrator</span>
+                        </div>
+                        <span class="validated">Real-Time Validated</span>
+                    </div>
+
+                    <div class="grid2">
+                        <label>
+                            GMA Availability *
+                            <select id="gma" required>
+                                <option value="full">Fully Available</option>
+                                <option value="limited">Limited Availability</option>
+                                <option value="occupied">Occupied</option>
+                            </select>
+                        </label>
+                        <label>
+                            Maintenance Status *
+                            <select id="maint" required>
+                                <option value="none">Operational / No Maintenance</option>
+                                <option value="under">Under Maintenance</option>
+                                <option value="scheduled">Scheduled Servicing</option>
+                            </select>
+                        </label>
+                        <label>
+                            Expected Headcount / Capacity (Max 45) *
+                            <input type="number" id="capacity" min="1" max="45" required>
+                        </label>
+                        <label>
+                            Subject Code / Course Assignee
+                            <input type="text" id="subject" placeholder="e.g. IT-ELEC-301 Cloud &amp; DevOps">
+                        </label>
+                    </div>
+
+                    <label class="full">
+                        Supervising Faculty *
+                        <select id="faculty" required>
+                            <option value="">Select lead faculty</option>
+                            <option>Engr. Roberto Cruz, M.Sc. (Lead Faculty)</option>
+                            <option>Prof. Maria Lopez, MIT</option>
+                            <option>Prof. Daniel Reyes, MSCS</option>
+                            <option>Dr. Angelica Ramos, DIT</option>
+                        </select>
+                    </label>
+
+                    <div class="alert ok" id="alertBox" role="status"></div>
+                </div>
+
+                <div class="modal-foot">
+                    <button type="button" class="btn-ghost" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn-primary">➤ Save Room Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="admin-dashboard.js"></script>
+</body>
+</html>
