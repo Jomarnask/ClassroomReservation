@@ -32,6 +32,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const signupInfoText = document.getElementById('infoText');
 
     if (signupRoleButtons.length > 0) {
+      const signupRoleConfigs = {
+        student: {
+          info: `Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> webmail for registration.`
+        },
+        faculty: {
+          info: `Faculty accounts must use their official <strong>@pup.edu.ph</strong> webmail for registration.`
+        },
+        admin: {
+          info: `Admin accounts require approval from the PUP Canlalay Campus Administration. Use your official <strong>@pup.edu.ph</strong> webmail.`
+        }
+      };
+
       signupRoleButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
@@ -40,25 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
           btn.classList.add('active');
 
           const role = btn.dataset.role;
+          const hideStudent = role !== 'student';
 
-          if (role === 'student') {
-            if (studentNumberField) studentNumberField.classList.remove('hidden');
-            if (studentAcademicFields) studentAcademicFields.classList.remove('hidden');
-            if (signupInfoText) {
-              signupInfoText.innerHTML = `Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> email for automated directory validation.`;
-            }
-          } else if (role === 'faculty') {
-            if (studentNumberField) studentNumberField.classList.add('hidden');
-            if (studentAcademicFields) studentAcademicFields.classList.add('hidden');
-            if (signupInfoText) {
-              signupInfoText.innerHTML = `Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong>. Position and specialization are automatically mapped to CCIS instructional scheduling.`;
-            }
-          } else if (role === 'admin') {
-            if (studentNumberField) studentNumberField.classList.add('hidden');
-            if (studentAcademicFields) studentAcademicFields.classList.add('hidden');
-            if (signupInfoText) {
-              signupInfoText.innerHTML = `Admin accounts require approval from the PUP Canlalay Campus Administration. Use your official <strong>@pup.edu.ph</strong> email.`;
-            }
+          if (studentNumberField) studentNumberField.classList.toggle('hidden', hideStudent);
+          if (studentAcademicFields) studentAcademicFields.classList.toggle('hidden', hideStudent);
+
+          if (signupInfoText && signupRoleConfigs[role]) {
+            signupInfoText.innerHTML = signupRoleConfigs[role].info;
           }
         });
       });
@@ -158,17 +158,17 @@ document.addEventListener('DOMContentLoaded', () => {
       student: {
         label: 'PUP Student Number',
         placeholder: 'e.g. 2000-00000-BN-0',
-        info: 'Use your assigned Student Number (<strong>@iskolarngbayan.pup.edu.ph</strong>) for lab slot access.'
+        info: 'Use your assigned <strong>Student Number</strong> for lab slot access.'
       },
       faculty: {
         label: 'PUP Faculty Webmail / Employee ID',
-        placeholder: 'e.g. j.casalla@pup.edu.ph',
+        placeholder: 'e.g. faculty.canlalay@pup.edu.ph',
         info: 'Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong> for classroom reservation control.'
       },
       admin: {
         label: 'PUP Administrator Webmail / ID',
-        placeholder: 'e.g. admin.ccis@pup.edu.ph',
-        info: 'Authorized Canlalay Campus Administrators & IT Staff portal access. Use your official <strong>@pup.edu.ph</strong> email.'
+        placeholder: 'e.g. admin.canlalay@pup.edu.ph',
+        info: 'Authorized Canlalay Campus Administrators & IT Staff portal access. Use your official <strong>@pup.edu.ph</strong> webmail.'
       }
     };
 
