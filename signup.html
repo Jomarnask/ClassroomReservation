@@ -3,119 +3,108 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PUP-CITE CRS | Create Your Account</title>
+  <title>PUP Canlalay Campus CRS | Create Your Account</title>
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Tailwind Config for custom colors -->
+  <!-- Tailwind Config for custom brand tokens -->
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
             pup: {
-              maroon: '#800000',
+              maroon: '#880000',
               darkmaroon: '#5c0000',
               lightmaroon: '#a30000',
+              gold: '#ffd658',
+              blue: '#337ab7',
+              darkblue: '#23527c',
+            },
+            brand: {
+              primary: '#880000',
+              secondary: '#ffd658',
+              link: '#337ab7',
+              text: '#111111',
+              dark: '#111111',
             }
           },
           fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
           }
         }
       }
     }
   </script>
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Noto Sans & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="bg-gray-100 font-sans text-gray-800">
-
-  <!-- ===== TOP BAR ===== -->
-  <header class="bg-pup-maroon text-white text-xs tracking-wide">
-    <div class="max-w-7xl mx-auto flex justify-between items-center px-4 py-2">
-      <div class="flex items-center gap-2">
-        <span class="font-semibold">REPUBLIC OF THE PHILIPPINES</span>
-        <span class="opacity-80">· POLYTECHNIC UNIVERSITY OF THE PHILIPPINES</span>
-      </div>
-      <div class="hidden md:block opacity-90">
-        INSTITUTIONAL PORTAL · AY 2024–2025
-      </div>
-    </div>
-  </header>
+<body class="bg-slate-100 font-sans text-[#111111] min-h-screen flex flex-col justify-between">
 
   <!-- ===== SUB HEADER ===== -->
-  <div class="bg-white border-b border-gray-200">
+  <header class="bg-[#880000] border-b border-black/10">
     <div class="max-w-7xl mx-auto flex justify-between items-center px-4 py-3">
       <div class="flex items-center gap-3">
         <img src="puplogo.png" alt="PUP Logo" class="w-14 h-14 object-contain" />
         <div>
-          <p class="font-semibold text-sm text-gray-900">PUP-CITE CRS</p>
-          <p class="text-xs text-gray-500">Classroom &amp; Facility Reservation System</p>
+          <p class="font-semibold text-sm text-white">PUP Canlalay Campus CRS</p>
+          <p class="text-xs text-white/90">Classroom &amp; Facility Reservation System</p>
         </div>
       </div>
-      <div class="text-xs text-gray-500 flex items-center gap-1">
+      <div class="text-xs text-white flex items-center gap-1 font-medium">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 21a9 9 0 100-18 9 9 0 000 18z" />
         </svg>
         Authorized Academic Access
       </div>
     </div>
-  </div>
+  </header>
 
   <!-- ===== MAIN ===== -->
   <main class="min-h-screen flex flex-col items-center py-10 px-4">
 
-    <!-- Live badge -->
-    <div class="mb-6">
-      <span class="inline-flex items-center gap-2 text-xs text-pup-maroon bg-white border border-pup-maroon/20 px-3 py-1 rounded-full shadow-sm">
-        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-        PUP ICT DIRECTORY GATEWAY · LIVE
-      </span>
-    </div>
-
     <!-- Card -->
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
+    <div class="w-full max-w-md bg-white rounded-[6px] shadow-lg border border-gray-200 p-8">
 
       <!-- Logo -->
       <div class="flex justify-center mb-4">
         <img src="puplogo.png" alt="PUP Logo" class="w-14 h-14 object-contain" />
       </div>
 
-      <p class="text-center text-xs tracking-widest text-pup-maroon font-semibold mb-2">
+      <p class="text-center text-xs tracking-widest text-[#880000] font-semibold mb-2">
         AY 2024–2025 CRS PORTAL
       </p>
-      <h1 class="text-center text-2xl font-bold text-gray-900">Create Your Account</h1>
+      <h1 class="text-center text-2xl font-bold text-[#111111]">Create Your Account</h1>
       <p class="text-center text-sm text-gray-500 mt-1 mb-6">
-        Register to reserve classrooms, labs, and other PUP-CITE instructional facilities.
+        Register to reserve classrooms, labs, and other PUP - Canlalay Campus instructional facilities.
       </p>
 
       <!-- Role Selector -->
       <p class="text-xs font-semibold text-gray-700 mb-2">SELECT INSTITUTIONAL ROLE</p>
       <div class="grid grid-cols-3 gap-2 mb-6" id="roleSelector">
         <button type="button" data-role="student"
-          class="role-btn active flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-medium transition">
+          class="role-btn active flex items-center justify-center gap-2 py-2 rounded-[3px] border text-sm font-medium transition">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14l6.16-3.42A12 12 0 0112 21a12 12 0 01-6.16-10.42L12 14z" />
           </svg>
           Student
         </button>
         <button type="button" data-role="faculty"
-          class="role-btn flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-medium transition">
+          class="role-btn flex items-center justify-center gap-2 py-2 rounded-[3px] border text-sm font-medium transition">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zM12 14v7m0 0l-3-3m3 3l3-3" />
           </svg>
           Faculty
         </button>
         <button type="button" data-role="admin"
-          class="role-btn flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-medium transition">
+          class="role-btn flex items-center justify-center gap-2 py-2 rounded-[3px] border text-sm font-medium transition">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
@@ -124,12 +113,12 @@
       </div>
 
       <!-- Info banner -->
-      <div id="infoBanner" class="flex items-start gap-2 bg-blue-50 border border-blue-100 text-blue-800 text-xs rounded-lg px-3 py-2 mb-5">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div id="infoBanner" class="flex items-start gap-2 bg-blue-50/70 border border-blue-200 text-[#1e40af] text-xs rounded-[3px] px-3 py-2 mb-5">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-[#337ab7] mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
         </svg>
         <span id="infoText">
-          Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> email for automated directory validation.
+          Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> email for registration.
         </span>
       </div>
 
@@ -138,7 +127,7 @@
 
         <!-- Full Name -->
         <div>
-          <label for="fullName" class="block text-xs font-semibold text-gray-700 mb-1">Full Legal Name *</label>
+          <label for="fullName" class="block text-xs font-semibold text-[#111111] mb-1">Full Legal Name *</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-3 flex items-center text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -146,14 +135,14 @@
               </svg>
             </span>
             <input type="text" id="fullName" name="fullName" placeholder="Casalla, James Ivan S."
-              class="input-field w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
+              class="input-field w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] placeholder-gray-400 focus:outline-none transition" />
           </div>
           <p class="text-xs text-gray-400 mt-1 text-right">Last, First M.I.</p>
         </div>
 
         <!-- Student Number (Student only) -->
         <div id="studentNumberField">
-          <label for="studentNumber" class="block text-xs font-semibold text-gray-700 mb-1">PUP Student Number *</label>
+          <label for="studentNumber" class="block text-xs font-semibold text-[#111111] mb-1">PUP Student Number *</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-3 flex items-center text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -161,14 +150,14 @@
               </svg>
             </span>
             <input type="text" id="studentNumber" name="studentNumber" placeholder="2000-00000-BN-0"
-              class="input-field w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
+              class="input-field w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] placeholder-gray-400 focus:outline-none transition" />
           </div>
           <p class="text-xs text-gray-400 mt-1 text-right">Format: YYYY-NNNNN-BN-0</p>
         </div>
 
         <!-- PUP Email -->
         <div>
-          <label for="email" class="block text-xs font-semibold text-gray-700 mb-1">PUP Institutional Email *</label>
+          <label for="email" class="block text-xs font-semibold text-[#111111] mb-1">PUP Institutional Email *</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-3 flex items-center text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -176,13 +165,13 @@
               </svg>
             </span>
             <input type="email" id="email" name="email" placeholder="jamesivanscasalla@iskolarngbayan.pup.edu.ph"
-              class="input-field w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
+              class="input-field w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] placeholder-gray-400 focus:outline-none transition" />
           </div>
           <div class="flex gap-3 text-xs mt-1">
-            <span class="text-green-600 flex items-center gap-1">
+            <span class="text-green-600 flex items-center gap-1 font-medium">
               <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Institutional Active
             </span>
-            <span class="text-green-600 flex items-center gap-1">
+            <span class="text-green-600 flex items-center gap-1 font-medium">
               <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Verified Domain
             </span>
           </div>
@@ -194,9 +183,9 @@
 
           <!-- Degree Program -->
           <div>
-            <label for="program" class="block text-xs font-semibold text-gray-700 mb-1">Degree Program</label>
+            <label for="program" class="block text-xs font-semibold text-[#111111] mb-1">Degree Program</label>
             <select id="program" name="program"
-              class="input-field w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none">
+              class="input-field w-full px-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] focus:outline-none transition">
               <option>BS of Information Technology (BSIT)</option>
               <option>BS of Computer Engineering (BSCpE)</option>
               <option>BS of Industrial Engineering (BSIE)</option>
@@ -208,9 +197,9 @@
           <!-- Year + Section -->
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="yearLevel" class="block text-xs font-semibold text-gray-700 mb-1">Year Level</label>
+              <label for="yearLevel" class="block text-xs font-semibold text-[#111111] mb-1">Year Level</label>
               <select id="yearLevel" name="yearLevel"
-                class="input-field w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none">
+                class="input-field w-full px-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] focus:outline-none transition">
                 <option>1st Year</option>
                 <option>2nd Year</option>
                 <option selected>3rd Year</option>
@@ -218,9 +207,12 @@
               </select>
             </div>
             <div>
-              <label for="section" class="block text-xs font-semibold text-gray-700 mb-1">Official Section</label>
-              <input type="text" id="section" name="section" placeholder="BSIT 3-2"
-                class="input-field w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
+              <label for="section" class="block text-xs font-semibold text-[#111111] mb-1">Section</label>
+                <select id="section" name="section"
+                        class="input-field w-full px-3 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] focus:outline-none transition">
+  <option value="1">1</option>
+  <option value="2">2</option>
+</select>
             </div>
           </div>
 
@@ -230,13 +222,13 @@
         <!-- Password -->
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label for="password" class="block text-xs font-semibold text-gray-700">Master Password *</label>
+            <label for="password" class="block text-xs font-semibold text-[#111111]">Master Password *</label>
             <span class="text-xs text-gray-400">Min 8 chars, mixed case &amp; numbers</span>
           </div>
           <div class="relative">
             <input type="password" id="password" name="password" placeholder="••••••••••••"
-              class="input-field w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
-            <button type="button" class="toggle-password absolute inset-y-0 right-3 flex items-center text-gray-400" data-target="password">
+              class="input-field w-full pl-3 pr-10 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] placeholder-gray-400 focus:outline-none transition" />
+            <button type="button" class="toggle-password absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600" data-target="password" aria-label="Toggle password visibility">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -245,7 +237,7 @@
           </div>
           <!-- Strength bar -->
           <div class="mt-2 flex items-center gap-2">
-            <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div class="flex-1 h-1.5 bg-gray-200 rounded-[3px] overflow-hidden">
               <div id="strengthBar" class="h-full w-0 bg-red-400 transition-all duration-300"></div>
             </div>
             <span id="strengthLabel" class="text-xs text-gray-400">Strong Entropy</span>
@@ -254,11 +246,11 @@
 
         <!-- Confirm Password -->
         <div>
-          <label for="confirmPassword" class="block text-xs font-semibold text-gray-700 mb-1">Confirm Password *</label>
+          <label for="confirmPassword" class="block text-xs font-semibold text-[#111111] mb-1">Confirm Password *</label>
           <div class="relative">
             <input type="password" id="confirmPassword" name="confirmPassword" placeholder="••••••••••••"
-              class="input-field w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none" />
-            <button type="button" class="toggle-password absolute inset-y-0 right-3 flex items-center text-gray-400" data-target="confirmPassword">
+              class="input-field w-full pl-3 pr-10 py-2 bg-white border border-gray-300 rounded-[3px] text-sm text-[#111111] placeholder-gray-400 focus:outline-none transition" />
+            <button type="button" class="toggle-password absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600" data-target="confirmPassword" aria-label="Toggle password visibility">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -270,17 +262,17 @@
 
         <!-- Terms -->
         <label class="flex items-start gap-2 text-xs text-gray-600 mt-2">
-          <input type="checkbox" id="terms" class="mt-0.5 accent-pup-maroon" />
+          <input type="checkbox" id="terms" class="mt-0.5 rounded-[3px] border-gray-300 text-[#880000] accent-[#880000] focus:ring-[#880000]" />
           <span>
             I certify that all details submitted are truthful. I explicitly agree to the
-            <a href="#" class="text-pup-maroon underline">CRS Terms of Classroom Governance</a>
+            <a href="#" class="text-[#337ab7] hover:text-[#23527c] underline">CRS Terms of Classroom Governance</a>
             and consent to data processing under the Philippine Data Privacy Act (RA 10173).
           </span>
         </label>
 
-        <!-- Submit -->
+        <!-- Submit Button (Primary Component from Branding: #880000, 3px border-radius) -->
         <button type="submit"
-          class="w-full bg-pup-maroon hover:bg-pup-darkmaroon text-white font-semibold py-3 rounded-lg text-sm transition flex items-center justify-center gap-2">
+          class="w-full bg-[#880000] hover:bg-[#5c0000] text-white font-semibold py-3 rounded-[3px] text-sm transition shadow-sm flex items-center justify-center gap-2">
           Complete Registration
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -291,7 +283,7 @@
       <!-- Footer link -->
       <p class="text-center text-xs text-gray-500 mt-5">
         Already registered in the institutional system?
-        <a href="login.html" class="text-pup-maroon font-semibold hover:underline">Log In</a>
+        <a href="login.html" class="text-[#337ab7] hover:text-[#23527c] font-semibold hover:underline">Log In</a>
       </p>
 
       <p class="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1">

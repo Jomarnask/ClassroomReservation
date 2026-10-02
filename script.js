@@ -1,51 +1,14 @@
-// ===== PUP-CITE CRS Sign-Up Page Scripts =====
+// ===== PUP Canlalay Campus CRS Application Scripts =====
 
 document.addEventListener('DOMContentLoaded', () => {
 
-  /* ---------- Element References ---------- */
-  const roleButtons = document.querySelectorAll('.role-btn');
-  const studentNumberField = document.getElementById('studentNumberField');
-  const studentAcademicFields = document.getElementById('studentAcademicFields');
-  const infoText = document.getElementById('infoText');
-
-  /* ---------- Role Switching ---------- */
-  roleButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      // Update active state
-      roleButtons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-
-      const role = btn.dataset.role;
-
-      if (role === 'student') {
-        // Show student-only fields
-        studentNumberField.classList.remove('hidden');
-        studentAcademicFields.classList.remove('hidden');
-
-        // Update info banner
-        infoText.innerHTML = `Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> email for automated directory validation.`;
-      } else if (role === 'faculty') {
-        // Hide student-only fields
-        studentNumberField.classList.add('hidden');
-        studentAcademicFields.classList.add('hidden');
-
-        // Update info banner
-        infoText.innerHTML = `Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong>. Position and specialization are automatically mapped to CCIS instructional scheduling.`;
-      } else if (role === 'admin') {
-        // Hide student-only fields (Admin has same fields as Faculty)
-        studentNumberField.classList.add('hidden');
-        studentAcademicFields.classList.add('hidden');
-
-        // Update info banner
-        infoText.innerHTML = `Admin accounts require approval from the PUP-CITE Dean's Office. Use your official <strong>@pup.edu.ph</strong> email.`;
-      }
-    });
-  });
-
-  /* ---------- Show / Hide Password ---------- */
+  /* ==========================================================================
+     1. SHARED: Password Visibility Toggle (.toggle-password)
+     ========================================================================== */
   const toggleButtons = document.querySelectorAll('.toggle-password');
   toggleButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       const targetId = btn.dataset.target;
       const input = document.getElementById(targetId);
       if (!input) return;
@@ -53,87 +16,208 @@ document.addEventListener('DOMContentLoaded', () => {
       const isPassword = input.type === 'password';
       input.type = isPassword ? 'text' : 'password';
 
-      // Optional: swap icon opacity for feedback
+      // Visual feedback
       btn.style.opacity = isPassword ? '1' : '0.6';
     });
   });
 
-  /* ---------- Password Strength Meter ---------- */
-  const passwordInput = document.getElementById('password');
-  const strengthBar = document.getElementById('strengthBar');
-  const strengthLabel = document.getElementById('strengthLabel');
+  /* ==========================================================================
+     2. SIGN-UP PAGE SPECIFIC SCRIPTS
+     ========================================================================== */
+  const signupForm = document.getElementById('signupForm');
+  if (signupForm) {
+    const signupRoleButtons = document.querySelectorAll('#roleSelector .role-btn');
+    const studentNumberField = document.getElementById('studentNumberField');
+    const studentAcademicFields = document.getElementById('studentAcademicFields');
+    const signupInfoText = document.getElementById('infoText');
 
-  passwordInput.addEventListener('input', () => {
-    const value = passwordInput.value;
-    const strength = calculateStrength(value);
+    if (signupRoleButtons.length > 0) {
+      signupRoleButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Update active state
+          signupRoleButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
 
-    // Reset classes
-    strengthBar.classList.remove('strength-weak', 'strength-medium', 'strength-strong');
+          const role = btn.dataset.role;
 
-    if (value.length === 0) {
-      strengthBar.style.width = '0%';
-      strengthLabel.textContent = 'Strong Entropy';
-      strengthLabel.className = 'text-xs text-gray-400';
-      return;
+          if (role === 'student') {
+            if (studentNumberField) studentNumberField.classList.remove('hidden');
+            if (studentAcademicFields) studentAcademicFields.classList.remove('hidden');
+            if (signupInfoText) {
+              signupInfoText.innerHTML = `Use your official <strong>@iskolarngbayan.pup.edu.ph</strong> email for automated directory validation.`;
+            }
+          } else if (role === 'faculty') {
+            if (studentNumberField) studentNumberField.classList.add('hidden');
+            if (studentAcademicFields) studentAcademicFields.classList.add('hidden');
+            if (signupInfoText) {
+              signupInfoText.innerHTML = `Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong>. Position and specialization are automatically mapped to CCIS instructional scheduling.`;
+            }
+          } else if (role === 'admin') {
+            if (studentNumberField) studentNumberField.classList.add('hidden');
+            if (studentAcademicFields) studentAcademicFields.classList.add('hidden');
+            if (signupInfoText) {
+              signupInfoText.innerHTML = `Admin accounts require approval from the PUP Canlalay Campus Administration. Use your official <strong>@pup.edu.ph</strong> email.`;
+            }
+          }
+        });
+      });
     }
 
-    if (strength.score <= 2) {
-      strengthBar.style.width = '33%';
-      strengthBar.classList.add('strength-weak');
-      strengthLabel.textContent = 'Weak Entropy';
-      strengthLabel.className = 'text-xs text-red-500';
-    } else if (strength.score <= 4) {
-      strengthBar.style.width = '66%';
-      strengthBar.classList.add('strength-medium');
-      strengthLabel.textContent = 'Moderate Entropy';
-      strengthLabel.className = 'text-xs text-yellow-600';
-    } else {
-      strengthBar.style.width = '100%';
-      strengthBar.classList.add('strength-strong');
-      strengthLabel.textContent = 'Strong Entropy';
-      strengthLabel.className = 'text-xs text-green-600';
-    }
-  });
+    // Password strength meter (Sign-up only)
+    const passwordInput = document.getElementById('password');
+    const strengthBar = document.getElementById('strengthBar');
+    const strengthLabel = document.getElementById('strengthLabel');
 
-  function calculateStrength(pwd) {
-    let score = 0;
-    if (pwd.length >= 8) score++;
-    if (pwd.length >= 12) score++;
-    if (/[a-z]/.test(pwd)) score++;
-    if (/[A-Z]/.test(pwd)) score++;
-    if (/\d/.test(pwd)) score++;
-    if (/[^A-Za-z0-9]/.test(pwd)) score++;
-    return { score };
+    if (passwordInput && strengthBar && strengthLabel) {
+      passwordInput.addEventListener('input', () => {
+        const value = passwordInput.value;
+        const strength = calculateStrength(value);
+
+        // Reset classes
+        strengthBar.classList.remove('strength-weak', 'strength-medium', 'strength-strong');
+
+        if (value.length === 0) {
+          strengthBar.style.width = '0%';
+          strengthLabel.textContent = 'Strong Entropy';
+          strengthLabel.className = 'text-xs text-gray-400';
+          return;
+        }
+
+        if (strength.score <= 2) {
+          strengthBar.style.width = '33%';
+          strengthBar.classList.add('strength-weak');
+          strengthLabel.textContent = 'Weak Entropy';
+          strengthLabel.className = 'text-xs text-red-500';
+        } else if (strength.score <= 4) {
+          strengthBar.style.width = '66%';
+          strengthBar.classList.add('strength-medium');
+          strengthLabel.textContent = 'Moderate Entropy';
+          strengthLabel.className = 'text-xs text-yellow-600';
+        } else {
+          strengthBar.style.width = '100%';
+          strengthBar.classList.add('strength-strong');
+          strengthLabel.textContent = 'Strong Entropy';
+          strengthLabel.className = 'text-xs text-green-600';
+        }
+      });
+
+      function calculateStrength(pwd) {
+        let score = 0;
+        if (pwd.length >= 8) score++;
+        if (pwd.length >= 12) score++;
+        if (/[a-z]/.test(pwd)) score++;
+        if (/[A-Z]/.test(pwd)) score++;
+        if (/\d/.test(pwd)) score++;
+        if (/[^A-Za-z0-9]/.test(pwd)) score++;
+        return { score };
+      }
+    }
+
+    // Form submission validation (Sign-up)
+    const passwordError = document.getElementById('passwordError');
+
+    signupForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const password = document.getElementById('password')?.value;
+      const confirmPassword = document.getElementById('confirmPassword')?.value;
+      const terms = document.getElementById('terms')?.checked;
+
+      // Reset error
+      if (passwordError) passwordError.classList.add('hidden');
+
+      // Validate passwords match
+      if (password !== confirmPassword) {
+        if (passwordError) passwordError.classList.remove('hidden');
+        return;
+      }
+
+      // Validate terms
+      if (!terms) {
+        alert('Please agree to the Terms of Service and Privacy Policy.');
+        return;
+      }
+
+      // Simulate successful submission
+      alert('Account created! Please check your email to verify your account.');
+    });
   }
 
-  /* ---------- Form Validation ---------- */
-  const form = document.getElementById('signupForm');
-  const passwordError = document.getElementById('passwordError');
+  /* ==========================================================================
+     3. LOGIN PAGE SPECIFIC SCRIPTS
+     ========================================================================== */
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    const loginRoleButtons = document.querySelectorAll('#roleSelector .role-btn, #roleSelector .role-tab');
+    const loginInfoText = document.getElementById('infoText');
+    const loginIdLabel = document.getElementById('loginIdLabel') || document.querySelector('label[for="studentNumber"]');
+    const loginIdInput = document.getElementById('studentNumber');
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
+    const roleConfigs = {
+      student: {
+        label: 'PUP Student Number',
+        placeholder: 'e.g. 2000-00000-BN-0',
+        info: 'Use your assigned Student Number (<strong>@iskolarngbayan.pup.edu.ph</strong>) for lab slot access.'
+      },
+      faculty: {
+        label: 'PUP Faculty Webmail / Employee ID',
+        placeholder: 'e.g. j.casalla@pup.edu.ph',
+        info: 'Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong> for classroom reservation control.'
+      },
+      admin: {
+        label: 'PUP Administrator Webmail / ID',
+        placeholder: 'e.g. admin.ccis@pup.edu.ph',
+        info: 'Authorized Canlalay Campus Administrators & IT Staff portal access. Use your official <strong>@pup.edu.ph</strong> email.'
+      }
+    };
 
-    const password = document.getElementById('password').value;
-    const confirmPassword = document.getElementById('confirmPassword').value;
-    const terms = document.getElementById('terms').checked;
+    if (loginRoleButtons.length > 0) {
+      loginRoleButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Update active state
+          loginRoleButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
 
-    // Reset error
-    passwordError.classList.add('hidden');
+          const role = btn.dataset.role;
+          const config = roleConfigs[role];
 
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      passwordError.classList.remove('hidden');
-      return;
+          if (config) {
+            if (loginInfoText) loginInfoText.innerHTML = config.info;
+            if (loginIdLabel) loginIdLabel.textContent = config.label;
+            if (loginIdInput) loginIdInput.placeholder = config.placeholder;
+          }
+        });
+      });
     }
 
-    // Validate terms
-    if (!terms) {
-      alert('Please agree to the Terms of Service and Privacy Policy.');
-      return;
-    }
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
 
-    // Simulate successful submission
-    alert('Account created! Please check your email to verify your account.');
-    // In real app: form.submit() or fetch() to backend
-  });
+      const idVal = loginIdInput?.value?.trim();
+      const pwdVal = document.getElementById('password')?.value;
+
+      if (!idVal) {
+        alert('Please enter your institutional ID / Webmail.');
+        return;
+      }
+      if (!pwdVal) {
+        alert('Please enter your portal password.');
+        return;
+      }
+
+      const activeBtn = document.querySelector('#roleSelector .role-btn.active, #roleSelector .role-tab.active');
+      const activeRole = activeBtn?.dataset?.role || 'student';
+
+      alert(`Logging in as ${idVal} (${activeRole.toUpperCase()})... Directing to dashboard.`);
+
+      if (activeRole === 'admin') {
+        window.location.href = 'admin-dashboard.html';
+      } else {
+        window.location.href = 'student-dashboard.html';
+      }
+    });
+  }
+
 });

@@ -1,17 +1,18 @@
 /* ==========================================================================
-   PUP-CITE CCIS Shared Portal Stylesheet
+   PUP Canlalay Campus Shared Portal Stylesheet
    ========================================================================== */
 
 /* Base & Typography Settings */
 body {
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Noto Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  color: #111111;
   -webkit-font-smoothing: antialiased;
 }
 
 /* Common Form Input Focus State */
 .input-field:focus {
-  border-color: #800000;
-  box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
+  border-color: #880000;
+  box-shadow: 0 0 0 3px rgba(136, 0, 0, 0.15);
 }
 
 /* Smooth transition for information banners */
@@ -20,22 +21,23 @@ body {
 }
 
 /* ==========================================================================
-   SIGN-UP PAGE SPECIFIC STYLES (.role-btn)
+   ROLE SELECTOR BUTTON STYLES (.role-btn)
    ========================================================================== */
 .role-btn {
   border-color: #d1d5db;
   background-color: #ffffff;
   color: #374151;
+  border-radius: 3px;
 }
 
 .role-btn:hover {
-  border-color: #800000;
-  color: #800000;
+  border-color: #880000;
+  color: #880000;
 }
 
 .role-btn.active {
-  background-color: #800000;
-  border-color: #800000;
+  background-color: #880000;
+  border-color: #880000;
   color: #ffffff;
 }
 
