@@ -15,7 +15,7 @@
 
 <!-- Lucide Icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="assets/css/style.css" />
 
 
 
@@ -27,8 +27,8 @@
 <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#D1D5DB] shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
 <!-- Brand Logo & Title -->
-    <a href="#" class="flex items-center gap-3.5 group">
-        <img src="assets/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 rounded-[3px] shadow-sm">
+    <a href="index.html" class="flex items-center gap-3.5 group">
+        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 rounded-[3px] shadow-sm">
         <div>
         <div class="text-[#880000] font-bold text-lg leading-tight tracking-tight flex items-center gap-1">
             PUP - Canlalay Campus
@@ -79,59 +79,64 @@
 <main class="flex-grow">
     
     <!-- ================= HERO SECTION ================= -->
-    <section id="home" class="relative bg-gradient-to-b from-white via-slate-50 to-[#F8FAFC] py-16 md:py-24 border-b border-[#E5E7EB] overflow-hidden">
-      <!-- Background Graphic Accents -->
-      <div class="absolute -right-16 -top-16 w-96 h-96 bg-[#880000]/5 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -left-16 bottom-0 w-80 h-80 bg-[#FFD658]/20 rounded-full blur-2xl pointer-events-none"></div>
+    <!-- ================= HERO SECTION ================= -->
+<section id="home" class="relative min-h-[calc(100vh-5rem)] flex flex-col justify-center bg-gradient-to-b from-white via-slate-50 to-[#F8FAFC] py-12 md:py-16 border-b border-[#E5E7EB] overflow-hidden">
+  <!-- Background Graphic Accents -->
+  <div class="absolute -right-16 -top-16 w-96 h-96 bg-[#880000]/5 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="absolute -left-16 bottom-0 w-80 h-80 bg-[#FFD658]/20 rounded-full blur-2xl pointer-events-none"></div>
 
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
-          <!-- Hero Text Content -->
-          <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-[3px] bg-[#880000]/10 border border-[#880000]/20 text-[#880000] text-xs font-semibold">
-              <i data-lucide="shield-check" class="w-4 h-4"></i>
-              Official PUP Canlalay Campus Facility Portal
-            </div>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative w-full">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      
+      <!-- Hero Text Content -->
+      <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+        <!-- System / Site Name -->
+        <div class="inline-flex items-center gap-3 px-4 py-2 rounded-[4px] bg-[#880000] text-white shadow-md">
+          <span class="text-base sm:text-lg font-black tracking-widest uppercase">PUP CRS</span>
+          <span class="text-white/30 font-light">|</span>
+          <span class="text-xs font-semibold tracking-wide text-slate-100 uppercase">The official Classroom Reservation System for PUP - Canlalay Campus</span>
+        </div>
 
-            <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#111111] tracking-tight leading-tight">
-              Seamless Classroom & Facility Reservations for <span class="text-[#880000]">PUPians</span>
-            </h1>
+        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#111111] tracking-tight leading-tight">
+          Seamless Classroom & Facility Reservations for <span class="text-[#880000]">PUPians</span>
+        </h1>
 
-            <p class="text-base sm:text-lg text-[#4B5563] leading-relaxed max-w-2xl mx-auto lg:mx-0">
-              Check real-time room availability, reserve academic lecture halls, and manage facility approvals with our centralized campus management platform.
-            </p>
+        <p class="text-base sm:text-lg text-[#4B5563] leading-relaxed max-w-2xl mx-auto lg:mx-0">
+          Check real-time room availability, reserve academic lecture halls, and manage facility approvals with our centralized campus management platform.
+        </p>
 
-            <!-- Call to Action CTAs -->
-            <div class="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-              <a href="login.html" class="w-full sm:w-auto bg-[#880000] hover:bg-[#5c0000] text-white text-base font-semibold px-6 py-3 rounded-[3px] shadow-md transition flex items-center justify-center gap-2">
-                <i data-lucide="key-round" class="w-5 h-5"></i>
-                Log In to Reserve
-              </a>
-              <a href="#instructions" class="w-full sm:w-auto role-btn px-6 py-3 border text-base font-semibold transition flex items-center justify-center gap-2">
-                <i data-lucide="help-circle" class="w-5 h-5 text-[#880000]"></i>
-                Reservation Guide
-              </a>
-            </div>
+        <!-- Call to Action CTAs -->
+        <div class="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+          <a href="login.html" class="w-full sm:w-auto bg-[#880000] hover:bg-[#5c0000] text-white text-base font-semibold px-6 py-3 rounded-[3px] shadow-md transition flex items-center justify-center gap-2">
+            <i data-lucide="key-round" class="w-5 h-5"></i>
+            Log In to Reserve
+          </a>
+          <a href="#instructions" class="w-full sm:w-auto role-btn px-6 py-3 border text-base font-semibold transition flex items-center justify-center gap-2">
+            <i data-lucide="help-circle" class="w-5 h-5 text-[#880000]"></i>
+            Reservation Guide
+          </a>
+        </div>
 
-            <!-- Key System Stats -->
-            <div class="pt-8 grid grid-cols-3 gap-4 border-t border-[#E5E7EB]">
-              <div>
-                <p class="text-2xl sm:text-3xl font-bold text-[#880000]">30+</p>
-                <p class="text-xs sm:text-sm text-[#4B5563]">Classrooms & Labs</p>
-              </div>
-              <div>
-                <p class="text-2xl sm:text-3xl font-bold text-[#880000]">100%</p>
-                <p class="text-xs sm:text-sm text-[#4B5563]">Digital Approval Workflow</p>
-              </div>
-              <div>
-                <p class="text-2xl sm:text-3xl font-bold text-[#880000]">24/7</p>
-                <p class="text-xs sm:text-sm text-[#4B5563]">Schedule Access</p>
-              </div>
-            </div>
+        <!-- Key System Stats -->
+        <div class="pt-8 grid grid-cols-3 gap-4 border-t border-[#E5E7EB]">
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-[#880000]">30+</p>
+            <p class="text-xs sm:text-sm text-[#4B5563]">Classrooms & Labs</p>
           </div>
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-[#880000]">100%</p>
+            <p class="text-xs sm:text-sm text-[#4B5563]">Digital Approval Workflow</p>
+          </div>
+          <div>
+            <p class="text-2xl sm:text-3xl font-bold text-[#880000]">24/7</p>
+            <p class="text-xs sm:text-sm text-[#4B5563]">Schedule Access</p>
+          </div>
+        </div>
       </div>
-    </section>
+
+    </div>
+  </div>
+</section>
 
     <!-- ================= HOW TO RESERVE A ROOM (INSTRUCTIONS) ================= -->
     <section id="instructions" class="py-16 md:py-20 bg-white border-b border-[#E5E7EB]">
@@ -396,51 +401,51 @@
   </main>
 
   <!-- ================= FOOTER ================= -->
-  <footer class="bg-[#111111] text-white border-t-4 border-[#880000]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
-        
+<footer class="bg-[#111111] text-white border-t-4 border-[#880000]">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+      
+      <!-- Column 1: Brand Logo & Summary (5 cols) -->
+      <div class="md:col-span-5 space-y-4">
         <div class="flex items-center gap-3">
-            <img src="assets/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 rounded-[3px] shadow-sm">
-            <span class="font-bold text-lg text-white">PUP - Canlalay CRS</span>
-          </div><!-- Brand Summary -->
-        <div class="md:col-span-5 space-y-4">
-          
-          <p class="text-xs text-gray-400 leading-relaxed max-w-sm">
-            The official Classroom & Facility Reservation System of Polytechnic University of the Philippines – Canlalay Campus. Digitalizing academic scheduling for students and faculty.
-          </p>
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 rounded-[3px] shadow-sm">
+          <span class="font-bold text-lg text-white">PUP - Canlalay CRS</span>
         </div>
-
-        <!-- Quick Links -->
-        <div class="md:col-span-3 space-y-3">
-          <h4 class="text-sm font-bold text-[#FFD658] uppercase tracking-wider">Quick Links</h4>
-          <ul class="space-y-2 text-xs text-gray-300">
-            <li><a href="#home" class="hover:text-white transition">Home</a></li>
-            <li><a href="#instructions" class="hover:text-white transition">How to Reserve</a></li>
-            <li><a href="#features" class="hover:text-white transition">System Features</a></li>
-            <li><a href="#about" class="hover:text-white transition">About Us</a></li>
-          </ul>
-        </div>
-
-        <!-- Account Access -->
-        <div class="md:col-span-4 space-y-3">
-          <h4 class="text-sm font-bold text-[#FFD658] uppercase tracking-wider">Portal Access</h4>
-          <p class="text-xs text-gray-400">Log in or create a new account to manage room reservations.</p>
-          <div class="flex gap-2 pt-1">
-            <a href="login.html" class="role-btn px-3 py-1.5 text-xs font-semibold">Log In</a>
-            <a href="signup.html" class="bg-[#880000] hover:bg-[#5c0000] text-white px-3 py-1.5 rounded-[3px] text-xs font-semibold transition">Register Account</a>
-          </div>
-        </div>
-
+        <p class="text-xs text-gray-400 leading-relaxed max-w-sm">
+          The official Classroom & Facility Reservation System of Polytechnic University of the Philippines – Canlalay Campus. Digitalizing academic scheduling for students and faculty.
+        </p>
       </div>
 
-      <div class="mt-10 pt-6 border-t border-gray-800 text-center text-xs text-gray-500">
-        <p>&copy; 2026 Polytechnic University of the Philippines – Canlalay Campus. All rights reserved.</p>
+      <!-- Column 2: Quick Links (3 cols) -->
+      <div class="md:col-span-3 space-y-3">
+        <h4 class="text-sm font-bold text-[#FFD658] uppercase tracking-wider">Quick Links</h4>
+        <ul class="space-y-2 text-xs text-gray-300">
+          <li><a href="#home" class="hover:text-white transition">Home</a></li>
+          <li><a href="#instructions" class="hover:text-white transition">How to Reserve</a></li>
+          <li><a href="#features" class="hover:text-white transition">System Features</a></li>
+          <li><a href="#about" class="hover:text-white transition">About Us</a></li>
+        </ul>
       </div>
+
+      <!-- Column 3: Portal Access (4 cols) -->
+      <div class="md:col-span-4 space-y-3">
+        <h4 class="text-sm font-bold text-[#FFD658] uppercase tracking-wider">Portal Access</h4>
+        <p class="text-xs text-gray-400">Log in or create a new account to manage room reservations.</p>
+        <div class="flex gap-2 pt-1">
+          <a href="login.html" class="role-btn px-3 py-1.5 text-xs font-semibold">Log In</a>
+          <a href="signup.html" class="bg-[#880000] hover:bg-[#5c0000] text-white px-3 py-1.5 rounded-[3px] text-xs font-semibold transition">Register Account</a>
+        </div>
+      </div>
+
     </div>
-  </footer>
+
+    <div class="mt-10 pt-6 border-t border-gray-800 text-center text-xs text-gray-500">
+      <p>&copy; 2026 Polytechnic University of the Philippines – Canlalay Campus. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
 
 
-  <script src="script.js"></script>
+  <script src="assets/js/script.js"></script>
 </body>
 </html>
