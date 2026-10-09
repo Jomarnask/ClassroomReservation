@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // Simulate successful submission
-      alert('Account created! Please check your email to verify your account.');
+      alert('Account created! Please wait for Admin approval to verify your account.');
     });
   }
 
