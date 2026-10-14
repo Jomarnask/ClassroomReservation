@@ -1,4 +1,36 @@
-﻿(() => {
+﻿// ===== Admin Dashboard Session Guard & Dynamic Profile =====
+async function checkAdminSession() {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+  // 1. Redirect if no active session exists
+  if (!session || error) {
+    alert('Access restricted. Please log in with an Administrator account.');
+    window.location.href = 'login.html';
+    return;
+  }
+
+  const user = session.user;
+  const userMeta = user.user_metadata || {};
+
+  // 2. Prevent non-admins (Students/Faculty) from accessing the admin panel
+  if (userMeta.role !== 'admin') {
+    alert('Unauthorized access. Admin privileges required.');
+    window.location.href = 'student-dashboard.html';
+    return;
+  }
+
+  // 3. Populate Admin Dashboard Banner elements dynamically
+  const bannerHeading = document.querySelector('.banner h1');
+  if (bannerHeading && userMeta.full_name) {
+    bannerHeading.textContent = `Welcome back, ${userMeta.full_name}!`;
+  }
+}
+
+// Execute session check immediately when the document is ready
+document.addEventListener('DOMContentLoaded', checkAdminSession);
+
+
+(() => {
   "use strict";
 
   // Facility rooms get a small icon instead of a plain number

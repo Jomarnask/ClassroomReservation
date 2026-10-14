@@ -47,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
       signupRoleButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
-          // Update active state
           signupRoleButtons.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
 
@@ -64,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Password strength meter (Sign-up only)
+    // Password strength meter
     const passwordInput = document.getElementById('password');
     const strengthBar = document.getElementById('strengthBar');
     const strengthLabel = document.getElementById('strengthLabel');
@@ -74,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const value = passwordInput.value;
         const strength = calculateStrength(value);
 
-        // Reset classes
         strengthBar.classList.remove('strength-weak', 'strength-medium', 'strength-strong');
 
         if (value.length === 0) {
@@ -114,33 +112,65 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Form submission validation (Sign-up)
-    const passwordError = document.getElementById('passwordError');
-
-    signupForm.addEventListener('submit', (e) => {
+    // Form submission with Supabase Auth Integration
+    signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      const fullName = document.getElementById('fullName')?.value.trim();
+      const studentNumber = document.getElementById('studentNumber')?.value.trim();
+      const email = document.getElementById('email')?.value.trim();
       const password = document.getElementById('password')?.value;
       const confirmPassword = document.getElementById('confirmPassword')?.value;
+      const program = document.getElementById('program')?.value;
+      const rawYearLevel = document.getElementById('yearLevel')?.value;
+      const rawSection = document.getElementById('section')?.value;
       const terms = document.getElementById('terms')?.checked;
 
-      // Reset error
-      if (passwordError) passwordError.classList.add('hidden');
+      const activeBtn = document.querySelector('#roleSelector .role-btn.active');
+      const role = activeBtn?.dataset?.role || 'student';
 
-      // Validate passwords match
       if (password !== confirmPassword) {
-        if (passwordError) passwordError.classList.remove('hidden');
+        alert('Passwords do not match.');
         return;
       }
 
-      // Validate terms
       if (!terms) {
         alert('Please agree to the Terms of Service and Privacy Policy.');
         return;
       }
 
-      // Simulate successful submission
-      alert('Account created! Please wait for Admin approval to verify your account.');
+      // Parse year level and section into smallint digits
+      const yearLevel = role === 'student' ? parseInt(rawYearLevel, 10) || null : null;
+      const section = role === 'student' ? parseInt(rawSection, 10) || null : null;
+
+      try {
+        const { data, error } = await supabaseClient.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            data: {
+              full_name: fullName,
+              student_number: role === 'student' ? studentNumber : 'N/A',
+              role: role,
+              program: role === 'student' ? program : null,
+              year_level: yearLevel,
+              section: section,
+            }
+          }
+        });
+
+        if (error) {
+          alert(`Registration Error: ${error.message}`);
+          return;
+        }
+
+        alert('Account created successfully! Redirecting to login page...');
+        window.location.href = 'login.html';
+
+      } catch (err) {
+        console.error('Unexpected Signup Error:', err);
+        alert(`An error occurred during registration: ${err.message || err}`);
+      }
     });
   }
 
@@ -156,19 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const roleConfigs = {
       student: {
-        label: 'PUP Student Number',
-        placeholder: 'e.g. 2000-00000-BN-0',
-        info: 'Use your assigned <strong>Student Number</strong> for lab slot access.'
+        label: 'PUP Webmail / Student Number',
+        placeholder: 'e.g. jamesivanscasalla@iskolarngbayan.pup.edu.ph or 2022-00000-BN-0',
+        info: 'Use your registered <strong>PUP Webmail</strong> or <strong>Student Number</strong> to sign in.'
       },
       faculty: {
-        label: 'PUP Faculty Webmail / Employee ID',
+        label: 'PUP Faculty Webmail',
         placeholder: 'e.g. faculty.canlalay@pup.edu.ph',
-        info: 'Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong> for classroom reservation control.'
+        info: 'Faculty accounts authenticate via PUP webmail <strong>@pup.edu.ph</strong>.'
       },
       admin: {
-        label: 'PUP Administrator Webmail / ID',
+        label: 'PUP Administrator Webmail',
         placeholder: 'e.g. admin.canlalay@pup.edu.ph',
-        info: 'Authorized Canlalay Campus Administrators & IT Staff portal access. Use your official <strong>@pup.edu.ph</strong> webmail.'
+        info: 'Authorized Administrators & IT Staff portal access.'
       }
     };
 
@@ -176,7 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
       loginRoleButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.preventDefault();
-          // Update active state
           loginRoleButtons.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
 
@@ -192,46 +221,73 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const idVal = loginIdInput?.value?.trim();
+      const userInput = loginIdInput?.value?.trim();
       const pwdVal = document.getElementById('password')?.value;
 
-      if (!idVal) {
-        alert('Please enter your institutional ID / Webmail.');
-        return;
-      }
-      if (!pwdVal) {
-        alert('Please enter your portal password.');
+      if (!userInput || !pwdVal) {
+        alert('Please enter your credentials.');
         return;
       }
 
-      const activeBtn = document.querySelector('#roleSelector .role-btn.active, #roleSelector .role-tab.active');
-      const activeRole = activeBtn?.dataset?.role || 'student';
+      let authEmail = userInput;
 
-      alert(`Logging in as ${idVal} (${activeRole.toUpperCase()})... Directing to dashboard.`);
+      // If user typed a Student Number instead of an Email, resolve it from public.users
+      if (!userInput.includes('@')) {
+        const { data: userRecord, error: dbError } = await supabaseClient
+          .from('users')
+          .select('pup_webmail')
+          .eq('student_number', userInput)
+          .maybeSingle();
 
-      if (activeRole === 'admin') {
-        window.location.href = 'admin-dashboard.html';
-      } else {
-        window.location.href = 'student-dashboard.html';
+        if (dbError || !userRecord) {
+          alert('No account found matching that Student Number.');
+          return;
+        }
+
+        authEmail = userRecord.pup_webmail;
+      }
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email: authEmail,
+          password: pwdVal,
+        });
+
+        if (error) {
+          console.error('Login error:', error.status, error.code, error.message);
+          alert(`Login Failed: ${error.message}`);
+          return;
+        }
+
+        const activeBtn = document.querySelector('#roleSelector .role-btn.active, #roleSelector .role-tab.active');
+        const selectedRole = activeBtn?.dataset?.role || data.user?.user_metadata?.role || 'student';
+
+        alert(`Login Successful! Redirecting to dashboard...`);
+
+        if (selectedRole === 'admin') {
+          window.location.href = 'admin-dashboard.html';
+        } else {
+          window.location.href = 'student-dashboard.html';
+        }
+
+      } catch (err) {
+        console.error('Unexpected Login Error:', err);
+        alert('An error occurred during login. Please try again.');
       }
     });
   }
 
-    // Initialize Lucide Icons
-    lucide.createIcons();
+  // Mobile Navigation Toggle
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const mobileMenu = document.getElementById('mobileMenu');
 
-    // Mobile Navigation Toggle
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    const mobileMenu = document.getElementById('mobileMenu');
-
-    if (mobileMenuBtn && mobileMenu) {
-      mobileMenuBtn.addEventListener('click', () => {
-        mobileMenu.classList.toggle('hidden');
-      });
-    }
-
+  if (mobileMenuBtn && mobileMenu) {
+    mobileMenuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+  }
 
 });

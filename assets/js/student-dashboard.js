@@ -1,3 +1,44 @@
+// ===== Student Dashboard Session Guard & Dynamic Profile =====
+async function checkStudentSession() {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+  // 1. Redirect if no active session exists
+  if (!session || error) {
+    alert('Access restricted. Please log in to view your dashboard.');
+    window.location.href = 'login.html';
+    return;
+  }
+
+  const user = session.user;
+  const userMeta = user.user_metadata || {};
+
+  // 2. Redirect admins to the admin panel if they try to access the student dashboard
+  if (userMeta.role === 'admin') {
+    window.location.href = 'admin-dashboard.html';
+    return;
+  }
+
+  // 3. Populate Student Dashboard Banner elements dynamically
+  const welcomeHeader = document.querySelector('h2');
+  const subtextPara = document.querySelector('h2 + p');
+
+  if (welcomeHeader && userMeta.full_name) {
+    welcomeHeader.textContent = `Welcome back, ${userMeta.full_name}!`;
+  }
+
+  if (subtextPara) {
+    const program = userMeta.program || 'BS Information Technology';
+    const year = userMeta.year_level ? `${userMeta.year_level}rd Year` : '';
+    const studentNum = userMeta.student_number || 'N/A';
+    subtextPara.textContent = `${program} • ${year} • Student ID: ${studentNum}`;
+  }
+}
+
+// Execute session check immediately when the document is ready
+document.addEventListener('DOMContentLoaded', checkStudentSession);
+
+
+
 document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('searchInput');
   const floorFilter = document.getElementById('floorFilter');
