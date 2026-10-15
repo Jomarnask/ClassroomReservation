@@ -164,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        alert('Account created successfully! Redirecting to login page...');
+        alert('Registration submitted! Your account will be active once an admin approves it.');
         window.location.href = 'login.html';
 
       } catch (err) {
@@ -276,9 +276,15 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        if (String(profile.account_status).toLowerCase() !== 'active') {
+        const status = String(profile.account_status).toLowerCase();
+        if (status !== 'active') {
           await supabaseClient.auth.signOut();
-          alert('Your account is not active yet.');
+          const msgs = {
+            pending: 'Your account is awaiting admin approval.',
+            rejected: 'Your registration was declined. Please contact the administrator.',
+            inactive: 'Your account has been deactivated. Please contact the administrator.'
+          };
+          alert(msgs[status] || 'Your account is not active.');
           return;
         }
 
