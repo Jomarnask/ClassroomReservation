@@ -1,4 +1,4 @@
-﻿// ===== Admin Dashboard Session Guard & Dynamic Profile =====
+// ===== Admin Dashboard Session Guard & Dynamic Profile =====
 async function checkAdminSession() {
   const { data: { session }, error } = await supabaseClient.auth.getSession();
 
