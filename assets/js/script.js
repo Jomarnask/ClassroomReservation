@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ==========================================================================
-     2. SIGN-UP PAGE SPECIFIC SCRIPTS
+     2. SIGN-UP PAGE SPECIFIC SCRIPTS (unchanged)
      ========================================================================== */
   const signupForm = document.getElementById('signupForm');
   if (signupForm) {
@@ -262,19 +262,44 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
+        // Read the REAL role from the database (not from the button, not from metadata)
+        const { data: profile, error: profileError } = await supabaseClient
+          .from('users')
+          .select('role, account_status')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        if (profileError || !profile) {
+          console.error('Profile lookup failed:', profileError);
+          await supabaseClient.auth.signOut();
+          alert('No profile found for this account. Please contact the administrator.');
+          return;
+        }
+
+        if (String(profile.account_status).toLowerCase() !== 'active') {
+          await supabaseClient.auth.signOut();
+          alert('Your account is not active yet.');
+          return;
+        }
+
+        // The role button the user clicked must match the real role
         const activeBtn = document.querySelector('#roleSelector .role-btn.active, #roleSelector .role-tab.active');
-        const selectedRole = activeBtn?.dataset?.role || data.user?.user_metadata?.role || 'student';
+        const selectedRole = activeBtn?.dataset?.role;
+        const realRole = String(profile.role).toLowerCase();
 
-        // Persist session details to localStorage for instant dashboard role detection
-        localStorage.setItem('user_role', selectedRole);
-        localStorage.setItem('pup_user', JSON.stringify({
-          email: authEmail,
-          role: selectedRole,
-          full_name: data.user?.user_metadata?.full_name || ''
-        }));
+        if (selectedRole && selectedRole !== realRole) {
+          await supabaseClient.auth.signOut();
+          alert(`This account is registered as ${realRole}, not ${selectedRole}. Please select the correct role.`);
+          return;
+        }
 
-        alert(`Login Successful! Redirecting to dashboard...`);
-        window.location.href = 'dashboard.html';
+        // Clear any stale values from the old version; the dashboard no longer uses them
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('pup_user');
+        localStorage.removeItem('demoRole');
+
+        alert('Login Successful! Redirecting to dashboard...');
+        window.location.replace('dashboard.html');
 
       } catch (err) {
         console.error('Unexpected Login Error:', err);

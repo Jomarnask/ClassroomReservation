@@ -1,11 +1,13 @@
 /**
  * PUP Canlalay Campus CRS - Role-Based Dashboard Engine
- * Automatically detects the logged-in user's role from Supabase Auth & DB tables,
- * and renders the matching dashboard view strictly adhering to the 3 reference screenshots and design.md.
- * 
- * Features:
- * - Limited to 3 preview items per section to maintain a clean, minimized dashboard layout.
- * - Prominent arrow redirect links for All Reservations, User Approvals, Logs, and Room Management.
+ *
+ * SECURITY CHANGES in this version:
+ * - Requires a valid Supabase session. No session -> redirect to login.html.
+ * - Role is read from public.users (by user_id), NOT from user_metadata or localStorage.
+ * - Account must be 'active'.
+ * - Removed the ?role= URL override, localStorage fallback and the 'Admin' default.
+ * - Any error fails closed (redirects to login) instead of showing a dashboard.
+ * - Signing out in another tab redirects this tab to login.
  */
 
 (function () {
@@ -27,8 +29,9 @@
   // 2. REPOSITORY & DATA STATE
   // ==========================================
   const State = {
-    detectedRole: 'Student', // 'Admin' | 'Faculty' | 'Student'
+    detectedRole: null, // 'Admin' | 'Faculty' | 'Student' (set only after verification)
     user: null,
+    profile: null,      // row from public.users
     isAuthenticated: false,
     notifications: [
       { id: 1, title: 'Room 402 Approved', message: 'Admin granted your reservation for Oct 27.', time: '10m ago', unread: true },
@@ -74,86 +77,58 @@
     ]
   };
 
-  // Helper for role normalization
+  // Escape text coming from the database before putting it in innerHTML
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  // Role normalization. Unknown values map to the LEAST privileged role.
   function normalizeRole(raw) {
     if (!raw) return 'Student';
     const r = String(raw).trim().toLowerCase();
-    if (r.includes('admin') || r.includes('super')) return 'Admin';
-    if (r.includes('faculty') || r.includes('teacher') || r.includes('manager') || r.includes('instructor')) return 'Faculty';
-    if (r.includes('student') || r.includes('client') || r.includes('user')) return 'Student';
+    if (r === 'admin' || r === 'super admin' || r === 'superadmin') return 'Admin';
+    if (r === 'faculty') return 'Faculty';
     return 'Student';
   }
 
   // ==========================================
-  // 3. AUTOMATIC SESSION & ROLE DETECTION
+  // 3. SESSION & ROLE VERIFICATION
+  // Returns null when the visitor is NOT a valid, active, signed-in user.
   // ==========================================
   async function detectUserRole() {
-    let role = null;
-    let user = null;
+  if (!client || !client.auth) { console.error('GUARD: no supabase client'); return null; }
 
-    // 1. Direct URL Parameter Override (e.g. ?role=admin, ?role=faculty, ?role=student for developer QA)
-    const urlParams = new URLSearchParams(window.location.search);
-    const paramRole = urlParams.get('role');
-    if (paramRole) {
-      role = normalizeRole(paramRole);
-      return { role, user: null, isAuthenticated: false };
-    }
+  const { data: { session }, error } = await client.auth.getSession();
+  if (error || !session || !session.user) {
+    console.error('GUARD: no session', error);
+    return null;
+  }
 
-    // 2. Query Supabase Session with a safe 2-second timeout
-    if (client && client.auth) {
-      try {
-        const sessionPromise = client.auth.getSession();
-        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve({ data: { session: null } }), 2000));
-        const res = await Promise.race([sessionPromise, timeoutPromise]);
-        
-        if (res && res.data && res.data.session && res.data.session.user) {
-          user = res.data.session.user;
-          role = user.user_metadata?.role;
+  const user = session.user;
+  console.log('GUARD: session ok, user id =', user.id);
 
-          // If role isn't in user_metadata, check profiles table
-          if (!role) {
-            try {
-              const { data: profile } = await client
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .maybeSingle();
-              if (profile && profile.role) role = profile.role;
-            } catch (e) {
-              console.warn('Profiles table check skipped:', e);
-            }
-          }
+  const { data: profile, error: profileError } = await client
+    .from('users')
+    .select('full_name, role, account_status, student_number, program_course, pup_webmail')
+    .eq('user_id', user.id)
+    .maybeSingle();
 
-          // If still not found, check users table
-          if (!role) {
-            try {
-              const { data: userRecord } = await client
-                .from('users')
-                .select('role')
-                .eq('id', user.id)
-                .maybeSingle();
-              if (userRecord && userRecord.role) role = userRecord.role;
-            } catch (e) {
-              console.warn('Users table check skipped:', e);
-            }
-          }
-        }
-      } catch (authError) {
-        console.warn('Supabase auth session fetch error:', authError);
-      }
-    }
+  if (profileError) { console.error('GUARD: profile query error', profileError); return null; }
+  if (!profile) { console.error('GUARD: no row in public.users for user_id', user.id); return null; }
+  console.log('GUARD: profile =', profile);
 
-    // 3. Fallback to localStorage / sessionStorage if user logged in previously
-    if (!role) {
-      role = localStorage.getItem('user_role') || sessionStorage.getItem('user_role') || localStorage.getItem('demoRole');
-    }
+  if (String(profile.account_status).toLowerCase() !== 'active') {
+    console.error('GUARD: account_status is', profile.account_status);
+    return null;
+  }
 
-    const finalRole = normalizeRole(role || 'Admin');
-    return {
-      role: finalRole,
-      user,
-      isAuthenticated: !!user,
-    };
+  return { role: normalizeRole(profile.role), user, profile };
+}
+
+  function goToLogin() {
+    window.location.replace('login.html');
   }
 
   // ==========================================
@@ -161,32 +136,48 @@
   // ==========================================
   async function initDashboard() {
     try {
-      const { role, user, isAuthenticated } = await detectUserRole();
+      const result = await detectUserRole();
+
+      if (!result) {
+        // Not signed in / no profile / inactive: clear any stale session and leave.
+        if (client && client.auth) {
+          try { await client.auth.signOut(); } catch (e) { /* ignore */ }
+        }
+        return goToLogin();
+      }
+
+      const { role, user, profile } = result;
       State.detectedRole = role;
       State.user = user;
-      State.isAuthenticated = isAuthenticated;
+      State.profile = profile;
+      State.isAuthenticated = true;
 
-      // Update Header Avatar & Meta Information
       updateHeaderUserMeta(role, user);
-
-      // Render the matching Top Navbar (strictly matching the 3 screenshots)
       renderNavbarForRole(role);
-
-      // Render the matching Main Dashboard View (minimized to 3 items per section with arrow links)
       renderViewForRole(role, user);
-
-      // Populate Notifications
       renderNotifications();
-
-      // Attach Global Interactive Handlers
       setupEventHandlers();
+
+      // Reveal the page only after the check passed (body is hidden by CSS until now)
+      document.body.style.visibility = 'visible';
 
     } catch (err) {
       console.error('Fatal dashboard initialization error:', err);
-      renderNavbarForRole('Student');
-      renderStudentView(document.getElementById('dashboardRoot'), null);
+      goToLogin(); // fail closed
     }
   }
+
+  // If the user signs out in another tab, kick this tab to login too.
+  if (client && client.auth) {
+    client.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') goToLogin();
+    });
+  }
+
+  // Back/forward cache can show a stale dashboard after logout; force a re-check.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) window.location.reload();
+  });
 
   // ==========================================
   // 5. HEADER & PROFILE DISPLAY
@@ -198,52 +189,42 @@
     const roleEl = document.getElementById('profileDropdownRole');
     const statusText = document.getElementById('sessionStatusText');
     const roleBadge = document.getElementById('currentRoleBadge');
+    const roomMgmtLink = document.getElementById('linkRoomManagement');
 
-    let initials = 'ST';
-    let defaultName = 'Danilo Santos';
-    let defaultEmail = 'student.santos@iskolarngbayan.pup.edu.ph';
+    const fullName = State.profile?.full_name || user?.user_metadata?.full_name || 'PUP User';
+    const email = user?.email || State.profile?.pup_webmail || '';
 
-    if (role === 'Admin') {
-      initials = 'AD';
-      defaultName = 'Engr. Roberto Cruz';
-      defaultEmail = 'admin.canlalay@pup.edu.ph';
-    } else if (role === 'Faculty') {
-      initials = 'FC';
-      defaultName = 'Dr. Alicia Reyes';
-      defaultEmail = 'faculty.reyes@pup.edu.ph';
-    }
-
-    const fullName = user?.user_metadata?.full_name || localStorage.getItem('user_name') || defaultName;
-    const email = user?.email || defaultEmail;
+    // Initials from the real name (e.g. "Casalla, James Ivan S." -> "CJ")
+    const initials = fullName
+      .replace(/[^A-Za-z\s,]/g, '')
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0].toUpperCase())
+      .join('') || role.slice(0, 2).toUpperCase();
 
     if (avatarEl) avatarEl.textContent = initials;
     if (nameEl) nameEl.textContent = fullName;
     if (emailEl) emailEl.textContent = email;
     if (roleEl) roleEl.textContent = `Role: ${role}`;
+    if (roleBadge) roleBadge.textContent = `Role: ${role}`;
 
-    if (roleBadge) {
-      roleBadge.textContent = `Role: ${role}`;
-    }
+    // Room Management is admin-only
+    if (roomMgmtLink) roomMgmtLink.classList.toggle('hidden', role !== 'Admin');
 
     if (statusText) {
-      if (State.isAuthenticated && user) {
-        statusText.innerHTML = `Connected via Supabase Auth &bull; Logged in as <strong>${email}</strong> &bull; Role: <strong>${role}</strong>`;
-      } else {
-        statusText.innerHTML = `Active Session: <strong>${role} Dashboard</strong> &bull; Polytechnic University of the Philippines &bull; Canlalay Campus`;
-      }
+      statusText.innerHTML = `Connected via Supabase Auth &bull; Logged in as <strong>${esc(email)}</strong> &bull; Role: <strong>${esc(role)}</strong>`;
     }
   }
 
   // ==========================================
-  // 6. NAVBAR RENDERING (Mirroring the 3 Screenshots with Pipes)
-  // Dedicated Links for Room Management, All Reservations, User Approvals, Logs
+  // 6. NAVBAR RENDERING
   // ==========================================
   function renderNavbarForRole(role) {
     const nav = document.getElementById('roleNavLinks');
     if (!nav) return;
 
     if (role === 'Student') {
-      // Screenshot 1: PUP CRS | Dashboard | Browse Rooms | My Reservations
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
         <span class="text-white/60 font-light select-none">|</span>
@@ -252,7 +233,6 @@
         <a href="all-reservations.html" class="pup-nav-link">My Reservations</a>
       `;
     } else if (role === 'Faculty') {
-      // Screenshot 2: PUP CRS | Dashboard | Browse Rooms | Schedule
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
         <span class="text-white/60 font-light select-none">|</span>
@@ -261,7 +241,6 @@
         <a href="all-reservations.html" class="pup-nav-link">Schedule</a>
       `;
     } else {
-      // Screenshot 3: PUP CRS | Dashboard | Room Management | All Reservations | User Approvals | Logs
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
         <span class="text-white/60 font-light select-none">|</span>
@@ -287,7 +266,7 @@
       renderStudentView(root, user);
     } else if (role === 'Faculty') {
       renderFacultyView(root, user);
-    } else {
+    } else if (role === 'Admin') {
       renderAdminView(root, user);
     }
 
@@ -297,11 +276,12 @@
   }
 
   // ==========================================
-  // 8. STUDENTS VIEW (Matching Screenshot 1)
-  // Minimized to 3 items per section with arrow redirect icons
+  // 8. STUDENT VIEW
   // ==========================================
   function renderStudentView(container, user) {
-    const studentName = user?.user_metadata?.full_name || 'Danilo Santos';
+    const studentName = esc(State.profile?.full_name || 'Student');
+    const studentNo = esc(State.profile?.student_number || 'N/A');
+    const program = esc(State.profile?.program_course || 'PUP Student');
 
     container.innerHTML = `
       <!-- Welcome Header -->
@@ -309,7 +289,7 @@
         <div>
           <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">CITE ACADEMIC PORTAL &bull; FIRST SEMESTER</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${studentName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">BS Information Technology &bull; Student ID: 2022-04912-MN-0</p>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">${program} &bull; Student ID: ${studentNo}</p>
         </div>
         <div>
           <button type="button" onclick="window.openReservationModal()" class="btn-pup-primary text-xs shadow-sm">
@@ -319,14 +299,13 @@
         </div>
       </div>
 
-      <!-- SECTION 1: ASSIGNED ROOMS (Limited to 3 with Arrow Redirect) -->
+      <!-- SECTION 1: ASSIGNED ROOMS -->
       <div id="assigned-rooms" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Assigned Rooms</h3>
             <p class="text-xs text-gray-500">Official lecture rooms and specialized laboratories tagged to your enrolled courses</p>
           </div>
-          <!-- Arrow Redirect to All Reservations -->
           <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
             <span>Browse All Rooms</span>
             <span class="text-sm font-extrabold">&rarr;</span>
@@ -365,14 +344,13 @@
         </div>
       </div>
 
-      <!-- SECTION 2: ONGOING RESERVATION (Limited to 3 with Arrow Redirect) -->
+      <!-- SECTION 2: ONGOING RESERVATION -->
       <div id="ongoing-reservation" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Ongoing Reservation</h3>
             <p class="text-xs text-gray-500">Track real-time workflow status of active and submitted reservation tickets</p>
           </div>
-          <!-- Arrow Redirect to All Reservations -->
           <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#337ab7] hover:text-[#23527c] hover:underline transition">
             <span>View All My Tickets</span>
             <span class="text-sm font-extrabold">&rarr;</span>
@@ -389,11 +367,11 @@
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs text-[#880000] tracking-wide font-mono">${res.id}</span>
-                    <span class="font-bold text-sm text-[#111111]">${res.subject}</span>
+                    <span class="font-bold text-xs text-[#880000] tracking-wide font-mono">${esc(res.id)}</span>
+                    <span class="font-bold text-sm text-[#111111]">${esc(res.subject)}</span>
                   </div>
-                  <p class="text-xs text-gray-600 mt-0.5">${res.room}</p>
-                  <p class="text-[11px] text-gray-500">Faculty: ${res.faculty} &bull; ${res.date} &bull; ${res.time}</p>
+                  <p class="text-xs text-gray-600 mt-0.5">${esc(res.room)}</p>
+                  <p class="text-[11px] text-gray-500">Faculty: ${esc(res.faculty)} &bull; ${esc(res.date)} &bull; ${esc(res.time)}</p>
                 </div>
                 <div>
                   <span class="inline-flex text-[11px] font-bold px-2.5 py-1 rounded-[3px] border ${
@@ -401,7 +379,7 @@
                     res.statusType === 'pending' ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]' :
                     'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]'
                   }">
-                    ${res.status}
+                    ${esc(res.status)}
                   </span>
                 </div>
               </div>
@@ -427,11 +405,10 @@
   }
 
   // ==========================================
-  // 9. FACULTY VIEW (Matching Screenshot 2)
-  // Minimized to 3 items per section with arrow redirect icons
+  // 9. FACULTY VIEW
   // ==========================================
   function renderFacultyView(container, user) {
-    const facultyName = user?.user_metadata?.full_name || 'Dr. Alicia Reyes';
+    const facultyName = esc(State.profile?.full_name || 'Faculty');
 
     container.innerHTML = `
       <!-- Welcome Header -->
@@ -439,7 +416,7 @@
         <div>
           <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">FACULTY CONSOLE &bull; FIRST SEMESTER</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome, ${facultyName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">Department of Computer Science &bull; Faculty ID: FAC-2019-0821</p>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus &bull; Faculty Account</p>
         </div>
         <div>
           <button type="button" onclick="window.openReservationModal()" class="btn-pup-primary text-xs shadow-sm">
@@ -449,14 +426,13 @@
         </div>
       </div>
 
-      <!-- SECTION 1: UPCOMING TAGGED CLASSES (Limited to 3 with Arrow Redirect) -->
+      <!-- SECTION 1: UPCOMING TAGGED CLASSES -->
       <div id="upcoming-tagged-classes" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Upcoming Tagged Classes</h3>
             <p class="text-xs text-gray-500">Regular lecture periods and laboratory classes tagged with your faculty assignment</p>
           </div>
-          <!-- Arrow Redirect to All Reservations -->
           <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
             <span>Full Schedule Details</span>
             <span class="text-sm font-extrabold">&rarr;</span>
@@ -498,14 +474,13 @@
         </div>
       </div>
 
-      <!-- SECTION 2: PENDING TAGGED CLASSES (Limited to 3 with Arrow Redirect) -->
+      <!-- SECTION 2: PENDING TAGGED CLASSES -->
       <div id="pending-tagged-classes" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Pending Tagged Classes</h3>
             <p class="text-xs text-gray-500">Student reservation requests requiring your professor endorsement prior to admin release</p>
           </div>
-          <!-- Arrow Redirect to User Approvals Queue -->
           <a href="user-approvals.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline transition">
             <span>Open Approvals Queue</span>
             <span class="text-sm font-extrabold">&rarr;</span>
@@ -544,12 +519,10 @@
   }
 
   // ==========================================
-  // 10. ADMIN VIEW (Matching Screenshot 3)
-  // Minimized to 3 items per section with arrow redirect icons
-  // Sections: "Total Rooms,", "Pending Approvals", "Active Bookings" (with grid), "Reservation History (Today)"
+  // 10. ADMIN VIEW
   // ==========================================
   function renderAdminView(container, user) {
-    const adminName = user?.user_metadata?.full_name || 'Engr. Roberto Cruz';
+    const adminName = esc(State.profile?.full_name || 'Administrator');
 
     container.innerHTML = `
       <!-- Welcome Header -->
@@ -570,10 +543,9 @@
         </div>
       </div>
 
-      <!-- TOP METRICS: "Total Rooms," and "Pending Approvals" (Matching Screenshot 3) -->
+      <!-- TOP METRICS -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        
-        <!-- Total Rooms, (Matching Screenshot 3) -->
+
         <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Rooms,</p>
@@ -591,7 +563,6 @@
           </div>
         </div>
 
-        <!-- Pending Approvals (Matching Screenshot 3) -->
         <div id="pending-approvals" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Approvals</p>
@@ -599,7 +570,6 @@
               <span class="text-3xl font-extrabold text-amber-600">7</span>
               <span class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Requires Review</span>
             </div>
-            <!-- Arrow Redirect to user-approvals.html -->
             <a href="user-approvals.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline mt-2">
               <span>Review User Approvals</span>
               <span class="text-sm font-extrabold">&rarr;</span>
@@ -612,8 +582,7 @@
 
       </div>
 
-      <!-- SECTION: ACTIVE BOOKINGS (Matching Screenshot 3 with Green Grid Visualizer) -->
-      <!-- Limited to 3 preview items with Arrow Redirect to all-reservations.html -->
+      <!-- SECTION: ACTIVE BOOKINGS -->
       <div id="active-bookings" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
           <div>
@@ -622,7 +591,6 @@
           </div>
 
           <div class="flex items-center gap-3">
-            <!-- Arrow Redirect to all-reservations.html -->
             <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
               <span>View All Reservations</span>
               <span class="text-sm font-extrabold">&rarr;</span>
@@ -631,15 +599,13 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          <!-- Green Grid Matrix Visualizer (Recreating Screenshot 3) -->
+
           <div class="lg:col-span-5 bg-slate-50 border border-emerald-300 rounded-[4px] p-4 flex flex-col items-center">
             <div class="text-xs font-bold text-gray-700 w-full mb-2 flex justify-between">
               <span>Campus Slot Matrix</span>
               <span class="text-emerald-700 font-bold">Live Synchronized</span>
             </div>
 
-            <!-- 10x10 Matrix strictly reproducing Screenshot 3 -->
             <div class="grid grid-cols-10 gap-1.5 p-2 bg-white border border-emerald-200 rounded-[3px] shadow-xs w-full max-w-xs">
               ${Array.from({ length: 100 }).map((_, idx) => {
                 const isOccupied = (idx % 7 === 0);
@@ -652,7 +618,6 @@
             <p class="text-[10px] text-gray-400 mt-2 text-center">Interactive 10x10 visual grid matrix across 4 campus floors</p>
           </div>
 
-          <!-- Active Bookings Summary (Limited to 3) -->
           <div class="lg:col-span-7 space-y-2.5">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-gray-700 uppercase tracking-wider block">Live Sessions (Showing Top 3)</span>
@@ -681,15 +646,13 @@
         </div>
       </div>
 
-      <!-- SECTION: RESERVATION HISTORY (TODAY) (Matching Screenshot 3) -->
-      <!-- Limited to 3 preview items with Arrow Redirect to logs.html -->
+      <!-- SECTION: RESERVATION HISTORY (TODAY) -->
       <div id="reservation-history" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Reservation History (Today)</h3>
             <p class="text-xs text-gray-500">Recent reservation events and clearance transactions (Showing 3 most recent)</p>
           </div>
-          <!-- Arrow Redirect to logs.html -->
           <div class="flex items-center gap-2">
             <a href="logs.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
               <span>View Complete Logs</span>
@@ -812,18 +775,18 @@
       });
     }
 
-    // 5. Sign Out
+    // 5. Sign Out (real sign out, then replace history entry so Back can't return)
     const btnSignOut = document.getElementById('btnSignOut');
     if (btnSignOut) {
       btnSignOut.addEventListener('click', async () => {
+        btnSignOut.disabled = true;
         if (client && client.auth) {
-          try { await client.auth.signOut(); } catch (e) {}
+          try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
         }
         localStorage.removeItem('user_role');
         localStorage.removeItem('demoRole');
         localStorage.removeItem('pup_user');
-        window.showToast('Signed out successfully. Redirecting...', 'info');
-        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+        goToLogin();
       });
     }
 
@@ -912,10 +875,10 @@
         <p class="text-[10px] text-gray-500 uppercase">Canlalay Campus &bull; Room Reservation Slip</p>
       </div>
       <div class="bg-gray-50 p-3 rounded-[3px] border border-gray-200 space-y-2 text-xs">
-        <div class="flex justify-between"><span class="text-gray-500">Pass Reference:</span><strong class="text-[#880000] font-mono">${res.id || res.ref || resId}</strong></div>
-        <div class="flex justify-between"><span class="text-gray-500">Facility:</span><strong class="text-gray-800">${res.room}</strong></div>
-        <div class="flex justify-between"><span class="text-gray-500">Subject:</span><strong class="text-gray-800">${res.subject || res.purpose}</strong></div>
-        <div class="flex justify-between"><span class="text-gray-500">Schedule:</span><span>${res.time || '10:00 AM - 1:00 PM'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Pass Reference:</span><strong class="text-[#880000] font-mono">${esc(res.id || res.ref || resId)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Facility:</span><strong class="text-gray-800">${esc(res.room)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Subject:</span><strong class="text-gray-800">${esc(res.subject || res.purpose)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Schedule:</span><span>${esc(res.time || '10:00 AM - 1:00 PM')}</span></div>
       </div>
       <div class="border-2 border-dashed border-gray-300 p-2 text-center rounded text-xs font-mono">
         ||| | ||||| || |||||| | ||||| ||| |||| |

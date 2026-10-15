@@ -49,7 +49,11 @@
   <link rel="stylesheet" href="assets/css/style.css" />
 
   <style>
-    /* Styling strictly aligned with design.md and the 3 Reference Screenshots */
+    /* AUTH GUARD: hide everything until dashboard.js confirms a valid session + role.
+       dashboard.js sets document.body.style.visibility = 'visible' once verified,
+       or redirects to login.html if the check fails. */
+    body { visibility: hidden; }
+
     :root {
       --pup-maroon: #880000;
       --pup-darkmaroon: #5c0000;
@@ -69,13 +73,11 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Top Red Navigation Bar matching the 3 screenshots */
     .pup-navbar-red {
       background-color: #880000;
       border-bottom: 2px solid #5c0000;
     }
 
-    /* Navigation link pills */
     .pup-nav-link {
       color: rgba(255, 255, 255, 0.9);
       font-weight: 500;
@@ -96,7 +98,6 @@
       border-bottom: 2px solid #ffd658;
     }
 
-    /* Buttons matching design.md 3px radius */
     .btn-pup-primary {
       background-color: #880000;
       color: #ffffff;
@@ -129,7 +130,6 @@
       color: #880000;
     }
 
-    /* Matrix Grid Cell matching Screenshot 3 */
     .schedule-grid-cell {
       aspect-ratio: 1;
       border-radius: 2px;
@@ -144,12 +144,11 @@
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
 
-  <!-- ================= TOP NAVBAR (Strictly matching the 3 Screenshots) ================= -->
-  <!-- Solid Red/Maroon Bar, "PUP CRS", Pipe-separated Navigation, Bell Icon, Solid Blue Avatar -->
+  <!-- ================= TOP NAVBAR ================= -->
   <header class="pup-navbar-red text-white sticky top-0 z-50 shadow-md">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-      
-      <!-- Left: Logo & Brand "PUP CRS" -->
+
+      <!-- Left: Logo & Brand -->
       <div class="flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="flex items-center gap-2.5 focus:outline-none">
           <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-9 h-9 object-contain drop-shadow" />
@@ -157,58 +156,50 @@
         </a>
       </div>
 
-      <!-- Center: Role-Specific Navigation Links (Strictly Mirroring Screenshots with Pipes) -->
+      <!-- Center: Role-Specific Navigation Links (filled by dashboard.js after role is verified) -->
       <nav id="roleNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
-        <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
-        <span class="text-white/50 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/50 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">My Reservations</a>
       </nav>
 
-      <!-- Right: Notification Bell & User Avatar (No Dropdown Role Button!) -->
+      <!-- Right: Notification Bell & User Avatar -->
       <div class="flex items-center gap-3 sm:gap-4 shrink-0">
-        
-        <!-- Notification Bell with Notification Drawer Toggle -->
+
+        <!-- Notification Bell -->
         <div class="relative">
           <button id="notifBellBtn" type="button" aria-label="Notifications" class="p-1.5 text-white hover:text-yellow-300 rounded focus:outline-none transition relative flex items-center justify-center">
-            <!-- Inline SVG Bell Icon so it ALWAYS displays regardless of CDN status -->
             <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
             </svg>
             <span id="notifBadge" class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#ffd658] border-2 border-[#880000] rounded-full"></span>
           </button>
 
-          <!-- Notification Dropdown Panel -->
           <div id="notifDropdown" class="hidden absolute right-0 mt-2 w-80 sm:w-96 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 overflow-hidden z-50">
             <div class="p-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
               <span class="text-xs font-bold uppercase tracking-wider text-gray-700">Notifications &amp; Alerts</span>
               <button id="btnMarkAllRead" type="button" class="text-[11px] text-[#337ab7] hover:underline font-semibold">Mark all read</button>
             </div>
             <div id="notifList" class="max-h-72 overflow-y-auto divide-y divide-gray-100 text-xs">
-              <!-- Dynamically rendered notification items -->
             </div>
           </div>
         </div>
 
-        <!-- User Profile Avatar: Solid Blue Circle with initials as in the 3 screenshots -->
+        <!-- User Profile Avatar -->
         <div class="relative">
           <button id="profileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs sm:text-sm flex items-center justify-center shadow focus:outline-none transition">
-            <span id="userAvatarText">ST</span>
+            <span id="userAvatarText">--</span>
           </button>
 
-          <!-- User Profile Dropdown Menu -->
           <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
             <div class="px-4 py-3 border-b border-gray-100">
               <p id="profileDropdownName" class="text-xs font-bold text-[#111111] truncate">PUP User</p>
               <p id="profileDropdownEmail" class="text-[11px] text-gray-500 truncate">user@pup.edu.ph</p>
               <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
-                <span id="profileDropdownRole">Role: Student</span>
+                <span id="profileDropdownRole">Role: --</span>
               </div>
             </div>
             <div class="py-1 text-xs">
-              <a href="room-management.html" id="linkRoomManagement" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">
+              <!-- Shown by dashboard.js for admins only -->
+              <a href="room-management.html" id="linkRoomManagement" class="hidden flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
                 Room Management
               </a>
@@ -231,21 +222,21 @@
     </div>
   </header>
 
-  <!-- ================= SUBTLE AUTHENTICATION STATUS BANNER ================= -->
+  <!-- ================= AUTHENTICATION STATUS BANNER ================= -->
   <div id="sessionStatusBar" class="bg-blue-50/80 border-b border-blue-200/60 text-[#1e40af] text-xs px-4 py-1.5 transition-all">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
       <div class="flex items-center gap-2 text-[11px] sm:text-xs">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         <span id="sessionStatusText">
-          Auto-detected user session &bull; Role-based dashboard initialized
+          Verifying session...
         </span>
       </div>
       <div class="flex items-center gap-2 text-[11px]">
         <span id="currentRoleBadge" class="font-bold text-[#880000] bg-white px-2 py-0.5 rounded-[3px] border border-blue-200">
-          Role: Student
+          Role: --
         </span>
         <a href="login.html" id="sessionActionLink" class="font-semibold text-[#337ab7] hover:underline">
-          Login Portal
+          Switch Account
         </a>
       </div>
     </div>
@@ -253,14 +244,12 @@
 
   <!-- ================= MAIN DASHBOARD CONTAINER ================= -->
   <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
-    
-    <!-- Dynamic Dashboard Content Root (Rendered based on detected role) -->
+
+    <!-- Dynamic Dashboard Content Root (rendered only after role is verified) -->
     <div id="dashboardRoot">
-      <!-- Loading indicator while checking Supabase auth -->
       <div id="loadingIndicator" class="bg-white p-12 rounded-[6px] border border-gray-200 shadow-sm text-center space-y-4">
         <div class="inline-block animate-spin w-8 h-8 border-4 border-[#880000] border-t-transparent rounded-full"></div>
-        <p class="text-sm font-semibold text-gray-700">Verifying Supabase user session and matching role...</p>
-        <p class="text-xs text-gray-400">Loading your customized PUP CRS dashboard</p>
+        <p class="text-sm font-semibold text-gray-700">Verifying your session...</p>
       </div>
     </div>
 
@@ -275,11 +264,9 @@
           <span class="font-semibold text-white">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS</span>
         </div>
         <div class="flex items-center gap-3 text-[11px]">
-          <a href="room-management.html" class="hover:text-white transition">Room Directory</a>
+          <a href="dashboard.html" class="hover:text-white transition">Dashboard</a>
           <span>&bull;</span>
-          <a href="student-dashboard.html" class="hover:text-white transition">Student Portal</a>
-          <span>&bull;</span>
-          <a href="login.html" class="hover:text-white transition">Login Page</a>
+          <a href="all-reservations.html" class="hover:text-white transition">Reservations</a>
           <span>&bull;</span>
           <span>&copy; 2026 PUP Canlalay Campus</span>
         </div>
@@ -341,7 +328,6 @@
         <button id="btnCloseSlipModal" type="button" class="text-white/80 hover:text-white">&times;</button>
       </div>
       <div class="p-6 space-y-4 text-xs" id="slipContent">
-        <!-- Rendered dynamically -->
       </div>
       <div class="p-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
         <button type="button" onclick="window.print()" class="btn-pup-secondary text-xs">Print Pass</button>
