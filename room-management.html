@@ -7,26 +7,63 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
   <link rel="stylesheet" href="assets/css/admin-dashboard.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="logo">
-      <div>
-        <div class="brand-title">PUP - Canlalay Campus</div>
-        <div class="brand-sub">Classroom & Facility Reservation System</div>
+  <!-- ================= TOP RED NAVBAR (Matching other admin pages) ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Name -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="flex items-center gap-2.5 focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-9 h-9 object-contain drop-shadow" />
+          <span class="text-lg sm:text-xl font-bold tracking-tight text-white uppercase">PUP CRS</span>
+        </a>
       </div>
+
+      <!-- Navigation Links with Pipes -->
+      <nav id="nav" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+        <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="room-management.html" class="pup-nav-item active">Room Management</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="all-reservations.html" class="pup-nav-item">All Reservations</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="user-approvals.html" class="pup-nav-item">User Approvals</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="logs.html" class="pup-nav-item">Logs</a>
+      </nav>
+
+      <!-- Right: Bell & Avatar -->
+      <div class="flex items-center gap-3 shrink-0">
+        <button id="navToggle" class="hidden" aria-label="Toggle navigation"></button>
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+        </a>
+        <div class="w-9 h-9 rounded-full bg-[#3b82f6] text-white font-bold text-xs flex items-center justify-center shadow">
+          AD
+        </div>
+      </div>
+
     </div>
-    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
-    <nav class="nav" id="nav">
-      <a href="index.html">Login/Portal</a>
-      <a href="student-dashboard.html">Student Dashboard</a>
-      <a href="#">Reserve Room</a>
-      <a href="#">Faculty Schedule</a>
-      <a href="#" class="active" aria-current="page">Admin Panel</a>
-    </nav>
-    <div class="role-badge"><span class="dot"></span>Role: <strong>Super Admin</strong></div>
   </header>
 
   <main class="container">

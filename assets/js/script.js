@@ -265,13 +265,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeBtn = document.querySelector('#roleSelector .role-btn.active, #roleSelector .role-tab.active');
         const selectedRole = activeBtn?.dataset?.role || data.user?.user_metadata?.role || 'student';
 
-        alert(`Login Successful! Redirecting to dashboard...`);
+        // Persist session details to localStorage for instant dashboard role detection
+        localStorage.setItem('user_role', selectedRole);
+        localStorage.setItem('pup_user', JSON.stringify({
+          email: authEmail,
+          role: selectedRole,
+          full_name: data.user?.user_metadata?.full_name || ''
+        }));
 
-        if (selectedRole === 'admin') {
-          window.location.href = 'admin-dashboard.html';
-        } else {
-          window.location.href = 'student-dashboard.html';
-        }
+        alert(`Login Successful! Redirecting to dashboard...`);
+        window.location.href = 'dashboard.html';
 
       } catch (err) {
         console.error('Unexpected Login Error:', err);

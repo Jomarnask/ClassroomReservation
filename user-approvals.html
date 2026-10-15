@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP Canlalay Campus CRS | User Approvals Queue</title>
+
+  <!-- Google Fonts: Noto Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Shared & Feature CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/user-approvals.css" />
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
+
+  <!-- ================= TOP RED NAVBAR ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Name -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="flex items-center gap-2.5 focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-9 h-9 object-contain drop-shadow" />
+          <span class="text-lg sm:text-xl font-bold tracking-tight text-white uppercase">PUP CRS</span>
+        </a>
+      </div>
+
+      <!-- Navigation Links with Pipes -->
+      <nav class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+        <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="room-management.html" class="pup-nav-item">Room Management</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="all-reservations.html" class="pup-nav-item">All Reservations</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="user-approvals.html" class="pup-nav-item active">User Approvals</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="logs.html" class="pup-nav-item">Logs</a>
+      </nav>
+
+      <!-- Right: Bell & Avatar -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+        </a>
+        <div class="w-9 h-9 rounded-full bg-[#3b82f6] text-white font-bold text-xs flex items-center justify-center shadow">
+          AD
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+
+    <!-- Header & Breadcrumb -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+          <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
+          <span>&rsaquo;</span>
+          <span class="text-gray-700 font-bold">User Approvals</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Pending User Registration Approvals</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Review and approve new user registration requests.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btnApproveAll" type="button" class="btn-approve">
+          <span>&check;</span>
+          Approve All Endorsed
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Awaiting Admin Action</span>
+          <p class="text-2xl font-extrabold text-amber-600 mt-0.5" id="pendingCount">4 Requests</p>
+          <p class="text-[11px] text-gray-500">2 Urgent for today</p>
+        </div>
+        <span class="p-3 bg-amber-50 text-amber-600 rounded-[3px]">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </span>
+      </div>
+
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Faculty Verified</span>
+          <p class="text-2xl font-extrabold text-emerald-600 mt-0.5">100% Endorsed</p>
+          <p class="text-[11px] text-gray-500">Prerequisite check passed</p>
+        </div>
+        <span class="p-3 bg-emerald-50 text-emerald-600 rounded-[3px]">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </span>
+      </div>
+
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Turnaround SLA</span>
+          <p class="text-2xl font-extrabold text-[#337ab7] mt-0.5">2.4 Hours</p>
+          <p class="text-[11px] text-gray-500">Exceeding campus standard</p>
+        </div>
+        <span class="p-3 bg-blue-50 text-[#337ab7] rounded-[3px]">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </span>
+      </div>
+    </div>
+
+    <!-- Approvals List Queue -->
+    <div class="space-y-4" id="approvalsQueue">
+      <!-- Cards rendered dynamically -->
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+        <span>POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS CRS</span>
+        <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function() {
+      const items = [
+        { id: 'REQ-5001', name: 'Juan Dela Cruz', role: 'Student', email: 'jdelacruz@pup.edu.ph', studentNo: '2022-01234-MN-0', program: 'BS Information Technology', yearLevel: '3rd Year', section: 'Section A' },
+        { id: 'REQ-5002', name: 'Maria Santos', role: 'Student', email: 'msantos@pup.edu.ph', studentNo: '2021-05678-MN-0', program: 'BS Computer Science', yearLevel: '2nd Year', section: 'Section B' },
+        { id: 'REQ-5003', name: 'Pedro Reyes', role: 'Faculty', email: 'preyes@pup.edu.ph', studentNo: 'N/A', program: 'N/A', yearLevel: 'N/A', section: 'N/A' },
+      ];
+
+      const queueEl = document.getElementById('approvalsQueue');
+      const countEl = document.getElementById('pendingCount');
+
+      function render() {
+        if (items.length === 0) {
+          queueEl.innerHTML = `
+            <div class="bg-white p-12 rounded-[4px] border border-gray-200 text-center space-y-2">
+              <p class="text-sm font-bold text-emerald-700">All pending requests have been processed!</p>
+              <p class="text-xs text-gray-400">Queue is empty. Check All Reservations or Logs for details.</p>
+              <a href="dashboard.html" class="inline-block mt-3 text-xs font-semibold text-[#880000] hover:underline">&larr; Return to Admin Dashboard</a>
+            </div>
+          `;
+          countEl.textContent = '0 Requests';
+          return;
+        }
+
+        countEl.textContent = `${items.length} Requests`;
+        queueEl.innerHTML = items.map(req => `
+          <div class="approval-card ${req.urgent ? 'urgent' : ''}" id="card-${req.id}">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div class="space-y-1.5 flex-grow">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-mono font-bold text-xs bg-gray-100 text-[#880000] px-2 py-0.5 rounded-[3px] border border-gray-200">${req.id}</span>
+                  <h3 class="text-base font-bold text-[#111111]">${req.subject}</h3>
+                  ${req.urgent ? '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-[3px]">Urgent / Soon</span>' : ''}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                  <span>Applicant: <strong class="text-gray-900">${req.name}</strong> (${req.studentNo})</span>
+                  <span>Role: <strong class="text-gray-900">${req.role}</strong></span>
+                  <span>Email: <strong class="text-gray-900">${req.email}</strong></span>
+                  <span>Program: <strong class="text-gray-900">${req.program}</strong></span>
+                  <span>Year Level: <strong class="text-gray-900">${req.yearLevel}</strong></span>
+                  <span>Section: <strong class="text-gray-900">${req.section}</strong></span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-700 font-medium">
+                  <span class="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-[3px] border border-emerald-200">&check; Registration Request</span>
+                </div>
+
+                <p class="text-xs text-gray-500 bg-gray-50 p-2.5 rounded-[3px] border border-gray-100 mt-2">
+                  <strong>Activity Justification:</strong> "${req.purpose}"
+                </p>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex sm:flex-col lg:flex-row items-center gap-2 shrink-0">
+                <button type="button" onclick="approveReq('${req.id}', '${req.requester}')" class="btn-approve w-full sm:w-auto justify-center">
+                  &check; Grant Approval
+                </button>
+                <button type="button" onclick="declineReq('${req.id}', '${req.requester}')" class="btn-reject w-full sm:w-auto justify-center">
+                  Decline
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      window.approveReq = function(id, name) {
+        const idx = items.findIndex(r => r.id === id);
+        if (idx !== -1) {
+          items.splice(idx, 1);
+          render();
+          alert(`Approved reservation ${id} for ${name}! Digital pass key release has been authorized.`);
+        }
+      };
+
+      window.declineReq = function(id, name) {
+        if (confirm(`Are you sure you want to decline reservation request ${id} for ${name}?`)) {
+          const idx = items.findIndex(r => r.id === id);
+          if (idx !== -1) {
+            items.splice(idx, 1);
+            render();
+          }
+        }
+      };
+
+      document.getElementById('btnApproveAll').addEventListener('click', () => {
+        if (confirm('Approve all faculty-endorsed reservations in the queue?')) {
+          items.length = 0;
+          render();
+          alert('All endorsed reservations have been approved!');
+        }
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

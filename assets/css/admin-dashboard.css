@@ -47,11 +47,40 @@ h1, h2, p { margin: 0; }
 button, select, input { font: inherit; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
+/* Unified Red Admin Navbar (Matching other admin pages) */
+.pup-topbar-red {
+  background-color: #880000;
+  border-bottom: 2px solid #5c0000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.pup-nav-item {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 3px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.pup-nav-item:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.pup-nav-item.active {
+  color: #ffffff;
+  font-weight: 700;
+  border-bottom: 2px solid #ffd658;
+}
+
 /* Header & Brand Styles */
 .topbar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 24px;
-  padding: 16px 48px; /* Increased horizontal padding from 32px to 48px */
+  padding: 16px 48px;
   background: var(--card);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 8px rgba(15, 23, 42, .05);
