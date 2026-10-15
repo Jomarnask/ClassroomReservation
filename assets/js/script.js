@@ -181,14 +181,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (loginForm) {
     const loginRoleButtons = document.querySelectorAll('#roleSelector .role-btn, #roleSelector .role-tab');
     const loginInfoText = document.getElementById('infoText');
-    const loginIdLabel = document.getElementById('loginIdLabel') || document.querySelector('label[for="studentNumber"]');
-    const loginIdInput = document.getElementById('studentNumber');
+    const loginIdLabel = document.getElementById('loginIdLabel') || document.querySelector('label[for="pupWebmail"]');
+    const loginIdInput = document.getElementById('pupWebmail');
 
     const roleConfigs = {
       student: {
-        label: 'PUP Webmail / Student Number',
-        placeholder: 'e.g. jamesivanscasalla@iskolarngbayan.pup.edu.ph or 2022-00000-BN-0',
-        info: 'Use your registered <strong>PUP Webmail</strong> or <strong>Student Number</strong> to sign in.'
+        label: 'PUP Webmail',
+        placeholder: 'e.g. student@iskolarngbayan.pup.edu.ph',
+        info: 'Use your registered <strong>PUP Webmail</strong> to sign in.'
       },
       faculty: {
         label: 'PUP Faculty Webmail',
