@@ -236,7 +236,7 @@
             </div>
             <div class="bg-white p-4 rounded-[3px] border border-[#D1D5DB] space-y-2">
               <span class="px-2 py-0.5 bg-[#880000] text-white font-semibold text-xs rounded-[3px]">Faculty & Instructors</span>
-              <p class="text-[#4B5563]">Enjoy priority booking privileges for regular lectures, exam schedules, departmental meetings, and research labs.</p>
+              <p class="text-[#4B5563]">Receive notifications about their scheduled classes and room assignments.</p>
             </div>
             <div class="bg-white p-4 rounded-[3px] border border-[#D1D5DB] space-y-2">
               <span class="px-2 py-0.5 bg-[#880000] text-white font-semibold text-xs rounded-[3px]">Administrators</span>
@@ -280,11 +280,11 @@
           <!-- Feature 2 -->
           <div class="bg-white p-6 rounded-[6px] border border-[#D1D5DB] shadow-sm hover:shadow-md transition space-y-3">
             <div class="w-10 h-10 bg-[#880000]/10 text-[#880000] rounded-[3px] flex items-center justify-center font-bold">
-              <i data-lucide="sliders" class="w-5 h-5"></i>
+              <i data-lucide="door-open" class="w-5 h-5"></i>
             </div>
-            <h3 class="text-lg font-bold text-[#111111]">Smart Amenity Filtering</h3>
+            <h3 class="text-lg font-bold text-[#111111]">Initial Section Room Allocations</h3>
             <p class="text-sm text-[#4B5563] leading-relaxed">
-              Find rooms tailored to your needs—filter by air conditioning, projector availability, seating capacity, and laboratory setups.
+              Each academic section is pre-assigned a default classroom for regular schedules, ensuring clear baseline room assignments while reserving temporary spaces.
             </p>
           </div>
 
@@ -447,5 +447,15 @@
 
 
   <script src="assets/js/script.js"></script>
+
+  <script src="assets/js/script.js"></script>
+  <script>
+    // Initialize Lucide Icons after DOM loads
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+      }
+    });
+  </script>
 </body>
 </html>
