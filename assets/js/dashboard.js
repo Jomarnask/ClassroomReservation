@@ -98,34 +98,33 @@
   // Returns null when the visitor is NOT a valid, active, signed-in user.
   // ==========================================
   async function detectUserRole() {
-  if (!client || !client.auth) { console.error('GUARD: no supabase client'); return null; }
+    if (!client || !client.auth) return null;
 
-  const { data: { session }, error } = await client.auth.getSession();
-  if (error || !session || !session.user) {
-    console.error('GUARD: no session', error);
-    return null;
+    const { data: { session }, error } = await client.auth.getSession();
+    if (error || !session || !session.user) return null;
+
+    const user = session.user;
+
+    // Role comes from the database, never from the browser.
+    const { data: profile, error: profileError } = await client
+      .from('users')
+      .select('full_name, role, account_status, student_number, program_course, pup_webmail')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile lookup failed:', profileError);
+      return null;
+    }
+    if (!profile) return null;
+    if (String(profile.account_status).toLowerCase() !== 'active') return null;
+
+    return {
+      role: normalizeRole(profile.role),
+      user,
+      profile,
+    };
   }
-
-  const user = session.user;
-  console.log('GUARD: session ok, user id =', user.id);
-
-  const { data: profile, error: profileError } = await client
-    .from('users')
-    .select('full_name, role, account_status, student_number, program_course, pup_webmail')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (profileError) { console.error('GUARD: profile query error', profileError); return null; }
-  if (!profile) { console.error('GUARD: no row in public.users for user_id', user.id); return null; }
-  console.log('GUARD: profile =', profile);
-
-  if (String(profile.account_status).toLowerCase() !== 'active') {
-    console.error('GUARD: account_status is', profile.account_status);
-    return null;
-  }
-
-  return { role: normalizeRole(profile.role), user, profile };
-}
 
   function goToLogin() {
     window.location.replace('login.html');
@@ -268,11 +267,34 @@
       renderFacultyView(root, user);
     } else if (role === 'Admin') {
       renderAdminView(root, user);
+      loadPendingApprovalsCount(); // real number from the database
     }
 
     if (window.lucide && window.lucide.createIcons) {
       window.lucide.createIcons();
     }
+  }
+
+  // Real count of accounts waiting for approval (admins only; RLS allows admins to read all users)
+  async function loadPendingApprovalsCount() {
+    const countEl = document.getElementById('pendingApprovalsCount');
+    const labelEl = document.getElementById('pendingApprovalsLabel');
+    if (!countEl || !client) return;
+
+    const { count, error } = await client
+      .from('users')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('account_status', 'pending');
+
+    if (error) {
+      console.error('Pending count failed:', error);
+      countEl.textContent = '-';
+      if (labelEl) labelEl.textContent = 'Unavailable';
+      return;
+    }
+
+    countEl.textContent = count ?? 0;
+    if (labelEl) labelEl.textContent = count > 0 ? 'Requires Review' : 'All clear';
   }
 
   // ==========================================
@@ -567,8 +589,8 @@
           <div>
             <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Approvals</p>
             <div class="flex items-baseline gap-2 mt-1">
-              <span class="text-3xl font-extrabold text-amber-600">7</span>
-              <span class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Requires Review</span>
+              <span id="pendingApprovalsCount" class="text-3xl font-extrabold text-amber-600">&hellip;</span>
+              <span id="pendingApprovalsLabel" class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Loading</span>
             </div>
             <a href="user-approvals.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline mt-2">
               <span>Review User Approvals</span>
