@@ -25,24 +25,29 @@
   </script>
 
   <link rel="stylesheet" href="assets/css/admin-dashboard.css">
+
+  <style>
+    /* AUTH GUARD: page stays hidden until room-management.js confirms an active admin */
+    body { visibility: hidden; }
+  </style>
 </head>
 <body>
-  <!-- ================= TOP RED NAVBAR (Matching other admin pages) ================= -->
+  <!-- ================= TOP RED NAVBAR ================= -->
   <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-      
+
       <!-- Brand Logo & Name -->
       <div class="flex items-center gap-3 shrink-0">
-      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
-        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
-        <div>
-          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
-            PUP - Canlalay Campus
+        <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+          <div>
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+              PUP - Canlalay Campus
+            </div>
+            <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
           </div>
-          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
-        </div>
-      </a>
-    </div>
+        </a>
+      </div>
 
       <!-- Navigation Links with Pipes -->
       <nav id="nav" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
@@ -57,14 +62,37 @@
         <a href="logs.html" class="pup-nav-item">Logs</a>
       </nav>
 
-      <!-- Right: Bell & Avatar -->
+      <!-- Right: Bell & Profile menu -->
       <div class="flex items-center gap-3 shrink-0">
         <button id="navToggle" class="hidden" aria-label="Toggle navigation"></button>
         <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
           <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
         </a>
-        <div class="w-9 h-9 rounded-full bg-[#3b82f6] text-white font-bold text-xs flex items-center justify-center shadow">
-          AD
+
+        <div class="relative">
+          <button id="profileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shadow focus:outline-none transition">
+            <span id="adminAvatar">--</span>
+          </button>
+
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p id="profileDropdownName" class="text-xs font-bold text-[#111111] truncate">Admin</p>
+              <p id="profileDropdownEmail" class="text-[11px] text-gray-500 truncate"></p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+                <span>Role: Admin</span>
+              </div>
+            </div>
+            <div class="py-1 text-xs">
+              <a href="dashboard.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Back to Dashboard</a>
+            </div>
+            <div class="border-t border-gray-100 pt-1">
+              <button id="btnSignOut" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -75,11 +103,11 @@
     <section class="card banner">
       <div>
         <p class="eyebrow">CITE ADMIN CONSOLE</p>
-        <h1>Welcome back, Engr. Cruz!</h1>
+        <h1 id="bannerName">Welcome back!</h1>
         <p class="meta">
           <span>CCIS Facilities &amp; Lab Administrator</span>
-          <span>Employee PUP Webmail: <code>2018-0142-CCIS@pup.edu.ph</code></span>
-          <span>System Role: <strong>Super Admin</strong></span>
+          <span>PUP Webmail: <code id="adminEmail"></code></span>
+          <span>System Role: <strong>Admin</strong></span>
         </p>
       </div>
       <div class="controls">
@@ -104,7 +132,7 @@
           <h2>PUP Canlalay Campus Floor Manager</h2>
           <p class="muted">Select a classroom across floors to view room information and status.</p>
         </div>
-        <span class="pill" id="totalRooms">Total: 48 Rooms</span>
+        <span class="pill" id="totalRooms">Total: 0 Rooms</span>
       </div>
       <div class="floors" id="floors"></div>
     </section>
@@ -126,10 +154,10 @@
       <form id="roomForm" novalidate>
         <div class="modal-body">
           <div class="tag">
-            <div class="avatar">EC</div>
+            <div class="avatar" id="tagAvatar">AD</div>
             <div class="tag-info">
-              <strong>Engr. Cruz (Super Admin)</strong>
-              <span>2018-0142-CCIS • Facilities &amp; Lab Administrator</span>
+              <strong id="tagName">Admin</strong>
+              <span id="tagMeta"></span>
             </div>
             <span class="validated">Real-Time Validated</span>
           </div>
@@ -150,11 +178,10 @@
                 <option value="other">Other</option>
               </select>
             </label>
-            <label>Availability *
+            <label>Status *
               <select id="availability" required>
-                <option value="full">Fully Available</option>
-                <option value="under maintenance">Under Maintenance</option>
-                <option value="not available">Not Available</option>
+                <option value="active">Active (open for reservations)</option>
+                <option value="inactive">Inactive (not available)</option>
               </select>
             </label>
           </div>
@@ -174,7 +201,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
 
-  <!-- Admin Dashboard Script -->
+  <!-- Room Management Script -->
   <script src="assets/js/room-management.js"></script>
 </body>
 </html>

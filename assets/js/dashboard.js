@@ -268,6 +268,7 @@
     } else if (role === 'Admin') {
       renderAdminView(root, user);
       loadPendingApprovalsCount(); // real number from the database
+      loadRoomCounts();            // real room totals from the database
     }
 
     if (window.lucide && window.lucide.createIcons) {
@@ -295,6 +296,28 @@
 
     countEl.textContent = count ?? 0;
     if (labelEl) labelEl.textContent = count > 0 ? 'Requires Review' : 'All clear';
+  }
+
+  // Real room totals: all rooms, and how many are Active (is_active = true)
+  async function loadRoomCounts() {
+    const totalEl = document.getElementById('totalRoomsCount');
+    const activeEl = document.getElementById('activeRoomsLabel');
+    if (!totalEl || !client) return;
+
+    const [totalRes, activeRes] = await Promise.all([
+      client.from('rooms').select('room_id', { count: 'exact', head: true }),
+      client.from('rooms').select('room_id', { count: 'exact', head: true }).eq('is_active', true),
+    ]);
+
+    if (totalRes.error || activeRes.error) {
+      console.error('Room counts failed:', totalRes.error || activeRes.error);
+      totalEl.textContent = '-';
+      if (activeEl) activeEl.textContent = 'Unavailable';
+      return;
+    }
+
+    totalEl.textContent = totalRes.count ?? 0;
+    if (activeEl) activeEl.textContent = (activeRes.count ?? 0) + ' Active';
   }
 
   // ==========================================
@@ -572,8 +595,8 @@
           <div>
             <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Rooms,</p>
             <div class="flex items-baseline gap-2 mt-1">
-              <span class="text-3xl font-extrabold text-[#111111]">48</span>
-              <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">32 Free</span>
+              <span id="totalRoomsCount" class="text-3xl font-extrabold text-[#111111]">&hellip;</span>
+              <span id="activeRoomsLabel" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">Loading</span>
             </div>
             <a href="room-management.html" class="inline-flex items-center gap-1 text-xs font-semibold text-[#880000] hover:underline mt-2">
               <span>View Inventory Directory</span>

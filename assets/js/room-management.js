@@ -1,275 +1,396 @@
-// ===== Admin Dashboard Session Guard & Dynamic Profile =====
-async function checkAdminSession() {
-  let session = null;
-  if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.auth) {
-    try {
-      const res = await supabaseClient.auth.getSession();
-      session = res.data?.session;
-    } catch (e) {
-      console.warn('Session check warning:', e);
-    }
-  }
-
-  const storedRole = localStorage.getItem('user_role') || localStorage.getItem('demoRole');
-  const user = session?.user;
-  const userMeta = user?.user_metadata || {};
-  const effectiveRole = userMeta.role || storedRole || 'admin';
-
-  // 1. If non-admin tries to access, redirect to dashboard
-  if (effectiveRole && effectiveRole !== 'admin' && effectiveRole !== 'Admin') {
-    alert('Unauthorized access. Admin privileges required.');
-    window.location.href = 'dashboard.html';
-    return;
-  }
-
-  // 2. Populate Admin Dashboard Banner elements dynamically
-  const bannerHeading = document.querySelector('.banner h1');
-  const fullName = userMeta.full_name || localStorage.getItem('user_name') || 'Engr. Roberto Cruz';
-  if (bannerHeading && fullName) {
-    bannerHeading.textContent = 'Welcome back, ' + fullName + '!';
-  }
-}
-
-// Execute session check immediately when the document is ready
-document.addEventListener('DOMContentLoaded', checkAdminSession);
-
+// ===== Room Management (Supabase-connected) =====
+// Table used: public.rooms (room_id, room_number, room_name, floor, room_type, is_active)
+// Access: signed-in, ACTIVE admins only.
 
 (() => {
-  "use strict";
+  'use strict';
+
+  // Reuse the client created in config.js (avoids a second GoTrue client)
+  const client = (typeof supabaseClient !== 'undefined') ? supabaseClient : window.supabaseClient;
 
   // Facility rooms get a small icon instead of a plain number
-  const ICONS = { "Library": "📚", "Reading Room": "📖", "Prayers Room": "🕌", "Sports Dev Office": "🏅" };
+  const ICONS = { 'Library': '📚', 'Reading Room': '📖', 'Prayers Room': '🕌', 'Sports Dev Office': '🏅' };
 
-  const FLOORS = [
-    {
-      n: 1, name: "1st Floor", sub: "Ground Level",
-      list: ["107", "106", "105", "103", "101", "104", "102", "121", "117",
-             "Sports Dev Office", "114", "115", "113", "Prayers Room"],
-    },
-    {
-      n: 2, name: "2nd Floor", sub: "Level 2",
-      list: ["211", "209", "207", "205", "203", "201", "221",
-             "212", "210", "208", "222", "206", "204", "202"],
-    },
-    {
-      n: 3, name: "3rd Floor", sub: "Level 3",
-      list: ["Library", "Reading Room", "309", "307", "305", "303", "301",
-             "310", "308", "317", "306", "304", "302"],
-    },
-    {
-      n: 4, name: "4th Floor", sub: "Level 4",
-      list: ["406", "404", "418", "402", "405", "403", "401"],
-    },
-  ];
-
-  // Default status: rooms drawn dark on the campus map start out Not Available
-  const DEFAULT_UNAVAILABLE = new Set(["f1-113", "f1-sports-dev-office"]);
-
-  // Facility rooms default to a sensible Room Type; everything else defaults to Lecture Room
-  const FACILITY_TYPE = { "Library": "other", "Reading Room": "other", "Prayers Room": "other", "Sports Dev Office": "office" };
-
-  // Build room state map
-  const rooms = {};
-  FLOORS.forEach(f => {
-    const seen = {};
-    f.list.forEach(label => {
-      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      seen[slug] = (seen[slug] || 0) + 1;
-      const suffix = seen[slug] > 1 ? String.fromCharCode(96 + seen[slug]) : "";
-      const id = "f" + f.n + "-" + slug + suffix;
-      const isFacility = !!ICONS[label];
-
-      rooms[id] = {
-        id: id,
-        floor: f.n,
-        number: isFacility ? "" : label,
-        name: isFacility ? label : "Room " + label,
-        label: label,
-        facility: isFacility,
-        availability: DEFAULT_UNAVAILABLE.has(id) ? "not available" : "full",
-        roomType: FACILITY_TYPE[label] || "lecture",
-      };
-    });
-  });
-
-  // Standard DOM selector helper without $ token
   const getEl = id => document.getElementById(id);
-  const floorsEl = getEl("floors"), overlay = getEl("overlay"), form = getEl("roomForm");
+  const floorsEl = getEl('floors'), overlay = getEl('overlay'), form = getEl('roomForm');
 
   const fields = {
-    number: getEl("roomNumber"),
-    name: getEl("roomName"),
-    roomType: getEl("roomType"),
-    availability: getEl("availability"),
+    number: getEl('roomNumber'),
+    name: getEl('roomName'),
+    roomType: getEl('roomType'),
+    availability: getEl('availability'),
   };
 
-  const roomTypeLabel = v => ({ lecture: "Lecture Room", laboratory: "Laboratory", office: "Office", "stock room": "Stock Room", other: "Other" })[v];
-  const availabilityLabel = v => ({ full: "Fully Available", "under maintenance": "Under Maintenance", "not available": "Not Available" })[v];
+  const state = { me: null, email: '', rooms: [], byId: {} };
+  let editMode = false, currentId = null, lastFocus = null, toastTimer, saving = false;
 
-  let editMode = false, currentId = null, lastFocus = null, toastTimer;
+  const roomTypeLabel = v => ({ lecture: 'Lecture Room', laboratory: 'Laboratory', office: 'Office', 'stock room': 'Stock Room', other: 'Other' })[v] || v || 'N/A';
+  const statusLabel = active => active ? 'Active' : 'Inactive';
+
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function goTo(page) { window.location.replace(page); }
+
+  function initials(name) {
+    return (String(name || '').replace(/[^A-Za-z\s,]/g, '').split(/[\s,]+/).filter(Boolean)
+      .slice(0, 2).map(w => w[0].toUpperCase()).join('')) || 'AD';
+  }
+
+  /* ---------- Guard: signed in + active + admin ---------- */
+  async function guard() {
+    if (!client) return goTo('login.html');
+
+    const { data: { session }, error } = await client.auth.getSession();
+    if (error || !session) return goTo('login.html');
+
+    const { data: me, error: meErr } = await client
+      .from('users')
+      .select('user_id, full_name, role, account_status')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (meErr || !me || String(me.account_status).toLowerCase() !== 'active') {
+      try { await client.auth.signOut(); } catch (e) {}
+      return goTo('login.html');
+    }
+
+    // Signed in but not an admin: send to the normal dashboard
+    if (String(me.role).toLowerCase() !== 'admin') return goTo('dashboard.html');
+
+    state.me = me;
+    state.email = session.user.email || '';
+    return true;
+  }
+
+  /* ---------- Profile display + menu ---------- */
+  function fillProfile() {
+    const name = state.me.full_name || 'Administrator';
+    getEl('adminAvatar').textContent = initials(name);
+    getEl('profileDropdownName').textContent = name;
+    getEl('profileDropdownEmail').textContent = state.email;
+    getEl('bannerName').textContent = 'Welcome back, ' + name + '!';
+    getEl('adminEmail').textContent = state.email;
+    getEl('tagAvatar').textContent = initials(name);
+    getEl('tagName').textContent = name + ' (Admin)';
+    getEl('tagMeta').textContent = state.email;
+  }
+
+  function setupProfileMenu() {
+    const btn = getEl('profileMenuBtn');
+    const menu = getEl('profileDropdown');
+    const signOutBtn = getEl('btnSignOut');
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => menu.classList.add('hidden'));
+
+    signOutBtn.addEventListener('click', async () => {
+      signOutBtn.disabled = true;
+      try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
+      localStorage.removeItem('user_role');
+      localStorage.removeItem('pup_user');
+      goTo('login.html');
+    });
+  }
+
+  /* ---------- Data ---------- */
+  async function loadRooms() {
+    const { data, error } = await client
+      .from('rooms')
+      .select('room_id, room_number, room_name, floor, room_type, is_active')
+      .order('floor', { ascending: true })
+      .order('room_id', { ascending: true });
+
+    if (error) {
+      console.error('Load rooms failed:', error);
+      floorsEl.innerHTML = '<div class="muted" style="padding:16px">Could not load rooms: ' + esc(error.message) + '</div>';
+      return;
+    }
+
+    state.rooms = (data || []).map(r => ({
+      id: r.room_id,
+      number: r.room_number || '',
+      name: r.room_name || '',
+      floor: r.floor ?? 0,
+      roomType: r.room_type || 'other',
+      active: r.is_active !== false, // null counts as active
+    }));
+    state.byId = {};
+    state.rooms.forEach(r => { state.byId[String(r.id)] = r; });
+    renderFloors();
+  }
+
+  /* ---------- Helpers for display ---------- */
+  function iconFor(r) { return ICONS[r.number] || ICONS[r.name] || ''; }
+  function isFacility(r) { return !!iconFor(r); }
+  function displayName(r) { return r.name || (r.number ? 'Room ' + r.number : 'Unnamed Room'); }
+
+  function floorMeta(n) {
+    if (!n) return { name: 'Unassigned', sub: 'No floor set' };
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return { name: n + (s[(v - 20) % 10] || s[v] || s[0]) + ' Floor', sub: n === 1 ? 'Ground Level' : 'Level ' + n };
+  }
 
   /* ---------- Rendering ---------- */
   function renderFloors() {
-    const filter = getEl("floorFilter").value;
-    floorsEl.innerHTML = "";
-    const visible = FLOORS.filter(f => filter === "all" || String(f.n) === filter);
-    floorsEl.style.gridTemplateColumns = visible.length === 1 ? "minmax(0, 420px)" : "";
+    const filter = getEl('floorFilter').value;
+    floorsEl.innerHTML = '';
 
-    visible.forEach(f => {
-      const floorRooms = Object.values(rooms).filter(r => r.floor === f.n);
-      const col = document.createElement("div");
-      col.className = "floor";
-      col.innerHTML = 
+    getEl('totalRooms').textContent = 'Total: ' + state.rooms.length + ' Rooms';
+
+    if (state.rooms.length === 0) {
+      floorsEl.innerHTML = '<div class="muted" style="padding:16px">No rooms found in the database.</div>';
+      return;
+    }
+
+    const floorNums = [...new Set(state.rooms.map(r => r.floor))].sort((a, b) => a - b);
+    const visible = floorNums.filter(n => filter === 'all' || String(n) === filter);
+    floorsEl.style.gridTemplateColumns = visible.length === 1 ? 'minmax(0, 420px)' : '';
+
+    visible.forEach(n => {
+      const meta = floorMeta(n);
+      const floorRooms = state.rooms.filter(r => r.floor === n);
+      const col = document.createElement('div');
+      col.className = 'floor';
+      col.innerHTML =
         '<div class="floor-head">' +
-          '<div><strong>' + f.name + '</strong><small>' + f.sub + ' • ' + floorRooms.length + ' Rooms</small></div>' +
-          '<span class="lvl">L' + f.n + '</span>' +
+          '<div><strong>' + esc(meta.name) + '</strong><small>' + esc(meta.sub) + ' • ' + floorRooms.length + ' Rooms</small></div>' +
+          '<span class="lvl">L' + n + '</span>' +
         '</div>' +
         '<div class="room-grid"></div>';
 
-      const grid = col.querySelector(".room-grid");
+      const grid = col.querySelector('.room-grid');
       floorRooms.forEach(r => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "room" + (r.facility ? " facility" : "");
-        b.dataset.id = r.id;
-        b.dataset.gma = r.availability; // Preserves CSS dataset bindings for status colors
-        b.title = r.name + "\nType: " + roomTypeLabel(r.roomType) + "\nStatus: " + availabilityLabel(r.availability);
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'room' + (isFacility(r) ? ' facility' : '');
+        b.dataset.id = String(r.id);
+        // keeps the existing CSS colour bindings: active = available, inactive = not available
+        b.dataset.gma = r.active ? 'full' : 'not available';
+        b.title = displayName(r) + '\nType: ' + roomTypeLabel(r.roomType) + '\nStatus: ' + statusLabel(r.active);
 
-        const icon = ICONS[r.label] ? '<span class="fi" aria-hidden="true">' + ICONS[r.label] + '</span>' : "";
-        const displayText = r.number ? "Room " + r.number : r.name;
+        const icon = iconFor(r) ? '<span class="fi" aria-hidden="true">' + iconFor(r) + '</span>' : '';
+        const text = displayName(r); // room name if set, otherwise "Room <number>"
 
-        b.innerHTML = icon + displayText + '<span class="badge" aria-hidden="true"></span>';
+        b.innerHTML = icon + esc(text) + '<span class="badge" aria-hidden="true"></span>';
         grid.appendChild(b);
       });
       floorsEl.appendChild(col);
     });
-    getEl("totalRooms").textContent = "Total: " + Object.keys(rooms).length + " Rooms";
   }
 
   /* ---------- Edit mode ---------- */
   function setEditMode(on) {
     editMode = on;
-    floorsEl.classList.toggle("editing", on);
-    const btn = getEl("editToggle");
-    btn.setAttribute("aria-pressed", on);
-    btn.textContent = on ? "✓ Done Editing" : "+ Edit Rooms";
-    getEl("editNotice").hidden = !on;
-    showToast(on ? "Room Editing Mode enabled" : "Room Editing Mode disabled");
+    floorsEl.classList.toggle('editing', on);
+    const btn = getEl('editToggle');
+    btn.setAttribute('aria-pressed', on);
+    btn.textContent = on ? '✓ Done Editing' : '+ Edit Rooms';
+    getEl('editNotice').hidden = !on;
+    showToast(on ? 'Room Editing Mode enabled' : 'Room Editing Mode disabled');
   }
 
   /* ---------- Modal ---------- */
+  function setSelectValue(sel, val) {
+    if (val && ![...sel.options].some(o => o.value === val)) {
+      const o = document.createElement('option');
+      o.value = val;
+      o.textContent = val;
+      sel.appendChild(o);
+    }
+    sel.value = val || 'other';
+  }
+
   function openModal(id) {
-    const r = rooms[id];
+    const r = state.byId[id];
+    if (!r) return;
     currentId = id;
     lastFocus = document.activeElement;
 
-    getEl("modalTitle").textContent = "Edit " + r.name + " Configuration";
+    getEl('modalTitle').textContent = 'Edit ' + displayName(r) + ' Configuration';
     fields.number.value = r.number;
     fields.name.value = r.name;
-    fields.roomType.value = r.roomType;
-    fields.availability.value = r.availability;
+    setSelectValue(fields.roomType, r.roomType);
+    fields.availability.value = r.active ? 'active' : 'inactive';
 
     clearInvalid();
     validate();
     overlay.hidden = false;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     fields.number.focus();
   }
 
   function closeModal() {
     overlay.hidden = true;
-    document.body.style.overflow = "";
+    document.body.style.overflow = '';
     currentId = null;
     if (lastFocus) lastFocus.focus();
   }
 
   function clearInvalid() {
-    Object.values(fields).forEach(f => f.classList.remove("invalid"));
+    Object.values(fields).forEach(f => f.classList.remove('invalid'));
   }
 
-  /* Live Validation */
+  // Live validation. Returns true when the form can be saved.
   function validate() {
-    const box = getEl("alertBox");
+    const box = getEl('alertBox');
     const num = fields.number.value.trim();
-    const name = fields.name.value.trim();
-    const avail = fields.availability.value;
+    const status = fields.availability.value;
 
-    let type = "ok", msg = "Room details and availability are properly configured.";
+    let type = 'ok', msg = 'Room details and status are properly configured.';
 
-    if (!num && !name) {
-      type = "bad"; msg = "Please enter at least a Room Number or a Room Name.";
-    } else if (avail === "under maintenance") {
-      type = "warn"; msg = "Room is set to Under Maintenance and will not accept new reservations.";
-    } else if (avail === "not available") {
-      type = "warn"; msg = "Room is marked Not Available for reservations.";
+    if (!num) {
+      type = 'bad'; msg = 'Room Number is required.';
+    } else if (state.rooms.some(r => String(r.id) !== String(currentId) && r.number.toLowerCase() === num.toLowerCase())) {
+      type = 'bad'; msg = 'Another room already uses the number "' + num + '".';
+    } else if (status === 'inactive') {
+      type = 'warn'; msg = 'Room is Inactive and will not accept new reservations.';
     }
 
-    box.className = "alert " + type;
-    box.textContent = (type === "ok" ? "✔ " : type === "bad" ? "✖ " : "⚠ ") + msg;
-    return type !== "bad";
+    box.className = 'alert ' + type;
+    box.textContent = (type === 'ok' ? '✔ ' : type === 'bad' ? '✖ ' : '⚠ ') + msg;
+    return type !== 'bad';
+  }
+
+  /* ---------- Save to Supabase ---------- */
+  async function saveRoom() {
+    const r = state.byId[currentId];
+    if (!r) return;
+
+    const payload = {
+      room_number: fields.number.value.trim(),
+      room_name: fields.name.value.trim() || null,
+      room_type: fields.roomType.value,
+      is_active: fields.availability.value === 'active',
+    };
+
+    const { data, error } = await client
+      .from('rooms')
+      .update(payload)
+      .eq('room_id', r.id)
+      .select('room_id');
+
+    if (error) {
+      console.error('Save room failed:', error);
+      showToast('Save failed: ' + error.message);
+      return false;
+    }
+    // RLS can block an update without an error; zero rows back means nothing changed
+    if (!data || data.length === 0) {
+      showToast('Nothing was saved. You may not have permission (check the rooms policies).');
+      return false;
+    }
+
+    r.number = payload.room_number;
+    r.name = payload.room_name || '';
+    r.roomType = payload.room_type;
+    r.active = payload.is_active;
+    return true;
   }
 
   /* ---------- Event Listeners ---------- */
-  getEl("editToggle").addEventListener("click", () => setEditMode(!editMode));
-  getEl("floorFilter").addEventListener("change", renderFloors);
+  function wireEvents() {
+    getEl('editToggle').addEventListener('click', () => setEditMode(!editMode));
+    getEl('floorFilter').addEventListener('change', renderFloors);
 
-  floorsEl.addEventListener("click", e => {
-    const card = e.target.closest(".room");
-    if (!card) return;
-    const r = rooms[card.dataset.id];
-    if (!editMode) {
-      showToast("Turn on Edit Rooms to change " + r.name);
-      return;
-    }
-    openModal(card.dataset.id);
-  });
-
-  Object.values(fields).forEach(f => {
-    f.addEventListener("input", validate);
-    f.addEventListener("change", validate);
-  });
-
-  form.addEventListener("submit", e => {
-    e.preventDefault();
-    clearInvalid();
-    if (!validate()) {
-      if (!fields.number.value.trim() && !fields.name.value.trim()) {
-        fields.number.classList.add("invalid");
+    floorsEl.addEventListener('click', e => {
+      const card = e.target.closest('.room');
+      if (!card) return;
+      const r = state.byId[card.dataset.id];
+      if (!r) return;
+      if (!editMode) {
+        showToast('Turn on Edit Rooms to change ' + displayName(r));
+        return;
       }
-      return;
+      openModal(card.dataset.id);
+    });
+
+    Object.values(fields).forEach(f => {
+      f.addEventListener('input', validate);
+      f.addEventListener('change', validate);
+    });
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (saving) return;
+      clearInvalid();
+      if (!validate()) {
+        if (!fields.number.value.trim()) fields.number.classList.add('invalid');
+        return;
+      }
+
+      saving = true;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      const ok = await saveRoom();
+      submitBtn.disabled = false;
+      saving = false;
+
+      if (ok) {
+        const r = state.byId[currentId];
+        closeModal();
+        renderFloors();
+        showToast(displayName(r) + ' changes saved');
+      }
+    });
+
+    getEl('cancelBtn').addEventListener('click', closeModal);
+    getEl('closeModal').addEventListener('click', closeModal);
+    overlay.addEventListener('mousedown', e => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !overlay.hidden) closeModal();
+    });
+
+    const navToggle = getEl('navToggle');
+    if (navToggle) {
+      navToggle.addEventListener('click', e => {
+        const open = getEl('nav').classList.toggle('open');
+        e.currentTarget.setAttribute('aria-expanded', open);
+      });
     }
-
-    const r = rooms[currentId];
-    r.number = fields.number.value.trim();
-    r.name = fields.name.value.trim() || (r.number ? "Room " + r.number : "Unnamed Room");
-    r.label = r.number || r.name;
-    r.roomType = fields.roomType.value;
-    r.availability = fields.availability.value;
-
-    closeModal();
-    renderFloors();
-    showToast(r.name + " changes saved");
-  });
-
-  getEl("cancelBtn").addEventListener("click", closeModal);
-  getEl("closeModal").addEventListener("click", closeModal);
-  overlay.addEventListener("mousedown", e => { if (e.target === overlay) closeModal(); });
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && !overlay.hidden) closeModal();
-  });
-
-  getEl("navToggle").addEventListener("click", e => {
-    const open = getEl("nav").classList.toggle("open");
-    e.currentTarget.setAttribute("aria-expanded", open);
-  });
-
-  function showToast(msg) {
-    const t = getEl("toast");
-    t.textContent = msg;
-    t.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
   }
 
-  renderFloors();
+  function showToast(msg) {
+    const t = getEl('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  /* ---------- Init ---------- */
+  async function init() {
+    try {
+      const ok = await guard();
+      if (!ok) return;
+      fillProfile();
+      setupProfileMenu();
+      wireEvents();
+      document.body.style.visibility = 'visible';
+      await loadRooms();
+    } catch (err) {
+      console.error('Room management init error:', err);
+      goTo('login.html'); // fail closed
+    }
+  }
+
+  if (client && client.auth) {
+    client.auth.onAuthStateChange(event => {
+      if (event === 'SIGNED_OUT') goTo('login.html');
+    });
+  }
+  window.addEventListener('pageshow', e => { if (e.persisted) window.location.reload(); });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
