@@ -33,11 +33,16 @@
       
       <!-- Brand Logo & Name -->
       <div class="flex items-center gap-3 shrink-0">
-        <a href="dashboard.html" class="flex items-center gap-2.5 focus:outline-none">
-          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-9 h-9 object-contain drop-shadow" />
-          <span class="text-lg sm:text-xl font-bold tracking-tight text-white uppercase">PUP CRS</span>
-        </a>
-      </div>
+      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+        <div>
+          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+            PUP - Canlalay Campus
+          </div>
+          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
+        </div>
+      </a>
+    </div>
 
       <!-- Navigation Links with Pipes -->
       <nav id="nav" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
@@ -69,11 +74,11 @@
   <main class="container">
     <section class="card banner">
       <div>
-        <p class="eyebrow">CITE ADMIN CONSOLE • AY 2024–2025 • FIRST SEMESTER</p>
+        <p class="eyebrow">CITE ADMIN CONSOLE</p>
         <h1>Welcome back, Engr. Cruz!</h1>
         <p class="meta">
           <span>CCIS Facilities &amp; Lab Administrator</span>
-          <span>Employee ID: <code>2018-0142-CCIS</code></span>
+          <span>Employee PUP Webmail: <code>2018-0142-CCIS@pup.edu.ph</code></span>
           <span>System Role: <strong>Super Admin</strong></span>
         </p>
       </div>
@@ -96,8 +101,8 @@
     <section class="card directory">
       <div class="dir-head">
         <div>
-          <h2>PUP Canlalay Campus Floor Directory</h2>
-          <p class="muted">Select a classroom across floors to view availability or initiate reservations</p>
+          <h2>PUP Canlalay Campus Floor Manager</h2>
+          <p class="muted">Select a classroom across floors to view room information and status.</p>
         </div>
         <span class="pill" id="totalRooms">Total: 48 Rooms</span>
       </div>
@@ -130,21 +135,11 @@
           </div>
 
           <div class="grid2">
-            <label>GMA Availability *
-              <select id="gma" required>
-                <option value="full">Fully Available</option>
-                <option value="under maintenance">Under Maintenance</option>
-                <option value="not available">Not Available</option>
-              </select>
+            <label>Room Number *
+              <input type="text" id="roomNumber" placeholder="e.g. 101, 205A" required>
             </label>
-            <label>Maintenance Status *
-              <select id="maint" required>
-                <option value="none">Operational / No Maintenance</option>
-                <option value="under">Under Maintenance</option>
-              </select>
-            </label>
-            <label>Expected Headcount / Capacity (Max 45) *
-              <input type="number" id="capacity" min="1" max="45" required>
+            <label>Room Name
+              <input type="text" id="roomName" placeholder="e.g. CCIS Computer Lab 1">
             </label>
             <label>Room Type *
               <select id="roomType" required>
@@ -153,6 +148,13 @@
                 <option value="office">Office</option>
                 <option value="stock room">Stock Room</option>
                 <option value="other">Other</option>
+              </select>
+            </label>
+            <label>Availability *
+              <select id="availability" required>
+                <option value="full">Fully Available</option>
+                <option value="under maintenance">Under Maintenance</option>
+                <option value="not available">Not Available</option>
               </select>
             </label>
           </div>

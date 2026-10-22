@@ -26,7 +26,7 @@ async function checkAdminSession() {
   const bannerHeading = document.querySelector('.banner h1');
   const fullName = userMeta.full_name || localStorage.getItem('user_name') || 'Engr. Roberto Cruz';
   if (bannerHeading && fullName) {
-    bannerHeading.textContent = `Welcome back, ${fullName}!`;
+    bannerHeading.textContent = 'Welcome back, ' + fullName + '!';
   }
 }
 
@@ -68,9 +68,7 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
   // Facility rooms default to a sensible Room Type; everything else defaults to Lecture Room
   const FACILITY_TYPE = { "Library": "other", "Reading Room": "other", "Prayers Room": "other", "Sports Dev Office": "office" };
 
-  // Room state, built from the floor lists above. Non-unique labels (e.g. the
-  // two "205" rooms on Floor 2) get a letter suffix on their internal id so
-  // each has its own state, while still displaying the same label.
+  // Build room state map
   const rooms = {};
   FLOORS.forEach(f => {
     const seen = {};
@@ -78,29 +76,41 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
       const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
       seen[slug] = (seen[slug] || 0) + 1;
       const suffix = seen[slug] > 1 ? String.fromCharCode(96 + seen[slug]) : "";
-      const id = `f${f.n}-${slug}${suffix}`;
+      const id = "f" + f.n + "-" + slug + suffix;
       const isFacility = !!ICONS[label];
+
       rooms[id] = {
-        id, floor: f.n, label,
+        id: id,
+        floor: f.n,
+        number: isFacility ? "" : label,
+        name: isFacility ? label : "Room " + label,
+        label: label,
         facility: isFacility,
-        gma: DEFAULT_UNAVAILABLE.has(id) ? "not available" : "full",
-        maint: "none", capacity: 45,
+        availability: DEFAULT_UNAVAILABLE.has(id) ? "not available" : "full",
         roomType: FACILITY_TYPE[label] || "lecture",
       };
     });
   });
 
-  const $ = id => document.getElementById(id);
-  const floorsEl = $("floors"), overlay = $("overlay"), form = $("roomForm");
+  // Standard DOM selector helper without $ token
+  const getEl = id => document.getElementById(id);
+  const floorsEl = getEl("floors"), overlay = getEl("overlay"), form = getEl("roomForm");
+
   const fields = {
-    gma: $("gma"), maint: $("maint"), capacity: $("capacity"), roomType: $("roomType"),
+    number: getEl("roomNumber"),
+    name: getEl("roomName"),
+    roomType: getEl("roomType"),
+    availability: getEl("availability"),
   };
+
   const roomTypeLabel = v => ({ lecture: "Lecture Room", laboratory: "Laboratory", office: "Office", "stock room": "Stock Room", other: "Other" })[v];
+  const availabilityLabel = v => ({ full: "Fully Available", "under maintenance": "Under Maintenance", "not available": "Not Available" })[v];
+
   let editMode = false, currentId = null, lastFocus = null, toastTimer;
 
   /* ---------- Rendering ---------- */
   function renderFloors() {
-    const filter = $("floorFilter").value;
+    const filter = getEl("floorFilter").value;
     floorsEl.innerHTML = "";
     const visible = FLOORS.filter(f => filter === "all" || String(f.n) === filter);
     floorsEl.style.gridTemplateColumns = visible.length === 1 ? "minmax(0, 420px)" : "";
@@ -109,42 +119,41 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
       const floorRooms = Object.values(rooms).filter(r => r.floor === f.n);
       const col = document.createElement("div");
       col.className = "floor";
-      col.innerHTML = `
-        <div class="floor-head">
-          <div><strong>${f.name}</strong><small>${f.sub} • ${floorRooms.length} Rooms</small></div>
-          <span class="lvl">L${f.n}</span>
-        </div>
-        <div class="room-grid"></div>`;
+      col.innerHTML = 
+        '<div class="floor-head">' +
+          '<div><strong>' + f.name + '</strong><small>' + f.sub + ' • ' + floorRooms.length + ' Rooms</small></div>' +
+          '<span class="lvl">L' + f.n + '</span>' +
+        '</div>' +
+        '<div class="room-grid"></div>';
+
       const grid = col.querySelector(".room-grid");
       floorRooms.forEach(r => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = "room" + (r.facility ? " facility" : "");
         b.dataset.id = r.id;
-        b.dataset.gma = r.gma;
-        b.dataset.maint = r.maint;
-        b.title = `${r.facility ? r.label : "Room " + r.label} • ${roomTypeLabel(r.roomType)} • ${gmaLabel(r.gma)} • ${maintLabel(r.maint)}`;
-        const icon = ICONS[r.label] ? `<span class="fi" aria-hidden="true">${ICONS[r.label]}</span>` : "";
-        const text = r.facility ? r.label : `Room ${r.label}`;
-        b.innerHTML = `${icon}${text}<span class="badge" aria-hidden="true"></span>`;
+        b.dataset.gma = r.availability; // Preserves CSS dataset bindings for status colors
+        b.title = r.name + "\nType: " + roomTypeLabel(r.roomType) + "\nStatus: " + availabilityLabel(r.availability);
+
+        const icon = ICONS[r.label] ? '<span class="fi" aria-hidden="true">' + ICONS[r.label] + '</span>' : "";
+        const displayText = r.number ? "Room " + r.number : r.name;
+
+        b.innerHTML = icon + displayText + '<span class="badge" aria-hidden="true"></span>';
         grid.appendChild(b);
       });
       floorsEl.appendChild(col);
     });
-    $("totalRooms").textContent = `Total: ${Object.keys(rooms).length} Rooms`;
+    getEl("totalRooms").textContent = "Total: " + Object.keys(rooms).length + " Rooms";
   }
-
-  const gmaLabel = v => ({ full: "Fully Available", "under maintenance": "Under Maintenance", "not available": "Not Available" })[v];
-  const maintLabel = v => ({ none: "Operational", under: "Under Maintenance" })[v];
 
   /* ---------- Edit mode ---------- */
   function setEditMode(on) {
     editMode = on;
     floorsEl.classList.toggle("editing", on);
-    const btn = $("editToggle");
+    const btn = getEl("editToggle");
     btn.setAttribute("aria-pressed", on);
     btn.textContent = on ? "✓ Done Editing" : "+ Edit Rooms";
-    $("editNotice").hidden = !on;
+    getEl("editNotice").hidden = !on;
     showToast(on ? "Room Editing Mode enabled" : "Room Editing Mode disabled");
   }
 
@@ -153,17 +162,18 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
     const r = rooms[id];
     currentId = id;
     lastFocus = document.activeElement;
-    const titleText = r.facility ? r.label : `Room ${r.label}`;
-    $("modalTitle").textContent = `Edit ${titleText} Configuration`;
-    fields.gma.value = r.gma;
-    fields.maint.value = r.maint;
-    fields.capacity.value = r.capacity;
+
+    getEl("modalTitle").textContent = "Edit " + r.name + " Configuration";
+    fields.number.value = r.number;
+    fields.name.value = r.name;
     fields.roomType.value = r.roomType;
+    fields.availability.value = r.availability;
+
     clearInvalid();
     validate();
     overlay.hidden = false;
     document.body.style.overflow = "hidden";
-    fields.gma.focus();
+    fields.number.focus();
   }
 
   function closeModal() {
@@ -177,41 +187,38 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
     Object.values(fields).forEach(f => f.classList.remove("invalid"));
   }
 
-  /* Live conflict / status check */
+  /* Live Validation */
   function validate() {
-    const box = $("alertBox");
-    const gma = fields.gma.value, maint = fields.maint.value;
-    const cap = Number(fields.capacity.value);
-    const r = rooms[currentId];
-    const label = r ? (r.facility ? r.label : `Room ${r.label}`) : "This room";
-    let type = "ok", msg = `${label} is clear of course lectures and administrative maintenance.`;
+    const box = getEl("alertBox");
+    const num = fields.number.value.trim();
+    const name = fields.name.value.trim();
+    const avail = fields.availability.value;
 
-    if (!fields.capacity.value || cap < 1 || cap > 45) {
-      type = "bad"; msg = "Capacity must be between 1 and 45 students.";
-    } else if (maint === "under" && gma === "full") {
-      type = "bad"; msg = "Conflict: a room under maintenance cannot be marked Fully Available. Set GMA Availability to Under Maintenance or Not Available.";
-    } else if (maint === "under") {
-      type = "warn"; msg = "Room is closed for reservations until maintenance is complete.";
-    } else if (gma === "not available") {
-      type = "warn"; msg = "Room is marked Not Available and will not accept new reservations.";
-    } else if (gma === "under maintenance") {
-      type = "warn"; msg = "Room is under maintenance and will not accept new reservations.";
+    let type = "ok", msg = "Room details and availability are properly configured.";
+
+    if (!num && !name) {
+      type = "bad"; msg = "Please enter at least a Room Number or a Room Name.";
+    } else if (avail === "under maintenance") {
+      type = "warn"; msg = "Room is set to Under Maintenance and will not accept new reservations.";
+    } else if (avail === "not available") {
+      type = "warn"; msg = "Room is marked Not Available for reservations.";
     }
-    box.className = `alert ${type}`;
-    box.textContent = (type === "ok" ? "✔ Automatic Conflict Check: " : type === "bad" ? "✖ " : "⚠ ") + msg;
+
+    box.className = "alert " + type;
+    box.textContent = (type === "ok" ? "✔ " : type === "bad" ? "✖ " : "⚠ ") + msg;
     return type !== "bad";
   }
 
-  /* ---------- Events ---------- */
-  $("editToggle").addEventListener("click", () => setEditMode(!editMode));
-  $("floorFilter").addEventListener("change", renderFloors);
+  /* ---------- Event Listeners ---------- */
+  getEl("editToggle").addEventListener("click", () => setEditMode(!editMode));
+  getEl("floorFilter").addEventListener("change", renderFloors);
 
   floorsEl.addEventListener("click", e => {
     const card = e.target.closest(".room");
     if (!card) return;
     const r = rooms[card.dataset.id];
     if (!editMode) {
-      showToast("Turn on Edit Rooms to change " + (r.facility ? r.label : "Room " + r.label));
+      showToast("Turn on Edit Rooms to change " + r.name);
       return;
     }
     openModal(card.dataset.id);
@@ -225,34 +232,39 @@ document.addEventListener('DOMContentLoaded', checkAdminSession);
   form.addEventListener("submit", e => {
     e.preventDefault();
     clearInvalid();
-    if (!validate()) { fields.capacity.classList.add("invalid"); return; }
-    Object.assign(rooms[currentId], {
-      gma: fields.gma.value,
-      maint: fields.maint.value,
-      capacity: Number(fields.capacity.value),
-      roomType: fields.roomType.value,
-    });
-    const saved = rooms[currentId];
-    const savedLabel = saved.facility ? saved.label : `Room ${saved.label}`;
+    if (!validate()) {
+      if (!fields.number.value.trim() && !fields.name.value.trim()) {
+        fields.number.classList.add("invalid");
+      }
+      return;
+    }
+
+    const r = rooms[currentId];
+    r.number = fields.number.value.trim();
+    r.name = fields.name.value.trim() || (r.number ? "Room " + r.number : "Unnamed Room");
+    r.label = r.number || r.name;
+    r.roomType = fields.roomType.value;
+    r.availability = fields.availability.value;
+
     closeModal();
     renderFloors();
-    showToast(`${savedLabel} changes saved`);
+    showToast(r.name + " changes saved");
   });
 
-  $("cancelBtn").addEventListener("click", closeModal);
-  $("closeModal").addEventListener("click", closeModal);
+  getEl("cancelBtn").addEventListener("click", closeModal);
+  getEl("closeModal").addEventListener("click", closeModal);
   overlay.addEventListener("mousedown", e => { if (e.target === overlay) closeModal(); });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !overlay.hidden) closeModal();
   });
 
-  $("navToggle").addEventListener("click", e => {
-    const open = $("nav").classList.toggle("open");
+  getEl("navToggle").addEventListener("click", e => {
+    const open = getEl("nav").classList.toggle("open");
     e.currentTarget.setAttribute("aria-expanded", open);
   });
 
   function showToast(msg) {
-    const t = $("toast");
+    const t = getEl("toast");
     t.textContent = msg;
     t.classList.add("show");
     clearTimeout(toastTimer);
