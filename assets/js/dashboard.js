@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PUP Canlalay Campus CRS - Role-Based Dashboard Engine
  *
  * SECURITY CHANGES in this version:
@@ -226,29 +226,29 @@
     if (role === 'Student') {
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">My Reservations</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">My Reservations</a>
       `;
     } else if (role === 'Faculty') {
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Schedule</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">Schedule</a>
       `;
     } else {
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="room-management.html" class="pup-nav-link">Room Management</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="user-approvals.html" class="pup-nav-link">User Approvals</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="logs.html" class="pup-nav-link">Logs</a>
       `;
     }
