@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PUP Canlalay Campus CRS | Browse Rooms</title>
+  <title>PUP Canlalay Campus CRS | Browse Rooms &amp; Timetable</title>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,118 +29,531 @@
     };
   </script>
 
-  <!-- Shared CSS -->
+  <!-- Shared CSS & Admin Room Stylesheet -->
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/all-reservations.css" />
+  <link rel="stylesheet" href="assets/css/admin-dashboard.css" />
 
-  <!-- AUTH GUARD: body hidden until role verified -->
   <style>
+    /* AUTH GUARD: page body stays hidden until session verified */
     body { visibility: hidden; }
 
-    .room-card {
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    /* Custom tweaks for Room Directory matching Admin-room management */
+    .room {
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
     }
-    .room-card:hover {
+    .room:hover {
+      transform: translateY(-2px);
       border-color: #880000;
-      box-shadow: 0 2px 8px rgba(136, 0, 0, 0.08);
+      box-shadow: 0 4px 12px rgba(136, 0, 0, 0.12);
+    }
+    .room.selected {
+      background-color: #fff8f8 !important;
+      border: 2px solid #880000 !important;
+      box-shadow: 0 0 0 3px rgba(136, 0, 0, 0.22), 0 4px 14px rgba(136, 0, 0, 0.16) !important;
+      color: #880000 !important;
+      font-weight: 800;
+      transform: translateY(-2px);
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
+    /* ================= WEEKLY TIMETABLE GRID ================= */
+    .timetable-wrapper {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow-x: auto;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+    .timetable-inner {
+      min-width: 1040px;
+      position: relative;
+    }
+    .time-axis-col {
+      width: 76px;
       flex-shrink: 0;
+      border-right: 1px solid #e2e8f0;
+      background: #ffffff;
+      position: sticky;
+      left: 0;
+      z-index: 25;
+    }
+    .time-slot-label {
+      height: 60px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      text-align: right;
+      padding-right: 12px;
+      box-sizing: border-box;
+      transform: translateY(-8px);
+    }
+    .day-column {
+      position: relative;
+      flex: 1 1 0;
+      min-width: 135px;
+      border-right: 1px solid #e2e8f0;
+      background: #ffffff;
+    }
+    .day-column:last-child {
+      border-right: none;
+    }
+    .grid-hour-line {
+      height: 60px;
+      border-bottom: 1px solid #f1f5f9;
+      box-sizing: border-box;
+      position: relative;
+    }
+    .grid-hour-line::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 30px;
+      border-bottom: 1px dashed #f8fafc;
+      pointer-events: none;
+    }
+
+    /* ================= SCHEDULE EVENT CARDS (MATCHING SCREENSHOT) ================= */
+    .schedule-card {
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      border-radius: 8px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .schedule-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+      z-index: 20;
+    }
+    .schedule-card .card-top-bar {
+      height: 6px;
+      width: 100%;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      flex-shrink: 0;
+    }
+    .schedule-card .card-title {
+      font-weight: 800;
+      font-size: 12.5px;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .schedule-card .card-time {
+      font-weight: 700;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .schedule-card .card-meta {
+      font-size: 10px;
+      line-height: 1.35;
+      margin-top: 4px;
+      color: #4b5563;
+    }
+
+    /* RED: Reserved / Occupied */
+    .schedule-card.occupied {
+      background-color: #fef2f2;
+      border: 2px solid #ef4444;
+    }
+    .schedule-card.occupied .card-top-bar {
+      background-color: #880000;
+    }
+    .schedule-card.occupied .card-title {
+      color: #880000;
+    }
+    .schedule-card.occupied .card-time {
+      color: #b91c1c;
+    }
+
+    /* YELLOW: Pending Reservation */
+    .schedule-card.pending {
+      background-color: #fffbeb;
+      border: 2px solid #f59e0b;
+    }
+    .schedule-card.pending .card-top-bar {
+      background-color: #f59e0b;
+    }
+    .schedule-card.pending .card-title {
+      color: #b45309;
+    }
+    .schedule-card.pending .card-time {
+      color: #d97706;
+    }
+
+    /* GREEN: Available Time */
+    .schedule-card.available {
+      background-color: #f0fdf4;
+      border: 1.5px dashed #22c55e;
+      opacity: 0.88;
+    }
+    .schedule-card.available:hover {
+      background-color: #dcfce7;
+      border-style: solid;
+      border-color: #16a34a;
+      opacity: 1;
+    }
+    .schedule-card.available .card-top-bar {
+      background-color: #22c55e;
+    }
+    .schedule-card.available .card-title {
+      color: #15803d;
+    }
+    .schedule-card.available .card-time {
+      color: #16a34a;
+    }
+
+    /* Reserve Modal Overlay */
+    .reserve-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(15, 23, 42, 0.65);
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      overflow-y: auto;
+      backdrop-filter: blur(3px);
+    }
+    .reserve-overlay[hidden] {
+      display: none !important;
+    }
+    .reserve-modal {
+      width: 100%;
+      max-width: 560px;
+      background: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+      animation: modalPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalPop {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white" style="background-color:#f3f4f6; color:#111111; font-family:'Noto Sans','Inter',system-ui,sans-serif;">
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white" style="background-color:#f8fafc; color:#111111; font-family:'Noto Sans','Inter',system-ui,sans-serif;">
 
-  <!-- ================= TOP NAVBAR ================= -->
+  <!-- ================= TOP RED NAVBAR ================= -->
   <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
-      <!-- Brand -->
+      <!-- Brand Logo & Campus Title -->
       <div class="flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
           <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
           <div>
-            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight">PUP - Canlalay Campus</div>
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+              PUP - Canlalay Campus
+            </div>
             <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
           </div>
         </a>
       </div>
 
-      <!-- Role-Specific Nav (filled by JS) -->
+      <!-- Navigation Links (filled dynamically based on role: Student, Faculty, Admin) -->
       <nav id="brNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
       </nav>
 
-      <!-- Right: Avatar -->
+      <!-- Right: User Avatar & Profile Dropdown -->
       <div class="flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
           <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         </a>
-        <div class="w-9 h-9 rounded-full bg-[#3b82f6] text-white font-bold text-xs flex items-center justify-center shadow">
-          <span id="brAvatarText">--</span>
+
+        <div class="relative">
+          <button id="brProfileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shadow focus:outline-none transition">
+            <span id="brAvatarText">--</span>
+          </button>
+
+          <div id="brProfileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p id="brProfileName" class="text-xs font-bold text-[#111111] truncate">User</p>
+              <p id="brProfileEmail" class="text-[11px] text-gray-500 truncate"></p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+                <span id="brProfileRoleBadge">Role: Student</span>
+              </div>
+            </div>
+            <div class="py-1 text-xs">
+              <a href="profile.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                My Profile
+              </a>
+              <a href="dashboard.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                Dashboard
+              </a>
+            </div>
+            <div class="border-t border-gray-100 pt-1">
+              <button id="brBtnSignOut" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
     </div>
   </header>
 
-  <!-- ================= MAIN CONTENT ================= -->
-  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="container">
 
-    <!-- Page Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+    <!-- Top Banner Card (matching Admin Room Management) -->
+    <section class="card banner">
       <div>
-        <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
-          <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
-          <span>&rsaquo;</span>
-          <span class="text-gray-700 font-bold">Browse Rooms</span>
-        </div>
-        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Browse Available Rooms</h1>
-        <p class="text-xs text-gray-500 mt-0.5">View all classrooms and laboratories. Check availability and submit a reservation request.</p>
+        <p class="eyebrow">PUP CANLALAY CAMPUS &bull; CLASSROOM RESERVATION SYSTEM</p>
+        <h1 id="bannerTitle">Classroom Directory &amp; Timetable</h1>
+        <p class="meta">
+          <span>Select any room across campus floors to view its weekly schedule timetable (7:00 AM – 9:00 PM).</span>
+        </p>
       </div>
-      <div>
-        <button id="btnNewReservation" type="button" class="btn-primary">
-          <span>+</span>
-          <span>New Reservation</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Filter Toolbar -->
-    <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <!-- Status Tabs -->
-        <div class="flex flex-wrap items-center gap-2" id="statusFilterTabs">
-          <button class="filter-tab active" data-status="all">All Rooms</button>
-          <button class="filter-tab" data-status="available">Available</button>
-          <button class="filter-tab" data-status="in-process">In-Process</button>
-          <button class="filter-tab" data-status="reserved">Reserved / Occupied</button>
-        </div>
-        <!-- Search -->
-        <div class="relative w-full sm:w-72">
-          <input type="text" id="searchInput" placeholder="Search room name, floor, features..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]" />
-          <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <div class="controls flex items-center gap-3">
+        <select id="floorFilter" aria-label="Filter by floor">
+          <option value="all" selected>All Floors</option>
+          <option value="1">1st Floor</option>
+          <option value="2">2nd Floor</option>
+          <option value="3">3rd Floor</option>
+          <option value="4">4th Floor</option>
+        </select>
+        <div class="relative w-48 sm:w-64">
+          <input type="text" id="roomSearchInput" placeholder="Search room or lab..." class="w-full px-3 py-2.5 text-xs border border-gray-300 rounded-[12px] bg-white text-gray-800 focus:outline-none focus:border-[#880000]" />
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Room Grid -->
-    <div id="roomGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <!-- Populated by JS -->
-    </div>
+    <!-- Campus Floor Manager Directory (identical to Admin-room management) -->
+    <section class="card directory">
+      <div class="dir-head">
+        <div>
+          <h2>PUP Canlalay Campus Floor Manager</h2>
+          <p class="muted">Select a classroom or laboratory across floors to inspect schedule timetable and reserve time slots.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-3 text-xs text-gray-600 mr-2">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#22c55e]"></span> Available</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-[#ef4444]"></span> Occupied / Inactive</span>
+          </div>
+          <span class="pill" id="totalRooms">Total: 0 Rooms</span>
+        </div>
+      </div>
 
-    <!-- Empty State -->
-    <div id="emptyState" class="hidden bg-white p-12 rounded-[4px] border border-gray-200 shadow-sm text-center space-y-3">
-      <svg class="w-12 h-12 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <p class="text-sm font-semibold text-gray-500">No rooms match your filters.</p>
-      <p class="text-xs text-gray-400">Try adjusting the status filter or search query.</p>
-    </div>
+      <!-- Floors grid rendered dynamically by JS -->
+      <div class="floors" id="floors"></div>
+    </section>
+
+    <!-- ================= WEEKLY TIMETABLE (7:00 AM – 9:00 PM) ================= -->
+    <section id="timetableSection" class="card p-6 bg-white border border-gray-200 rounded-[18px] shadow-sm space-y-6">
+
+      <!-- Timetable Header Bar matching the uploaded design -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-[#880000] bg-red-50 px-2.5 py-0.5 rounded border border-red-200" id="ttFloorBadge">3rd Floor</span>
+            <span class="text-[10px] font-bold text-gray-700 bg-gray-100 px-2.5 py-0.5 rounded border border-gray-200" id="ttTypeBadge">Laboratory</span>
+            <span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1" id="ttStatusBadge">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+            </span>
+          </div>
+          <h2 id="ttRoomTitle" class="text-xl sm:text-2xl font-bold text-[#111111] leading-tight">Lab 301 - Advanced Networking Lab</h2>
+          <p id="ttRoomMeta" class="text-xs text-gray-500 mt-0.5">3rd Floor &bull; Capacity: 45 Students &bull; Cisco Racks, Dual Projectors</p>
+        </div>
+
+        <!-- Controls: Color Legend + Week Switcher + "Reserve a Time" Button -->
+        <div class="flex flex-wrap items-center gap-3">
+
+          <!-- User's Color Legend (Red = Occupied, Yellow = Pending, Green = Available) -->
+          <div class="flex flex-wrap items-center gap-3 text-xs bg-gray-50 px-3 py-1.5 rounded-[8px] border border-gray-200">
+            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+              <span class="w-3 h-3 rounded-[3px] bg-[#dc2626] border border-[#b91c1c]"></span>
+              <span>Reserved / Occupied (Red)</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+              <span class="w-3 h-3 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
+              <span>Pending (Yellow)</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+              <span class="w-3 h-3 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
+              <span>Available Time (Green)</span>
+            </span>
+          </div>
+
+          <!-- Week Switcher -->
+          <div class="flex items-center bg-gray-50 p-1 border border-gray-200 rounded-[8px]">
+            <button id="ttBtnPrevWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Previous Week">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <span id="ttWeekRangeLabel" class="px-3 py-1 text-xs font-bold text-gray-800 select-none whitespace-nowrap">Oct 19 – Oct 25, 2026</span>
+            <button id="ttBtnNextWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Next Week">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+            <button id="ttBtnThisWeek" type="button" class="ml-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 transition">This Week</button>
+          </div>
+
+          <!-- "Reserve a Time" Primary Action Button -->
+          <button id="btnReserveTime" type="button" class="btn-primary flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-[8px] bg-[#880000] hover:bg-[#5c0000] text-white shadow transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            <span>Reserve a Time</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Weekly Schedule Grid View (Exact design from uploaded image) -->
+      <div class="timetable-wrapper">
+        <div class="timetable-inner">
+
+          <!-- Day Columns Header Row -->
+          <div class="flex border-b border-gray-200 bg-gray-50/80 sticky top-0 z-30">
+            <!-- Top-Left Corner Time Header -->
+            <div class="time-axis-col p-3 border-r border-gray-200 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right pr-3 bg-gray-50">
+              Time
+            </div>
+            <!-- 7 Day Headers: Monday to Sunday -->
+            <div class="grid grid-cols-7 flex-grow text-center" id="timetableDaysHeader">
+              <!-- Rendered dynamically by JS with day name and date -->
+            </div>
+          </div>
+
+          <!-- Main Grid Body: Left Time Axis + 7 Day Columns -->
+          <div class="flex relative" style="height: 840px;">
+            <!-- Left Time Axis (7:00 AM to 9:00 PM, 14 hours at 60px/hr) -->
+            <div class="time-axis-col" id="timeAxisLabels">
+              <!-- Rendered dynamically by JS: 7:00 AM, 8:00 AM ... 9:00 PM -->
+            </div>
+
+            <!-- 7 Day Columns Grid -->
+            <div class="grid grid-cols-7 flex-grow relative" id="timetableGridBody">
+              <!-- Rendered dynamically by JS: background hour lines + schedule cards -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </section>
 
   </main>
+
+  <!-- ================= MODAL PANEL: RESERVE A TIME ================= -->
+  <div id="reservationOverlay" class="reserve-overlay" hidden>
+    <div class="reserve-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+
+      <!-- Modal Header -->
+      <div class="modal-head flex items-center justify-between p-4 bg-[#880000] text-white">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl" aria-hidden="true">📅</span>
+          <div>
+            <h3 class="font-bold text-sm text-white" id="modalTitle">Reserve a Time</h3>
+            <p class="text-[11px] text-[#ffd658]">PUP Canlalay Campus Classroom &amp; Facility Reservation</p>
+          </div>
+        </div>
+        <button type="button" class="close text-white hover:bg-white/20 p-1.5 rounded transition" id="btnCloseReserveModal" aria-label="Close modal">✕</button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="reservationForm" novalidate class="p-6 space-y-4 text-xs">
+
+        <!-- Selected Room Chip -->
+        <div class="p-3 bg-red-50 border border-red-200 rounded-[8px] flex items-center justify-between">
+          <div>
+            <p class="text-[10px] uppercase font-bold text-[#880000] tracking-wider">Target Room</p>
+            <p id="modalRoomName" class="font-bold text-xs text-gray-900 mt-0.5">Lab 301 - Advanced Networking Lab</p>
+            <p id="modalRoomFloor" class="text-[11px] text-gray-500">3rd Floor &bull; Laboratory</p>
+          </div>
+          <span class="text-[10px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-100 text-emerald-800 border border-emerald-300">Available Slot</span>
+        </div>
+
+        <!-- Input 1: "reservation date" calendar -->
+        <div>
+          <label for="resDate" class="block font-bold text-gray-700 mb-1">Reservation Date *</label>
+          <input type="date" id="resDate" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium" />
+        </div>
+
+        <!-- Inputs 2 & 3: "reservation start" (30mins interval) and "reservation end" dropdowns -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="resStart" class="block font-bold text-gray-700 mb-1">Reservation Start (30-min interval) *</label>
+            <select id="resStart" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium">
+              <!-- Populated by JS: 7:00 AM to 8:30 PM (30 min intervals) -->
+            </select>
+          </div>
+          <div>
+            <label for="resEnd" class="block font-bold text-gray-700 mb-1">Reservation End *</label>
+            <select id="resEnd" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium">
+              <!-- Populated by JS: 7:30 AM to 9:00 PM (30 min intervals) -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Input 4: "faculty" dropdown -->
+        <div>
+          <label for="resFaculty" class="block font-bold text-gray-700 mb-1">Tagged Faculty Professor *</label>
+          <select id="resFaculty" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium">
+            <option value="" disabled selected>-- Select Faculty Professor --</option>
+            <option value="Dr. Alicia Reyes">Dr. Alicia Reyes (Computer Science)</option>
+            <option value="Engr. Roberto Cruz">Engr. Roberto Cruz (Information Technology)</option>
+            <option value="Prof. Ferdinand Silva">Prof. Ferdinand Silva (Software Engineering)</option>
+            <option value="Prof. Maria Morales">Prof. Maria Morales (Multimedia &amp; Networking)</option>
+            <option value="Prof. Dante Santos">Prof. Dante Santos (General Education / Purposive Comm)</option>
+            <option value="Prof. McJoben Reyes">Prof. McJoben Reyes (Systems &amp; Database)</option>
+            <option value="Prof. Aaron Atienza">Prof. Aaron Atienza (Multimedia &amp; Graphics)</option>
+            <option value="Prof. Indaleen Quinsayas">Prof. Indaleen Quinsayas (Project Management)</option>
+            <option value="Dr. Gloria Mendoza">Dr. Gloria Mendoza (Mathematics &amp; Computation)</option>
+          </select>
+        </div>
+
+        <!-- Input 5: "subject/purpose" textfield -->
+        <div>
+          <label for="resSubject" class="block font-bold text-gray-700 mb-1">Subject Code &amp; Reservation Purpose *</label>
+          <input type="text" id="resSubject" required placeholder="e.g. CS314 - OS Laboratory Practical Exam / Research Defense" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium" />
+        </div>
+
+        <!-- Status Option: Confirmed (Red) or Pending (Yellow) -->
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">Reservation Type / Color Status</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2 border border-red-200 rounded bg-red-50/60 cursor-pointer">
+              <input type="radio" name="resStatusType" value="occupied" checked class="text-[#880000] focus:ring-[#880000]" />
+              <span class="text-xs font-bold text-[#880000]">Reserved / Occupied (Red)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 border border-amber-200 rounded bg-amber-50/60 cursor-pointer">
+              <input type="radio" name="resStatusType" value="pending" class="text-amber-600 focus:ring-amber-500" />
+              <span class="text-xs font-bold text-amber-800">Pending Request (Yellow)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Real-Time Conflict / Validation Status Box -->
+        <div id="resAlertBox" class="alert ok p-2.5 rounded-[6px] text-xs border font-medium">
+          ✔ Selected slot is clear of schedule conflicts.
+        </div>
+
+        <!-- Modal Footer Controls -->
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-gray-100">
+          <button type="button" id="btnCancelReservation" class="btn-ghost px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-[4px]">
+            Cancel
+          </button>
+          <button type="submit" id="btnConfirmReservation" class="btn-primary px-5 py-2 text-xs font-bold bg-[#880000] hover:bg-[#5c0000] text-white rounded-[4px] shadow transition">
+            ➤ Confirm &amp; Submit Reservation
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
 
   <!-- ================= FOOTER ================= -->
   <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
@@ -155,17 +568,17 @@
     </div>
   </footer>
 
-  <!-- Toast -->
-  <div id="brToast" class="fixed bottom-5 right-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[3px] shadow-xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
+  <!-- ================= TOAST NOTIFICATION ================= -->
+  <div id="brToast" class="fixed bottom-5 right-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[6px] shadow-2xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
     <p id="brToastMsg" class="flex-grow font-medium text-gray-100"></p>
-    <button type="button" id="btnCloseToast" class="text-gray-400 hover:text-white pointer-events-auto">&times;</button>
+    <button type="button" id="btnCloseToast" class="text-gray-400 hover:text-white pointer-events-auto text-base">&times;</button>
   </div>
 
-  <!-- Supabase -->
+  <!-- Supabase JS Client & Config -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
 
-  <!-- Auth Guard + Page Logic -->
+  <!-- Browse Rooms & Timetable Controller -->
   <script src="assets/js/browse-rooms.js"></script>
 </body>
 </html>
