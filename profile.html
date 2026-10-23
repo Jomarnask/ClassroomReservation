@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Profile - PUP CRS</title>
+
+  <!-- Google Fonts: Noto Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Custom Configuration matching design.md -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: {
+              maroon: '#880000',
+              darkmaroon: '#5c0000',
+              lightmaroon: '#a30000',
+              gold: '#ffd658',
+              blue: '#337ab7',
+              darkblue: '#23527c',
+            },
+            brand: {
+              primary: '#880000',
+              secondary: '#ffd658',
+              link: '#337ab7',
+              text: '#111111',
+            }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Shared Application Stylesheet -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <style>
+    /* AUTH GUARD: Hide body until profile.js confirms session & active status */
+    body { visibility: hidden; }
+
+    :root {
+      --pup-maroon: #880000;
+      --pup-darkmaroon: #5c0000;
+      --pup-lightmaroon: #a30000;
+      --pup-gold: #ffd658;
+      --pup-blue: #337ab7;
+      --text-primary: #111111;
+      --text-secondary: #4b5563;
+      --bg-page: #f3f4f6;
+      --border-default: #d1d5db;
+    }
+
+    body {
+      background-color: #f3f4f6;
+      color: #111111;
+      font-family: 'Noto Sans', 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .pup-navbar-red {
+      background-color: #880000;
+      border-bottom: 2px solid #5c0000;
+    }
+
+    .pup-nav-link {
+      color: rgba(255, 255, 255, 0.9);
+      font-weight: 500;
+      font-size: 0.875rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 3px;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .pup-nav-link:hover {
+      color: #ffffff;
+      background-color: rgba(255, 255, 255, 0.12);
+    }
+    .pup-nav-link.active {
+      color: #ffffff;
+      font-weight: 700;
+      border-bottom: 2px solid #ffd658;
+    }
+
+    .btn-pup-primary {
+      background-color: #880000;
+      color: #ffffff;
+      border-radius: 3px;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .btn-pup-primary:hover {
+      background-color: #5c0000;
+    }
+
+    .btn-pup-secondary {
+      background-color: #ffffff;
+      border: 1px solid #d1d5db;
+      color: #374151;
+      border-radius: 3px;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+    }
+    .btn-pup-secondary:hover {
+      border-color: #880000;
+      color: #880000;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
+
+  <!-- ================= TOP NAVBAR ================= -->
+  <header class="pup-navbar-red text-white sticky top-0 z-50 shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Name -->
+      <div class="flex items-center gap-3 shrink-0">
+      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+        <div>
+          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+            PUP - Canlalay Campus
+          </div>
+          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
+        </div>
+      </a>
+    </div>
+
+
+      <!-- Center: Navigation Links -->
+      <nav id="roleNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+        <a href="dashboard.html" class="pup-nav-link">Dashboard</a>
+        <span class="text-white/60 font-light select-none">|</span>
+        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
+        <span class="text-white/60 font-light select-none">|</span>
+        <a href="profile.html" class="pup-nav-link active">Profile</a>
+      </nav>
+
+      <!-- Right: Navigation Action -->
+      <div class="flex items-center gap-3 sm:gap-4 shrink-0">
+        <a href="dashboard.html" class="btn-pup-secondary text-xs text-white bg-white/10 hover:bg-white/20 border-white/20">
+          &larr; Return to Dashboard
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="flex-grow max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+    <section class="bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden">
+      <!-- Profile Header Banner -->
+      <div class="bg-gradient-to-r from-[#880000] to-[#5c0000] p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-16 h-16 rounded-full bg-[#ffd658] text-[#880000] font-extrabold text-xl flex items-center justify-center border-2 border-white shadow-md shrink-0">
+            <span id="avatarInitials">--</span>
+          </div>
+          <div>
+            <p id="headerRecordLabel" class="text-[11px] font-bold text-[#ffd658] uppercase tracking-wider">OFFICIAL CRS USER RECORD</p>
+            <h2 class="text-xl sm:text-2xl font-bold text-white" id="headerName">Loading Profile...</h2>
+            <p class="text-xs text-white/80 font-medium" id="headerWebmail">Please wait...</p>
+          </div>
+        </div>
+        <div class="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-[3px] text-xs font-semibold border border-white/20">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>Verified Account</span>
+        </div>
+      </div>
+
+      <div class="p-6">
+        <!-- Display View -->
+        <div id="profileView" class="space-y-6">
+          <div class="border-b border-gray-100 pb-3 flex items-center justify-between">
+            <div>
+              <h3 id="sectionTitle" class="text-lg font-bold text-[#111111]">Account Information</h3>
+              <p id="sectionSubtitle" class="text-xs text-gray-500">Your registered details at PUP Canlalay Campus</p>
+            </div>
+            <button id="editBtn" type="button" class="btn-pup-primary text-xs shadow-sm hidden">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+              Edit Profile
+            </button>
+          </div>
+
+          <!-- Profile Details Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <!-- Full Name (ALL ROLES) -->
+            <div class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px]">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Full Name</span>
+              <p class="font-bold text-sm text-[#111111]" id="name">Loading...</p>
+            </div>
+
+            <!-- Student Number (STUDENT ONLY) -->
+            <div id="fieldStudentNumber" class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px] hidden">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Student Number</span>
+              <p class="font-bold text-sm text-[#880000] font-mono" id="studentNumber">Loading...</p>
+            </div>
+
+            <!-- PUP Webmail (ALL ROLES) -->
+            <div class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px]">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">PUP Webmail</span>
+              <p class="font-semibold text-gray-800" id="email">Loading...</p>
+            </div>
+
+            <!-- System Role (ALL ROLES) -->
+            <div class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px]">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">System Role</span>
+              <p class="font-bold text-gray-800" id="role">Loading...</p>
+            </div>
+
+            <!-- Program / Course (STUDENT ONLY) -->
+            <div id="fieldProgram" class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px] hidden">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Program / Course</span>
+              <p class="font-bold text-gray-800" id="program">Loading...</p>
+            </div>
+
+            <!-- Year Level (STUDENT ONLY) -->
+            <div id="fieldYear" class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px] hidden">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Year Level</span>
+              <p class="font-bold text-gray-800" id="year">Loading...</p>
+            </div>
+
+            <!-- Section Assignment (STUDENT ONLY) -->
+            <div id="fieldSection" class="p-3.5 bg-gray-50 border border-gray-200 rounded-[3px] sm:col-span-2 hidden">
+              <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1">Section Assignment</span>
+              <p class="font-bold text-gray-800" id="section">Loading...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Form View (STUDENT ONLY) -->
+        <form id="profileEdit" class="hidden space-y-5">
+          <div class="border-b border-gray-100 pb-3">
+            <h3 class="text-lg font-bold text-[#111111]">Edit Academic Information</h3>
+            <p class="text-xs text-gray-500">Update your current academic program, year level, and section</p>
+          </div>
+
+          <div class="space-y-4 text-xs">
+            <div>
+              <label for="editProgram" class="block font-bold text-gray-700 mb-1">Program / Course *</label>
+              <select id="editProgram" class="w-full px-3 py-2 border border-gray-300 rounded-[3px] text-xs text-[#111111] bg-white focus:border-[#880000] focus:ring-2 focus:ring-[#880000]/15 focus:outline-none transition">
+                <option value="">Select Program / Course</option>
+                <option value="BS of Information Technology (BSIT)">BS of Information Technology (BSIT)</option>
+                <option value="BS of Computer Engineering (BSCpE)">BS of Computer Engineering (BSCpE)</option>
+                <option value="BS of Industrial Engineering (BSIE)">BS of Industrial Engineering (BSIE)</option>
+                <option value="Diploma in Information Technology (DIT)">Diploma in Information Technology (DIT)</option>
+                <option value="Diploma in Computer Engineering Technology (DCpET)">Diploma in Computer Engineering Technology (DCpET)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="editYear" class="block font-bold text-gray-700 mb-1">Year Level *</label>
+              <select id="editYear" class="w-full px-3 py-2 border border-gray-300 rounded-[3px] text-xs text-[#111111] bg-white focus:border-[#880000] focus:ring-2 focus:ring-[#880000]/15 focus:outline-none transition">
+                <option value="">Select Year Level</option>
+                <option value="1">1st Year</option>
+                <option value="2">2nd Year</option>
+                <option value="3">3rd Year</option>
+                <option value="4">4th Year</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="editSection" class="block font-bold text-gray-700 mb-1">Section *</label>
+              <select id="editSection" class="w-full px-3 py-2 border border-gray-300 rounded-[3px] text-xs text-[#111111] bg-white focus:border-[#880000] focus:ring-2 focus:ring-[#880000]/15 focus:outline-none transition">
+                <option value="">Select Section</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <button type="button" id="cancelBtn" class="btn-pup-secondary text-xs">Cancel</button>
+            <button type="button" id="saveBtn" class="btn-pup-primary text-xs shadow-sm">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+        <div class="flex items-center gap-2.5">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-6 h-6 object-contain" />
+          <span class="font-semibold text-white">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS</span>
+        </div>
+        <div class="flex items-center gap-3 text-[11px]">
+          <a href="dashboard.html" class="hover:text-white transition">Dashboard</a>
+          <span>&bull;</span>
+          <a href="all-reservations.html" class="hover:text-white transition">Reservations</a>
+          <span>&bull;</span>
+          <span>&copy; 2026 PUP Canlalay Campus</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="assets/js/script.js"></script>
+  <script src="assets/js/profile.js"></script>
+</body>
+</html>

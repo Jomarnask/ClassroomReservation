@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP Canlalay Campus CRS | Browse Rooms</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Shared CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/all-reservations.css" />
+
+  <!-- AUTH GUARD: body hidden until role verified -->
+  <style>
+    body { visibility: hidden; }
+
+    .room-card {
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .room-card:hover {
+      border-color: #880000;
+      box-shadow: 0 2px 8px rgba(136, 0, 0, 0.08);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white" style="background-color:#f3f4f6; color:#111111; font-family:'Noto Sans','Inter',system-ui,sans-serif;">
+
+  <!-- ================= TOP NAVBAR ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+
+      <!-- Brand -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+          <div>
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight">PUP - Canlalay Campus</div>
+            <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- Role-Specific Nav (filled by JS) -->
+      <nav id="brNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+      </nav>
+
+      <!-- Right: Avatar -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        </a>
+        <div class="w-9 h-9 rounded-full bg-[#3b82f6] text-white font-bold text-xs flex items-center justify-center shadow">
+          <span id="brAvatarText">--</span>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTENT ================= -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+
+    <!-- Page Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+          <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
+          <span>&rsaquo;</span>
+          <span class="text-gray-700 font-bold">Browse Rooms</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Browse Available Rooms</h1>
+        <p class="text-xs text-gray-500 mt-0.5">View all classrooms and laboratories. Check availability and submit a reservation request.</p>
+      </div>
+      <div>
+        <button id="btnNewReservation" type="button" class="btn-primary">
+          <span>+</span>
+          <span>New Reservation</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Toolbar -->
+    <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Status Tabs -->
+        <div class="flex flex-wrap items-center gap-2" id="statusFilterTabs">
+          <button class="filter-tab active" data-status="all">All Rooms</button>
+          <button class="filter-tab" data-status="available">Available</button>
+          <button class="filter-tab" data-status="in-process">In-Process</button>
+          <button class="filter-tab" data-status="reserved">Reserved / Occupied</button>
+        </div>
+        <!-- Search -->
+        <div class="relative w-full sm:w-72">
+          <input type="text" id="searchInput" placeholder="Search room name, floor, features..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]" />
+          <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Room Grid -->
+    <div id="roomGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Populated by JS -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden bg-white p-12 rounded-[4px] border border-gray-200 shadow-sm text-center space-y-3">
+      <svg class="w-12 h-12 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="text-sm font-semibold text-gray-500">No rooms match your filters.</p>
+      <p class="text-xs text-gray-400">Try adjusting the status filter or search query.</p>
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+        <div class="flex items-center gap-2.5">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-6 h-6 object-contain" />
+          <span class="font-semibold text-white">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS</span>
+        </div>
+        <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast -->
+  <div id="brToast" class="fixed bottom-5 right-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[3px] shadow-xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
+    <p id="brToastMsg" class="flex-grow font-medium text-gray-100"></p>
+    <button type="button" id="btnCloseToast" class="text-gray-400 hover:text-white pointer-events-auto">&times;</button>
+  </div>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <!-- Auth Guard + Page Logic -->
+  <script src="assets/js/browse-rooms.js"></script>
+</body>
+</html>

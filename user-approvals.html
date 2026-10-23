@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP Canlalay Campus CRS | User Approvals Queue</title>
+
+  <!-- Google Fonts: Noto Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Shared & Feature CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/user-approvals.css" />
+
+  <style>
+    /* AUTH GUARD: page stays hidden until the admin check passes */
+    body { visibility: hidden; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
+
+  <!-- ================= TOP RED NAVBAR ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+
+      <div class="flex items-center gap-3 shrink-0">
+      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+        <div>
+          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+            PUP - Canlalay Campus
+          </div>
+          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
+        </div>
+      </a>
+    </div>
+
+      <nav class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+        <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="room-management.html" class="pup-nav-item">Room Management</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="all-reservations.html" class="pup-nav-item">All Reservations</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="user-approvals.html" class="pup-nav-item active">User Approvals</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="logs.html" class="pup-nav-item">Logs</a>
+      </nav>
+
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+        </a>
+        <div class="relative">
+          <button id="profileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shadow focus:outline-none transition">
+            <span id="adminAvatar">--</span>
+          </button>
+
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p id="profileDropdownName" class="text-xs font-bold text-[#111111] truncate">Admin</p>
+              <p id="profileDropdownEmail" class="text-[11px] text-gray-500 truncate"></p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+                <span>Role: Admin</span>
+              </div>
+            </div>
+            <div class="py-1 text-xs">
+              <a href="dashboard.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Back to Dashboard</a>
+            </div>
+            <div class="border-t border-gray-100 pt-1">
+              <button id="btnSignOut" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+
+    <!-- Header & Breadcrumb -->
+    <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+      <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+        <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
+        <span>&rsaquo;</span>
+        <span class="text-gray-700 font-bold">User Approvals</span>
+      </div>
+      <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">User Registration Approvals</h1>
+      <p class="text-xs text-gray-500 mt-0.5">Approve or decline new accounts, and deactivate users who no longer need access.</p>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm">
+        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Awaiting Admin Action</span>
+        <p class="text-2xl font-extrabold text-amber-600 mt-0.5" id="kpiPending">0</p>
+        <p class="text-[11px] text-gray-500">Pending registrations</p>
+      </div>
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm">
+        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Admin Access Requests</span>
+        <p class="text-2xl font-extrabold text-[#880000] mt-0.5" id="kpiAdmins">0</p>
+        <p class="text-[11px] text-gray-500">Pending requests for full control</p>
+      </div>
+      <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm">
+        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Active Accounts</span>
+        <p class="text-2xl font-extrabold text-emerald-600 mt-0.5" id="kpiActive">0</p>
+        <p class="text-[11px] text-gray-500">Users who can sign in</p>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex flex-wrap gap-2" id="tabBar">
+      <button type="button" data-tab="pending" class="tab-btn px-4 py-2 text-xs font-semibold rounded-[3px] border">Pending</button>
+      <button type="button" data-tab="active" class="tab-btn px-4 py-2 text-xs font-semibold rounded-[3px] border">Active</button>
+      <button type="button" data-tab="closed" class="tab-btn px-4 py-2 text-xs font-semibold rounded-[3px] border">Rejected &amp; Inactive</button>
+      <button type="button" id="btnRefresh" class="ml-auto px-3 py-2 text-xs font-semibold rounded-[3px] border border-gray-300 bg-white text-gray-700 hover:border-[#880000] hover:text-[#880000]">Refresh</button>
+    </div>
+
+    <!-- List -->
+    <div class="space-y-4" id="approvalsQueue"></div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+        <span>POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS CRS</span>
+        <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Root Configuration File -->
+  <script src="config.js"></script>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Reuse the client created in config.js (avoids a second GoTrue client)
+      const client = (typeof supabaseClient !== 'undefined') ? supabaseClient : window.supabaseClient;
+
+      const state = { me: null, users: [], tab: 'pending' };
+
+      const queueEl = document.getElementById('approvalsQueue');
+
+      function esc(str) {
+        return String(str ?? '').replace(/[&<>"']/g, ch => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+      }
+
+      function goTo(page) { window.location.replace(page); }
+
+      // ---------- Guard: signed in + active + admin ----------
+      async function guard() {
+        if (!client) return goTo('login.html');
+
+        const { data: { session }, error } = await client.auth.getSession();
+        if (error || !session) return goTo('login.html');
+
+        const { data: me, error: meErr } = await client
+          .from('users')
+          .select('user_id, full_name, role, account_status')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (meErr || !me || String(me.account_status).toLowerCase() !== 'active') {
+          try { await client.auth.signOut(); } catch (e) {}
+          return goTo('login.html');
+        }
+
+        // Signed in but not an admin: send to the normal dashboard
+        if (String(me.role).toLowerCase() !== 'admin') return goTo('dashboard.html');
+
+        state.me = me;
+        state.email = session.user.email || '';
+        return true;
+      }
+
+      // ---------- Data ----------
+      async function loadUsers() {
+        const { data, error } = await client
+          .from('users')
+          .select('user_id, full_name, pup_webmail, role, account_status, student_number, program_course, year_level, section, created_at')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Load users failed:', error);
+          queueEl.innerHTML = `<div class="bg-white p-6 rounded-[4px] border border-red-200 text-xs text-red-700">Could not load users: ${esc(error.message)}</div>`;
+          return;
+        }
+        state.users = data || [];
+        render();
+      }
+
+      async function setStatus(userId, newStatus) {
+        const { data, error } = await client
+          .from('users')
+          .update({ account_status: newStatus, updated_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .select('user_id');
+
+        if (error) {
+          console.error('Update failed:', error);
+          alert(`Update failed: ${error.message}`);
+          return false;
+        }
+        // RLS can block an update without an error; zero rows back means nothing changed
+        if (!data || data.length === 0) {
+          alert('Nothing was updated. You may not have permission (check the admin policies).');
+          return false;
+        }
+        return true;
+      }
+
+      // ---------- Rendering ----------
+      function yearLabel(n) {
+        if (!n) return 'N/A';
+        const s = ['th', 'st', 'nd', 'rd'];
+        const v = n % 100;
+        return `${n}${s[(v - 20) % 10] || s[v] || s[0]} Year`;
+      }
+
+      function fmtDate(iso) {
+        if (!iso) return 'N/A';
+        return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+      }
+
+      function roleBadge(role) {
+        const r = String(role || 'student').toLowerCase();
+        if (r === 'admin') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-red-100 text-[#880000] border border-red-300">ADMIN REQUEST</span>';
+        if (r === 'faculty') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-purple-50 text-purple-700 border border-purple-200">Faculty</span>';
+        return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-blue-50 text-blue-700 border border-blue-200">Student</span>';
+      }
+
+      function statusBadge(status) {
+        const s = String(status || '').toLowerCase();
+        if (s === 'active') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200">Active</span>';
+        if (s === 'rejected') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-red-50 text-red-700 border border-red-200">Rejected</span>';
+        if (s === 'inactive') return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-gray-100 text-gray-600 border border-gray-300">Inactive</span>';
+        return '<span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-amber-50 text-amber-700 border border-amber-200">Pending</span>';
+      }
+
+      function actionButtons(u) {
+        const id = esc(u.user_id);
+        const s = String(u.account_status).toLowerCase();
+        const isMe = u.user_id === state.me.user_id;
+
+        if (s === 'pending') {
+          return `
+            <button type="button" data-action="approve" data-id="${id}" class="btn-approve w-full sm:w-auto justify-center">&check; Approve</button>
+            <button type="button" data-action="reject" data-id="${id}" class="btn-reject w-full sm:w-auto justify-center">Reject</button>`;
+        }
+        if (s === 'active') {
+          return isMe
+            ? '<span class="text-[11px] text-gray-400">This is your account</span>'
+            : `<button type="button" data-action="deactivate" data-id="${id}" class="btn-reject w-full sm:w-auto justify-center">Deactivate</button>`;
+        }
+        // rejected or inactive
+        return `<button type="button" data-action="reactivate" data-id="${id}" class="btn-approve w-full sm:w-auto justify-center">Reactivate</button>`;
+      }
+
+      function visibleUsers() {
+        const list = state.users.filter(u => {
+          const s = String(u.account_status).toLowerCase();
+          if (state.tab === 'pending') return s === 'pending';
+          if (state.tab === 'active') return s === 'active';
+          return s === 'rejected' || s === 'inactive';
+        });
+        // pending admin requests first
+        if (state.tab === 'pending') {
+          list.sort((a, b) => (b.role === 'admin') - (a.role === 'admin'));
+        }
+        return list;
+      }
+
+      function updateKpis() {
+        const pending = state.users.filter(u => u.account_status === 'pending');
+        document.getElementById('kpiPending').textContent = pending.length;
+        document.getElementById('kpiAdmins').textContent = pending.filter(u => u.role === 'admin').length;
+        document.getElementById('kpiActive').textContent = state.users.filter(u => u.account_status === 'active').length;
+      }
+
+      function updateTabs() {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          const on = b.dataset.tab === state.tab;
+          b.className = 'tab-btn px-4 py-2 text-xs font-semibold rounded-[3px] border ' +
+            (on ? 'bg-[#880000] text-white border-[#880000]' : 'bg-white text-gray-700 border-gray-300 hover:border-[#880000] hover:text-[#880000]');
+        });
+      }
+
+      function render() {
+        updateKpis();
+        updateTabs();
+
+        const list = visibleUsers();
+        if (list.length === 0) {
+          const msg = {
+            pending: 'No pending registrations. New requests will appear here.',
+            active: 'No active accounts found.',
+            closed: 'No rejected or inactive accounts.'
+          }[state.tab];
+          queueEl.innerHTML = `
+            <div class="bg-white p-12 rounded-[4px] border border-gray-200 text-center space-y-2">
+              <p class="text-sm font-bold text-gray-700">${msg}</p>
+            </div>`;
+          return;
+        }
+
+        queueEl.innerHTML = list.map(u => {
+          const isStudent = String(u.role).toLowerCase() === 'student';
+          return `
+          <div class="approval-card ${u.role === 'admin' && u.account_status === 'pending' ? 'urgent' : ''}">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div class="space-y-1.5 flex-grow">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="text-base font-bold text-[#111111]">${esc(u.full_name || '(no name)')}</h3>
+                  ${roleBadge(u.role)}
+                  ${statusBadge(u.account_status)}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+                  <span>Email: <strong class="text-gray-900">${esc(u.pup_webmail)}</strong></span>
+                  ${isStudent ? `
+                    <span>Student No: <strong class="text-gray-900">${esc(u.student_number)}</strong></span>
+                    <span>Program: <strong class="text-gray-900">${esc(u.program_course || 'N/A')}</strong></span>
+                    <span>Year: <strong class="text-gray-900">${esc(yearLabel(u.year_level))}</strong></span>
+                    <span>Section: <strong class="text-gray-900">${esc(u.section ?? 'N/A')}</strong></span>
+                  ` : ''}
+                  <span>Registered: <strong class="text-gray-900">${esc(fmtDate(u.created_at))}</strong></span>
+                </div>
+
+                ${u.role === 'admin' && u.account_status === 'pending' ? `
+                  <p class="text-xs text-[#880000] bg-red-50 p-2.5 rounded-[3px] border border-red-200 mt-2">
+                    <strong>Admin access request.</strong> Approving gives this person full control of the system. Confirm their identity first.
+                  </p>` : ''}
+              </div>
+
+              <div class="flex sm:flex-col lg:flex-row items-center gap-2 shrink-0">
+                ${actionButtons(u)}
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+
+      // ---------- Actions ----------
+      queueEl.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+
+        const id = btn.dataset.id;
+        const user = state.users.find(u => u.user_id === id);
+        if (!user) return;
+
+        const name = user.full_name || user.pup_webmail;
+        const isAdminReq = String(user.role).toLowerCase() === 'admin';
+        const action = btn.dataset.action;
+
+        let newStatus = null;
+
+        if (action === 'approve') {
+          const msg = isAdminReq
+            ? `ADMIN ACCESS: approve ${name} as an administrator? They will get full control of the system.`
+            : `Approve ${name} (${user.role})?`;
+          if (!confirm(msg)) return;
+          newStatus = 'active';
+        } else if (action === 'reject') {
+          if (!confirm(`Reject the registration of ${name}?`)) return;
+          newStatus = 'rejected';
+        } else if (action === 'deactivate') {
+          if (!confirm(`Deactivate ${name}? They will lose access immediately.`)) return;
+          newStatus = 'inactive';
+        } else if (action === 'reactivate') {
+          const msg = isAdminReq
+            ? `ADMIN ACCESS: reactivate ${name} as an administrator?`
+            : `Reactivate ${name}?`;
+          if (!confirm(msg)) return;
+          newStatus = 'active';
+        }
+
+        if (!newStatus) return;
+
+        btn.disabled = true;
+        const ok = await setStatus(id, newStatus);
+        btn.disabled = false;
+        if (ok) await loadUsers();
+      });
+
+      document.getElementById('tabBar').addEventListener('click', (e) => {
+        const t = e.target.closest('.tab-btn');
+        if (!t) return;
+        state.tab = t.dataset.tab;
+        render();
+      });
+
+      document.getElementById('btnRefresh').addEventListener('click', loadUsers);
+
+      // ---------- Init ----------
+      function initials(name) {
+        return (String(name || '').replace(/[^A-Za-z\s,]/g, '').split(/[\s,]+/).filter(Boolean)
+          .slice(0, 2).map(w => w[0].toUpperCase()).join('')) || 'AD';
+      }
+
+      function setupProfileMenu() {
+        const btn = document.getElementById('profileMenuBtn');
+        const menu = document.getElementById('profileDropdown');
+        const signOutBtn = document.getElementById('btnSignOut');
+
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menu.classList.toggle('hidden');
+        });
+        document.addEventListener('click', () => menu.classList.add('hidden'));
+
+        signOutBtn.addEventListener('click', async () => {
+          signOutBtn.disabled = true;
+          try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
+          localStorage.removeItem('user_role');
+          localStorage.removeItem('pup_user');
+          goTo('login.html');
+        });
+      }
+
+      async function init() {
+        try {
+          const ok = await guard();
+          if (!ok) return;
+          document.getElementById('adminAvatar').textContent = initials(state.me.full_name);
+          document.getElementById('profileDropdownName').textContent = state.me.full_name || 'Admin';
+          document.getElementById('profileDropdownEmail').textContent = state.email;
+          setupProfileMenu();
+          document.body.style.visibility = 'visible';
+          await loadUsers();
+        } catch (err) {
+          console.error('Approvals init error:', err);
+          goTo('login.html'); // fail closed
+        }
+      }
+
+      if (client && client.auth) {
+        client.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT') goTo('login.html');
+        });
+      }
+      window.addEventListener('pageshow', (e) => { if (e.persisted) window.location.reload(); });
+
+      init();
+    })();
+  </script>
+</body>
+</html>

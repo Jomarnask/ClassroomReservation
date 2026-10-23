@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PUP Canlalay Campus CRS | All Facility Reservations</title>
+
+  <!-- Google Fonts: Noto Sans & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tailwind Config -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Shared & Feature CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/all-reservations.css" />
+
+  <!-- AUTH GUARD: body hidden until role verified -->
+  <style>body { visibility: hidden; }</style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
+
+  <!-- ================= TOP RED NAVBAR ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo & Name -->
+      <div class="flex items-center gap-3 shrink-0">
+      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+        <div>
+          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+            PUP - Canlalay Campus
+          </div>
+          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
+        </div>
+      </a>
+    </div>
+
+      <!-- Navigation Links — Admin-only (rendered by auth guard JS) -->
+      <nav id="adminNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+        <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="room-management.html" class="pup-nav-item">Room Management</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="all-reservations.html" class="pup-nav-item active">All Reservations</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="user-approvals.html" class="pup-nav-item">User Approvals</a>
+        <span class="text-white/50 font-light select-none">|</span>
+        <a href="logs.html" class="pup-nav-item">Logs</a>
+      </nav>
+
+      <!-- Right: Bell & Profile Dropdown -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+        </a>
+
+        <!-- User Profile Avatar & Dropdown -->
+        <div class="relative">
+          <button id="arProfileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shadow focus:outline-none transition">
+            <span id="arAvatarText">AD</span>
+          </button>
+
+          <div id="arProfileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p id="arProfileName" class="text-xs font-bold text-[#111111] truncate">PUP Admin</p>
+              <p id="arProfileEmail" class="text-[11px] text-gray-500 truncate">admin@pup.edu.ph</p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+                <span id="arProfileRole">Role: Admin</span>
+              </div>
+            </div>
+            <div class="py-1 text-xs">
+              <a href="profile.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                Profile
+              </a>
+            </div>
+            <div class="border-t border-gray-100 pt-1">
+              <button id="arBtnSignOut" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+
+    <!-- Header & Breadcrumb -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+      <div>
+        <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+          <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
+          <span>&rsaquo;</span>
+          <span class="text-gray-700 font-bold">All Reservations</span>
+        </div>
+        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Classroom &amp; Facility Reservations</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Manage, filter, and inspect all active, upcoming, and past reservations across campus blocks.</p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btnExportCSV" type="button" class="btn-secondary">
+          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Export CSV
+        </button>
+        <button id="btnNewReservation" type="button" class="btn-primary">
+          <span>+</span>
+          New Reservation
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Status Tabs -->
+        <div class="flex flex-wrap items-center gap-2" id="statusFilterTabs">
+          <button class="filter-tab active" data-status="all">All (18)</button>
+          <button class="filter-tab" data-status="Approved">Approved (10)</button>
+          <button class="filter-tab" data-status="Pending">Pending (4)</button>
+          <button class="filter-tab" data-status="Completed">Completed (2)</button>
+          <button class="filter-tab" data-status="Rejected">Rejected (2)</button>
+        </div>
+
+        <!-- Search Input -->
+        <div class="relative w-full sm:w-72">
+          <input type="text" id="searchInput" placeholder="Search ref, room, applicant..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]" />
+          <svg class="w-4 h-4 text-gray-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="reservations-table">
+          <thead>
+            <tr>
+              <th>Ref Code</th>
+              <th>Facility / Room</th>
+              <th>Applicant &amp; Role</th>
+              <th>Schedule Window</th>
+              <th>Academic Purpose</th>
+              <th>Endorsed By</th>
+              <th>Status</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reservationsTableBody">
+            <!-- Populated dynamically via JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination / Footer Info -->
+      <div class="p-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
+        <span id="recordCountInfo">Showing 1 to 10 of 18 total records</span>
+        <div class="flex items-center gap-1">
+          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50" disabled>&laquo; Prev</button>
+          <button class="px-2.5 py-1 border border-[#880000] bg-[#880000] text-white rounded font-bold">1</button>
+          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">2</button>
+          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">Next &raquo;</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+        <span>POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS CRS</span>
+        <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Supabase & Script -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <!-- Admin-only Auth Guard -->
+  <script>
+    (function () {
+      'use strict';
+
+      const _client = (typeof window !== 'undefined' && window.supabaseClient)
+        ? window.supabaseClient
+        : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient)
+            ? window.supabase.createClient(
+                (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : 'https://fyoxzdfxlosxlonxckqv.supabase.co'),
+                (typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined' ? SUPABASE_PUBLISHABLE_KEY : 'sb_publishable_hdwDHmIKSBnFijVSlqB4lA_pC4qwI4t')
+              )
+            : null);
+
+      function normalizeRole(raw) {
+        if (!raw) return 'Student';
+        const r = String(raw).trim().toLowerCase();
+        if (r === 'admin' || r === 'super admin' || r === 'superadmin') return 'Admin';
+        if (r === 'faculty') return 'Faculty';
+        return 'Student';
+      }
+
+      async function guardAdminOnly() {
+        if (!_client || !_client.auth) {
+          window.location.replace('login.html');
+          return;
+        }
+
+        const { data: { session }, error } = await _client.auth.getSession();
+        if (error || !session || !session.user) {
+          window.location.replace('login.html');
+          return;
+        }
+
+        const { data: profile, error: profileError } = await _client
+          .from('users')
+          .select('full_name, role, account_status')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (profileError || !profile) {
+          window.location.replace('login.html');
+          return;
+        }
+        if (String(profile.account_status).toLowerCase() !== 'active') {
+          window.location.replace('login.html');
+          return;
+        }
+
+        const role = normalizeRole(profile.role);
+
+        // This page is Admin-only. Non-admins go back to their dashboard.
+        if (role !== 'Admin') {
+          window.location.replace('dashboard.html');
+          return;
+        }
+
+        // Update avatar initials
+        const avatarEl = document.getElementById('arAvatarText');
+        if (avatarEl && profile.full_name) {
+          const initials = profile.full_name
+            .replace(/[^A-Za-z\s,]/g, '')
+            .split(/[\s,]+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map(w => w[0].toUpperCase())
+            .join('') || 'AD';
+          avatarEl.textContent = initials;
+        }
+
+        // Populate profile dropdown fields
+        const nameEl = document.getElementById('arProfileName');
+        const emailEl = document.getElementById('arProfileEmail');
+        const roleEl = document.getElementById('arProfileRole');
+        if (nameEl) nameEl.textContent = profile.full_name || 'PUP Admin';
+        if (emailEl) emailEl.textContent = session.user.email || 'admin@pup.edu.ph';
+        if (roleEl) roleEl.textContent = `Role: ${role}`;
+
+        // Wire up profile dropdown toggle
+        const profileMenuBtn = document.getElementById('arProfileMenuBtn');
+        const profileDropdown = document.getElementById('arProfileDropdown');
+        if (profileMenuBtn && profileDropdown) {
+          profileMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('hidden');
+          });
+          document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+        }
+
+        // Wire up Sign Out
+        const btnSignOut = document.getElementById('arBtnSignOut');
+        if (btnSignOut) {
+          btnSignOut.addEventListener('click', async () => {
+            btnSignOut.disabled = true;
+            if (_client && _client.auth) {
+              try { await _client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
+            }
+            window.location.replace('login.html');
+          });
+        }
+
+        // Page is verified — reveal it
+        document.body.style.visibility = 'visible';
+      }
+
+      // Kick to login if signed out in another tab
+      if (_client && _client.auth) {
+        _client.auth.onAuthStateChange((event) => {
+          if (event === 'SIGNED_OUT') window.location.replace('login.html');
+        });
+      }
+
+      // Prevent stale cached page after logout
+      window.addEventListener('pageshow', (e) => {
+        if (e.persisted) window.location.reload();
+      });
+
+      guardAdminOnly();
+    })();
+  </script>
+
+  <script>
+    (function() {
+      const data = [
+        { ref: '#RES-9014', room: 'Lab 301 - Advanced Networking Lab', floor: '3rd Floor', applicant: 'Danilo Santos', role: 'Student', time: 'Today • 10:00 AM - 1:00 PM', purpose: 'OS Kernel Compiling Practical Exam', endorsed: 'Dr. Alicia Reyes', status: 'Approved' },
+        { ref: '#RES-9013', room: 'Room 402 - Lecture Hall', floor: '4th Floor', applicant: 'Engr. Roberto Cruz', role: 'Faculty', time: 'Today • 1:30 PM - 4:30 PM', purpose: 'Web Systems Capstone Final Presentation', endorsed: 'Department Chair', status: 'Approved' },
+        { ref: '#RES-9012', room: 'Lab 305 - Software Engineering Lab', floor: '3rd Floor', applicant: 'Samantha Ramos', role: 'Student', time: 'Today • 8:00 AM - 10:00 AM', purpose: 'Agile Sprint Testing Workshop', endorsed: 'Prof. Ferdinand Silva', status: 'Pending' },
+        { ref: '#RES-9011', room: 'Room 202 - Seminar Hall', floor: '2nd Floor', applicant: 'John Paul Perez', role: 'Student', time: 'Today • 11:00 AM - 1:00 PM', purpose: 'Mathematics Society General Assembly', endorsed: 'Dr. Gloria Mendoza', status: 'Rejected' },
+        { ref: '#RES-9010', room: 'Room 101 - General Lecture', floor: '1st Floor', applicant: 'Prof. Dante Santos', role: 'Faculty', time: 'Today • 7:30 AM - 9:00 AM', purpose: 'Purposive Communication Lecture', endorsed: 'Self', status: 'Completed' },
+        { ref: '#RES-9009', room: 'Room 208 - Multimedia Room', floor: '2nd Floor', applicant: 'Prof. Maria Morales', role: 'Faculty', time: 'Tomorrow • 1:00 PM - 4:00 PM', purpose: 'Multimedia Audio Production Workshop', endorsed: 'Self', status: 'Approved' },
+        { ref: '#RES-9008', room: 'Lab 301 - Advanced Networking Lab', floor: '3rd Floor', applicant: 'Bea Alonzo', role: 'Student', time: 'Tomorrow • 2:00 PM - 5:00 PM', purpose: 'Cisco Routing Switch Mock Certification', endorsed: 'Dr. Alicia Reyes', status: 'Pending' },
+        { ref: '#RES-9007', room: 'Room 402 - Lecture Hall', floor: '4th Floor', applicant: 'Christian Diaz', role: 'Student', time: 'Friday • 9:00 AM - 12:00 PM', purpose: 'Database Systems Midterm Exam Make-up', endorsed: 'Engr. Roberto Cruz', status: 'Approved' },
+      ];
+
+      const tbody = document.getElementById('reservationsTableBody');
+      const searchInput = document.getElementById('searchInput');
+      const tabs = document.querySelectorAll('.filter-tab');
+      let currentFilter = 'all';
+
+      function render(items) {
+        tbody.innerHTML = items.map(r => `
+          <tr>
+            <td class="font-bold text-[#880000] font-mono">${r.ref}</td>
+            <td>
+              <div class="font-semibold text-gray-900">${r.room}</div>
+              <span class="floor-tag">${r.floor}</span>
+            </td>
+            <td>
+              <div class="font-bold text-gray-800">${r.applicant}</div>
+              <span class="text-[10px] text-gray-500 font-semibold">${r.role}</span>
+            </td>
+            <td class="text-gray-700 font-medium">${r.time}</td>
+            <td class="text-gray-600">${r.purpose}</td>
+            <td class="text-gray-500 font-medium">${r.endorsed}</td>
+            <td>
+              <span class="status-badge ${r.status.toLowerCase()}">${r.status}</span>
+            </td>
+            <td class="text-right space-x-1 font-semibold">
+              <a href="dashboard.html" class="text-[#337ab7] hover:underline">Inspect &rarr;</a>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      function filterData() {
+        const query = searchInput.value.toLowerCase().trim();
+        const filtered = data.filter(item => {
+          const matchesStatus = currentFilter === 'all' || item.status === currentFilter;
+          const matchesSearch = !query ||
+            item.ref.toLowerCase().includes(query) ||
+            item.room.toLowerCase().includes(query) ||
+            item.applicant.toLowerCase().includes(query) ||
+            item.purpose.toLowerCase().includes(query);
+          return matchesStatus && matchesSearch;
+        });
+        render(filtered);
+      }
+
+      searchInput.addEventListener('input', filterData);
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          currentFilter = tab.dataset.status;
+          filterData();
+        });
+      });
+
+      render(data);
+
+      document.getElementById('btnExportCSV').addEventListener('click', () => {
+        alert('Exporting All Reservations CSV...');
+      });
+      document.getElementById('btnNewReservation').addEventListener('click', () => {
+        window.location.href = 'dashboard.html';
+      });
+    })();
+  </script>
+</body>
+</html>
