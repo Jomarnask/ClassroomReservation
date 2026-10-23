@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PUP Canlalay Campus CRS - Role-Based Dashboard Engine
  *
  * SECURITY CHANGES in this version:
@@ -244,6 +244,8 @@
         <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
         <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="room-management.html" class="pup-nav-link">Room Management</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="schedule-manager.html" class="pup-nav-link">Schedule Manager</a>
         <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
         <span class="nav-separator text-white/60 font-light select-none">|</span>

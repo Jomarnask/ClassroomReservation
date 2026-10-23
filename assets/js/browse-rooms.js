@@ -3,18 +3,20 @@
  *
  * Implements:
  * 1. Admin Room Management Floor Directory (identical layout and visual style).
- * 2. Visual Weekly Schedule Timetable (Monday to Sunday, 7:00 AM to 9:00 PM) matching the user's uploaded reference:
- *    - Red: Reserved / Occupied schedule blocks
- *    - Yellow: Pending reservation requests
- *    - Green: Available time slots (clickable to book)
+ * 2. Visual Weekly Schedule Timetable (Monday to Sunday, 7:00 AM to 9:00 PM) matching user reference:
+ *    - Blue: Scheduled Class assigned by Admin in schedule-manager.html (non-reservable by students).
+ *    - Red: Approved / Occupied reservation.
+ *    - Yellow: Pending student reservation request (awaiting admin approval).
+ *    - Green: Available time slots (clickable to reserve).
  * 3. "Reserve a Time" modal panel getting:
- *    - "reservation date" calendar
+ *    - "reservation date" calendar (min today)
  *    - "reservation start" dropdown (30-min interval, 7:00 AM to 8:30 PM)
  *    - "reservation end" dropdown (7:30 AM to 9:00 PM)
  *    - "faculty" dropdown
  *    - "subject/purpose" textfield
- *    - Status type: Reserved (Red) vs Pending (Yellow)
- * 4. Conflict detection, local persistence, week navigation, and Supabase auth guard.
+ *    - Automatically submitted as Pending (Yellow).
+ * 4. Conflict detection against Blue classes, Red approved bookings, and Yellow pending requests.
+ * 5. Real-time multi-tab synchronization with schedule-manager.html.
  */
 
 (() => {
@@ -130,44 +132,38 @@
     { id: 406, number: '406', name: 'Lecture Room 406', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
   ];
 
-  // ── Initial Mock Campus Schedules (Matching User's Screenshot & CITE Courses) ──
-  const INITIAL_SCHEDULES = [
-    // Lab 301
-    { id: 'SCH-101', roomId: '301', day: 'Tuesday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, subject: 'Multimedia Systems', code: 'COMP 017', faculty: 'Aaron Atienza', status: 'occupied' },
-    { id: 'SCH-102', roomId: '301', day: 'Tuesday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'Fundamentals of Research', code: 'COMP 015', faculty: 'McJoben Reyes', status: 'occupied' },
-    { id: 'SCH-103', roomId: '301', day: 'Tuesday', start: '05:00 PM', end: '08:00 PM', startMinutes: 1020, endMinutes: 1200, subject: 'Art Appreciation Lab', code: 'GEED 006', faculty: 'Mar Martinez', status: 'occupied' },
+  // ── Default Scheduled Classes (BLUE - Assigned by Admin in schedule-manager.html) ──
+  const DEFAULT_CLASS_SCHEDULES = [
+    // Room 202 (The user's exact example: BSIT 2-2 every Tuesday 8am-1pm)
+    { id: 'CLS-202-TUE', roomId: '202', section: 'BSIT 2-2', subject: 'Object-Oriented Programming', code: 'IT202', day: 'Tuesday', start: '08:00 AM', end: '01:00 PM', startMinutes: 480, endMinutes: 780, faculty: 'Engr. Roberto Cruz' },
 
-    { id: 'SCH-104', roomId: '301', day: 'Wednesday', start: '09:00 AM', end: '02:00 PM', startMinutes: 540, endMinutes: 840, subject: 'Web Development', code: 'COMP 016', faculty: 'Noel Antonio', status: 'occupied' },
-    { id: 'SCH-105', roomId: '301', day: 'Wednesday', start: '03:00 PM', end: '08:00 PM', startMinutes: 900, endMinutes: 1200, subject: 'Database Administration', code: 'COMP 018', faculty: 'McJoben Reyes', status: 'occupied' },
-
-    { id: 'SCH-106', roomId: '301', day: 'Thursday', start: '10:00 AM', end: '01:00 PM', startMinutes: 600, endMinutes: 780, subject: 'Operating Systems Kernel Defense', code: 'CS314', faculty: 'Alicia Reyes', status: 'pending' },
-
-    { id: 'SCH-107', roomId: '301', day: 'Friday', start: '08:30 AM', end: '11:30 AM', startMinutes: 510, endMinutes: 690, subject: 'Advanced Packet Inspection', code: 'CS314', faculty: 'Alicia Reyes', status: 'occupied' },
-    { id: 'SCH-108', roomId: '301', day: 'Friday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, subject: 'Cisco Routing Switch Mock Exam', code: 'NET301', faculty: 'Alicia Reyes', status: 'pending' },
-
-    { id: 'SCH-109', roomId: '301', day: 'Saturday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'System Integration and Architecture 1', code: 'INTE 301', faculty: 'Indaleen Quinsayas', status: 'occupied' },
-    { id: 'SCH-110', roomId: '301', day: 'Saturday', start: '05:00 PM', end: '08:00 PM', startMinutes: 1020, endMinutes: 1200, subject: 'Project Management', code: 'ELECT IT E-1', faculty: 'Indaleen Quinsayas', status: 'occupied' },
+    // Lab 301 (Matching user's screenshot)
+    { id: 'CLS-301-TUE-1', roomId: '301', section: 'BSIT 3-1', subject: 'Multimedia', code: 'COMP 017', day: 'Tuesday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, faculty: 'Aaron Atienza' },
+    { id: 'CLS-301-TUE-2', roomId: '301', section: 'BSCS 3-1', subject: 'Fundamentals of Research', code: 'COMP 015', day: 'Tuesday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'McJoben Reyes' },
+    { id: 'CLS-301-WED-1', roomId: '301', section: 'BSIT 2-1', subject: 'Web Development', code: 'COMP 016', day: 'Wednesday', start: '09:00 AM', end: '02:00 PM', startMinutes: 540, endMinutes: 840, faculty: 'Noel Antonio' },
+    { id: 'CLS-301-WED-2', roomId: '301', section: 'BSIT 2-2', subject: 'Database Administration', code: 'COMP 018', day: 'Wednesday', start: '03:00 PM', end: '08:00 PM', startMinutes: 900, endMinutes: 1200, faculty: 'McJoben Reyes' },
+    { id: 'CLS-301-SAT-1', roomId: '301', section: 'BSIT 3-2', subject: 'System Integration and Architecture 1', code: 'INTE 301', day: 'Saturday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'Indaleen Quinsayas' },
+    { id: 'CLS-301-SAT-2', roomId: '301', section: 'BSIT 3-2', subject: 'Project Management', code: 'ELECT IT E-1', day: 'Saturday', start: '05:00 PM', end: '08:00 PM', startMinutes: 1020, endMinutes: 1200, faculty: 'Indaleen Quinsayas' },
 
     // Room 402
-    { id: 'SCH-201', roomId: '402', day: 'Monday', start: '09:00 AM', end: '12:00 PM', startMinutes: 540, endMinutes: 720, subject: 'Database Systems Midterm Exam Make-up', code: 'IT201', faculty: 'Roberto Cruz', status: 'occupied' },
-    { id: 'SCH-202', roomId: '402', day: 'Tuesday', start: '10:00 AM', end: '12:00 PM', startMinutes: 600, endMinutes: 720, subject: 'ACM Programming Review Session', code: 'CS301', faculty: 'Roberto Cruz', status: 'pending' },
-    { id: 'SCH-203', roomId: '402', day: 'Wednesday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, subject: 'IT305 - Web Systems & Technologies', code: 'IT305', faculty: 'Roberto Cruz', status: 'occupied' },
-    { id: 'SCH-204', roomId: '402', day: 'Friday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, subject: 'IT305 - Web Systems Capstone Defense', code: 'IT305', faculty: 'Roberto Cruz', status: 'occupied' },
+    { id: 'CLS-402-WED', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems and Technologies', code: 'IT305', day: 'Wednesday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
+    { id: 'CLS-402-FRI', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems Capstone Defense', code: 'IT305', day: 'Friday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
 
     // Lab 305
-    { id: 'SCH-301', roomId: '305', day: 'Thursday', start: '08:00 AM', end: '10:00 AM', startMinutes: 480, endMinutes: 600, subject: 'Agile Software Testing Mock Sprint', code: 'CS301', faculty: 'Ferdinand Silva', status: 'pending' },
-    { id: 'SCH-302', roomId: '305', day: 'Friday', start: '08:00 AM', end: '11:00 AM', startMinutes: 480, endMinutes: 660, subject: 'CS301 - Software Engineering Capstone', code: 'CS301', faculty: 'Ferdinand Silva', status: 'occupied' },
-
-    // Room 208
-    { id: 'SCH-401', roomId: '208', day: 'Monday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, subject: 'Data Structures Consultation', code: 'CS201', faculty: 'Maria Morales', status: 'occupied' },
-    { id: 'SCH-402', roomId: '208', day: 'Wednesday', start: '03:00 PM', end: '08:00 PM', startMinutes: 900, endMinutes: 1200, subject: 'Database Administration Laboratory', code: 'COMP 018', faculty: 'Maria Morales', status: 'occupied' },
-    { id: 'SCH-403', roomId: '208', day: 'Friday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'Embedded Systems Hardware Defense', code: 'BSCPE 4', faculty: 'Maria Morales', status: 'pending' },
+    { id: 'CLS-305-FRI', roomId: '305', section: 'BSIT 3-1', subject: 'Software Engineering Capstone', code: 'CS301', day: 'Friday', start: '08:00 AM', end: '11:00 AM', startMinutes: 480, endMinutes: 660, faculty: 'Prof. Ferdinand Silva' },
 
     // Room 101
-    { id: 'SCH-501', roomId: '101', day: 'Monday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, subject: 'GEED 006 - Purposive Communication', code: 'GEED 006', faculty: 'Dante Santos', status: 'occupied' },
-    { id: 'SCH-502', roomId: '101', day: 'Wednesday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, subject: 'Oral Communication in Context', code: 'GEED 006', faculty: 'Dante Santos', status: 'occupied' },
-    { id: 'SCH-503', roomId: '101', day: 'Thursday', start: '01:00 PM', end: '03:30 PM', startMinutes: 780, endMinutes: 930, subject: 'Student Council General Assembly', code: 'ORGS', faculty: 'Dante Santos', status: 'pending' },
-    { id: 'SCH-504', roomId: '101', day: 'Saturday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'System Integration and Architecture 1', code: 'INTE 301', faculty: 'Indaleen Quinsayas', status: 'occupied' }
+    { id: 'CLS-101-MON', roomId: '101', section: 'BSIT 1-1', subject: 'Purposive Communication', code: 'GEED 006', day: 'Monday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' },
+    { id: 'CLS-101-WED', roomId: '101', section: 'BSIT 1-1', subject: 'Oral Communication in Context', code: 'GEED 006', day: 'Wednesday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' }
+  ];
+
+  // ── Default Student/User Reservations (YELLOW = Pending, RED = Approved) ──
+  const DEFAULT_RESERVATIONS = [
+    { id: 'RES-9014', roomId: '301', day: 'Thursday', date: '', start: '10:00 AM', end: '01:00 PM', startMinutes: 600, endMinutes: 780, subject: 'Operating Systems Kernel Practical Exam', faculty: 'Dr. Alicia Reyes', requester: 'Danilo Santos (BSIT 3-1)', status: 'pending' },
+    { id: 'RES-9008', roomId: '301', day: 'Friday', date: '', start: '08:30 AM', end: '11:30 AM', startMinutes: 510, endMinutes: 690, subject: 'Cisco Routing Switch Mock Certification', faculty: 'Dr. Alicia Reyes', requester: 'Bea Alonzo (BSCS 3-2)', status: 'approved' },
+    { id: 'RES-9007', roomId: '402', day: 'Monday', date: '', start: '09:00 AM', end: '12:00 PM', startMinutes: 540, endMinutes: 720, subject: 'Database Systems Midterm Exam Make-up', faculty: 'Engr. Roberto Cruz', requester: 'Christian Diaz (BSCPE 4-1)', status: 'approved' },
+    { id: 'RES-9012', roomId: '305', day: 'Thursday', date: '', start: '08:00 AM', end: '10:00 AM', startMinutes: 480, endMinutes: 600, subject: 'Agile Software Testing Mock Sprint', faculty: 'Prof. Ferdinand Silva', requester: 'Samantha Ramos (BSIT 3-2)', status: 'pending' },
+    { id: 'RES-8702', roomId: '208', day: 'Friday', date: '', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'Embedded Systems Hardware Defense', faculty: 'Prof. Maria Morales', requester: 'Christian Diaz', status: 'pending' }
   ];
 
   // ── Time Conversion Utilities ───────────────────────────────────────────
@@ -234,7 +230,8 @@
     byId: {},
     selectedRoom: null,
     currentMonday: getMonday(new Date()),
-    reservations: [],
+    classSchedules: [], // Blue cards
+    reservations: [],   // Yellow (pending) and Red (approved) cards
     toastTimer: null
   };
 
@@ -265,27 +262,41 @@
     }, 4000);
   }
 
-  // ── Persistence ─────────────────────────────────────────────────────────
-  function loadReservations() {
-    let custom = [];
+  // ── Persistence: Class Schedules & Reservations ─────────────────────────
+  function loadData() {
+    // 1. Weekly Class Schedules (Blue)
     try {
-      const stored = localStorage.getItem('crs_custom_reservations');
-      if (stored) custom = JSON.parse(stored);
+      const storedClasses = localStorage.getItem('crs_room_class_schedules');
+      if (storedClasses) {
+        state.classSchedules = JSON.parse(storedClasses);
+      } else {
+        state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
+        localStorage.setItem('crs_room_class_schedules', JSON.stringify(state.classSchedules));
+      }
     } catch (e) {
-      console.warn('Could not read custom reservations from localStorage:', e);
+      state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
     }
-    state.reservations = [...INITIAL_SCHEDULES, ...custom];
+
+    // 2. Custom Reservations (Yellow / Red)
+    try {
+      const storedRes = localStorage.getItem('crs_custom_reservations');
+      if (storedRes) {
+        state.reservations = JSON.parse(storedRes);
+      } else {
+        state.reservations = [...DEFAULT_RESERVATIONS];
+        localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
+      }
+    } catch (e) {
+      state.reservations = [...DEFAULT_RESERVATIONS];
+    }
   }
 
   function saveReservation(newRes) {
     state.reservations.push(newRes);
     try {
-      const stored = localStorage.getItem('crs_custom_reservations');
-      const list = stored ? JSON.parse(stored) : [];
-      list.push(newRes);
-      localStorage.setItem('crs_custom_reservations', JSON.stringify(list));
+      localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
     } catch (e) {
-      console.warn('Could not persist reservation to localStorage:', e);
+      console.warn('Could not persist reservation:', e);
     }
   }
 
@@ -387,6 +398,8 @@
         <span class="text-white/50 font-light select-none">|</span>
         <a href="room-management.html" class="pup-nav-item">Room Management</a>
         <span class="text-white/50 font-light select-none">|</span>
+        <a href="schedule-manager.html" class="pup-nav-item">Schedule Manager</a>
+        <span class="text-white/50 font-light select-none">|</span>
         <a href="browse-rooms.html" class="pup-nav-item active">Browse Rooms</a>
         <span class="text-white/50 font-light select-none">|</span>
         <a href="all-reservations.html" class="pup-nav-item">All Reservations</a>
@@ -454,7 +467,7 @@
       if (r.number) state.byId[String(r.number)] = r;
     });
 
-    state.selectedRoom = state.byId['301'] || state.byId['101'] || state.rooms[0];
+    state.selectedRoom = state.byId['301'] || state.byId['202'] || state.byId['101'] || state.rooms[0];
 
     renderFloors();
     renderWeeklyTimetable();
@@ -613,7 +626,6 @@
       timeAxis.innerHTML = labelsHtml;
     }
 
-    // Render 7 Day Columns
     const gridBody = document.getElementById('timetableGridBody');
     if (!gridBody) return;
 
@@ -633,78 +645,144 @@
       }
       colEl.innerHTML = linesHtml;
 
-      // Find bookings belonging to this room and this day
-      const dayBookings = state.reservations.filter(b => {
+      // 1. Get Scheduled Classes (BLUE - Admin assigned)
+      const dayClasses = state.classSchedules.filter(c => {
+        const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
+        const matchDay = c.day && c.day.toLowerCase() === wd.dayName.toLowerCase();
+        return matchRoom && matchDay;
+      }).map(c => ({
+        ...c,
+        isClassSchedule: true,
+        type: 'blue'
+      }));
+
+      // 2. Get Custom Reservations (YELLOW for pending, RED for approved)
+      const dayReservations = state.reservations.filter(b => {
         const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
         const matchDate = b.date === wd.dateStr;
         const matchDay = (!b.date || b.date === '') && b.day && b.day.toLowerCase() === wd.dayName.toLowerCase();
-        return matchRoom && (matchDate || matchDay);
-      });
+        return matchRoom && (matchDate || matchDay) && b.status !== 'rejected';
+      }).map(b => ({
+        ...b,
+        isClassSchedule: false,
+        type: String(b.status).toLowerCase() === 'approved' ? 'red' : 'yellow'
+      }));
 
-      // Sort bookings chronologically
-      dayBookings.sort((a, b) => {
+      // Combine and sort all items chronologically
+      const allEvents = [...dayClasses, ...dayReservations];
+      allEvents.sort((a, b) => {
         const aStart = a.startMinutes ?? timeToMinutes(a.start);
         const bStart = b.startMinutes ?? timeToMinutes(b.start);
         return aStart - bStart;
       });
 
-      // Render Scheduled Cards (RED = Occupied, YELLOW = Pending)
-      dayBookings.forEach(b => {
-        const bStart = b.startMinutes ?? timeToMinutes(b.start);
-        const bEnd = b.endMinutes ?? timeToMinutes(b.end);
+      // Render Scheduled Cards
+      allEvents.forEach(item => {
+        const iStart = item.startMinutes ?? timeToMinutes(item.start);
+        const iEnd = item.endMinutes ?? timeToMinutes(item.end);
 
-        // Clamp to 7:00 AM - 9:00 PM
-        const visualStart = Math.max(bStart, startBoundary);
-        const visualEnd = Math.min(bEnd, endBoundary);
+        const visualStart = Math.max(iStart, startBoundary);
+        const visualEnd = Math.min(iEnd, endBoundary);
 
         if (visualEnd <= visualStart) return;
 
         const top = visualStart - startBoundary;
         const height = Math.max((visualEnd - visualStart) - 4, 38);
 
-        // Red for occupied/reserved, Yellow for pending
-        const isPending = String(b.status).toLowerCase() === 'pending';
-        const cardClass = isPending ? 'pending' : 'occupied';
-        const statusText = isPending ? 'Pending Approval' : 'Reserved / Occupied';
-
         const card = document.createElement('div');
-        card.className = `schedule-card ${cardClass}`;
-        card.style.top = `${top}px`;
-        card.style.height = `${height}px`;
 
-        card.innerHTML = `
-          <div class="card-top-bar"></div>
-          <div class="card-title">${esc(b.subject || 'Class Lecture')}</div>
-          <div class="card-time">${b.start} – ${b.end}</div>
-          <div class="card-meta">
-            <div>${esc(b.code ? b.code + ' | ' : '')}Prof. ${esc(b.faculty || 'Unassigned')}</div>
-            <div class="text-gray-500 mt-0.5">${esc(b.requester ? b.requester : 'CITE Campus | ' + displayName(r))}</div>
-            <div class="mt-1">
-              <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded ${isPending ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'}">
-                ${statusText}
-              </span>
+        if (item.isClassSchedule) {
+          // BLUE: Regular class scheduled by Admin
+          card.className = 'schedule-card class-schedule';
+          card.style.top = `${top}px`;
+          card.style.height = `${height}px`;
+
+          card.innerHTML = `
+            <div class="card-top-bar"></div>
+            <div class="card-title text-[#1d4ed8]">${esc(item.subject)}</div>
+            <div class="card-time text-[#2563eb]">${item.start} – ${item.end}</div>
+            <div class="card-meta">
+              <div class="font-bold text-[#1e40af]">${esc(item.section || '')} ${item.code ? '• ' + esc(item.code) : ''}</div>
+              <div class="text-gray-600 mt-0.5">Prof. ${esc(item.faculty || 'Unassigned')}</div>
+              <div class="mt-1">
+                <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">
+                  Scheduled Class (Admin)
+                </span>
+              </div>
             </div>
-          </div>
-        `;
+          `;
 
-        card.addEventListener('click', (e) => {
-          e.stopPropagation();
-          showToast(`[${statusText}] ${b.subject} (${b.start} – ${b.end}) by Prof. ${b.faculty || 'Unassigned'}`);
-        });
+          card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showToast(`[Scheduled Class] ${item.section}: ${item.subject} (${item.start} – ${item.end}) by Prof. ${item.faculty || 'Unassigned'}`);
+          });
+
+        } else if (item.type === 'red') {
+          // RED: Approved / Occupied reservation
+          card.className = 'schedule-card occupied';
+          card.style.top = `${top}px`;
+          card.style.height = `${height}px`;
+
+          card.innerHTML = `
+            <div class="card-top-bar"></div>
+            <div class="card-title text-[#880000]">${esc(item.subject || 'Room Reservation')}</div>
+            <div class="card-time text-[#b91c1c]">${item.start} – ${item.end}</div>
+            <div class="card-meta">
+              <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
+              <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.requester || 'Student')}</div>
+              <div class="mt-1">
+                <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                  Approved / Occupied
+                </span>
+              </div>
+            </div>
+          `;
+
+          card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showToast(`[Approved Reservation] ${item.subject} (${item.start} – ${item.end}) • Tagged: ${item.faculty}`);
+          });
+
+        } else {
+          // YELLOW: Pending reservation request
+          card.className = 'schedule-card pending';
+          card.style.top = `${top}px`;
+          card.style.height = `${height}px`;
+
+          card.innerHTML = `
+            <div class="card-top-bar"></div>
+            <div class="card-title text-[#b45309]">${esc(item.subject || 'Reservation Request')}</div>
+            <div class="card-time text-[#d97706]">${item.start} – ${item.end}</div>
+            <div class="card-meta">
+              <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
+              <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.requester || 'Student')}</div>
+              <div class="mt-1">
+                <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                  Pending Approval
+                </span>
+              </div>
+            </div>
+          `;
+
+          card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showToast(`[Pending Request] ${item.subject} (${item.start} – ${item.end}) • Awaiting Admin Confirmation`);
+          });
+        }
 
         colEl.appendChild(card);
       });
 
       // Calculate and Render Available Time Gaps (GREEN)
       let currentPointer = startBoundary;
-      dayBookings.forEach(b => {
-        const bStart = b.startMinutes ?? timeToMinutes(b.start);
-        const bEnd = b.endMinutes ?? timeToMinutes(b.end);
+      allEvents.forEach(item => {
+        const iStart = item.startMinutes ?? timeToMinutes(item.start);
+        const iEnd = item.endMinutes ?? timeToMinutes(item.end);
 
-        if (bStart > currentPointer) {
-          renderAvailableSlot(colEl, currentPointer, bStart, wd.dateStr, wd.dayName, r);
+        if (iStart > currentPointer) {
+          renderAvailableSlot(colEl, currentPointer, iStart, wd.dateStr, wd.dayName, r);
         }
-        currentPointer = Math.max(currentPointer, bEnd);
+        currentPointer = Math.max(currentPointer, iEnd);
       });
 
       if (currentPointer < endBoundary) {
@@ -801,14 +879,12 @@
     const roomFloorEl = document.getElementById('modalRoomFloor');
     if (roomFloorEl) roomFloorEl.textContent = `${floorMeta(r.floor).name} • ${roomTypeLabel(r.roomType)}`;
 
-    // Set Date input (min = today)
     const dateInput = document.getElementById('resDate');
     if (dateInput) {
       dateInput.min = getTodayString();
       dateInput.value = preferredDate || getTodayString();
     }
 
-    // Set Start & End dropdowns
     const startSel = document.getElementById('resStart');
     const endSel = document.getElementById('resEnd');
 
@@ -847,7 +923,7 @@
     document.body.style.overflow = '';
   }
 
-  // ── Live Conflict Validation ────────────────────────────────────────────
+  // ── Live Conflict Validation (Blocks Blue classes, Red approved, Yellow pending) ──
   function validateReservationForm() {
     const r = state.selectedRoom;
     const alertBox = document.getElementById('resAlertBox');
@@ -862,7 +938,7 @@
     const eMins = timeToMinutes(endVal);
 
     let type = 'ok';
-    let msg = 'Selected slot is clear of schedule conflicts.';
+    let msg = 'Selected slot is clear of schedule conflicts. Request will be submitted for Admin approval.';
     let isValid = true;
 
     if (!dateVal) {
@@ -876,27 +952,41 @@
     } else {
       // Find day of week for that date
       const dObj = new Date(dateVal + 'T00:00:00');
-      const dayIndex = dObj.getDay(); // 0 is Sunday, 1 is Monday ...
+      const dayIndex = dObj.getDay();
       const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
 
-      // Check collision against existing reservations
-      const roomBookings = state.reservations.filter(b => {
-        const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
-        const matchDate = b.date === dateVal;
-        const matchDay = (!b.date || b.date === '') && b.day && b.day.toLowerCase() === dayName.toLowerCase();
-        return matchRoom && (matchDate || matchDay);
+      // 1. Conflict check against Scheduled Classes (BLUE)
+      const classConflict = state.classSchedules.find(c => {
+        const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
+        const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
+        if (!matchRoom || !matchDay) return false;
+        const cStart = c.startMinutes ?? timeToMinutes(c.start);
+        const cEnd = c.endMinutes ?? timeToMinutes(c.end);
+        return cStart < eMins && cEnd > sMins;
       });
 
-      const conflict = roomBookings.find(b => {
-        const bStart = b.startMinutes ?? timeToMinutes(b.start);
-        const bEnd = b.endMinutes ?? timeToMinutes(b.end);
-        return bStart < eMins && bEnd > sMins;
-      });
-
-      if (conflict) {
+      if (classConflict) {
         type = 'bad';
-        msg = `Schedule Conflict: Overlaps with "${conflict.subject}" (${conflict.start} – ${conflict.end}).`;
+        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" (${classConflict.section}) from ${classConflict.start} to ${classConflict.end}. Students cannot reserve during scheduled class hours.`;
         isValid = false;
+      } else {
+        // 2. Conflict check against Approved (RED) or Pending (YELLOW) Reservations
+        const resConflict = state.reservations.find(b => {
+          const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
+          const matchDate = b.date === dateVal;
+          const matchDay = (!b.date || b.date === '') && b.day && b.day.toLowerCase() === dayName.toLowerCase();
+          if (!matchRoom || (!matchDate && !matchDay) || b.status === 'rejected') return false;
+          const bStart = b.startMinutes ?? timeToMinutes(b.start);
+          const bEnd = b.endMinutes ?? timeToMinutes(b.end);
+          return bStart < eMins && bEnd > sMins;
+        });
+
+        if (resConflict) {
+          type = 'bad';
+          const isAppr = String(resConflict.status).toLowerCase() === 'approved';
+          msg = `Reservation Conflict: Slot overlaps with an ${isAppr ? 'approved' : 'existing pending'} reservation "${resConflict.subject}" (${resConflict.start} – ${resConflict.end}).`;
+          isValid = false;
+        }
       }
     }
 
@@ -912,7 +1002,7 @@
     return isValid;
   }
 
-  // ── Handle Reservation Submit ───────────────────────────────────────────
+  // ── Handle Reservation Submit (Automatically sets status = 'pending' / Yellow) ──
   function handleReservationSubmit(e) {
     e.preventDefault();
     const r = state.selectedRoom;
@@ -923,8 +1013,6 @@
     const endVal = document.getElementById('resEnd')?.value;
     const facultyVal = document.getElementById('resFaculty')?.value;
     const subjectVal = document.getElementById('resSubject')?.value.trim();
-    const statusRadio = document.querySelector('input[name="resStatusType"]:checked');
-    const chosenStatus = statusRadio ? statusRadio.value : 'occupied';
 
     if (!dateVal || !startVal || !endVal || !facultyVal || !subjectVal) {
       showToast('Please complete all required fields.');
@@ -936,7 +1024,6 @@
       return;
     }
 
-    // Determine Day Name
     const dObj = new Date(dateVal + 'T00:00:00');
     const dayIndex = dObj.getDay();
     const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
@@ -955,23 +1042,21 @@
       endMinutes: timeToMinutes(endVal),
       faculty: facultyVal,
       subject: subjectVal,
-      code: 'CRS-RES',
+      code: 'CRS-REQ',
       requester: state.profile?.full_name || 'Danilo Santos (Student)',
-      status: chosenStatus, // 'occupied' (Red) or 'pending' (Yellow)
+      status: 'pending', // Automatically Yellow pending approval
       createdAt: new Date().toISOString()
     };
 
     saveReservation(newReservation);
 
-    // If reservation date falls in the current view week, update view
     const resDateObj = new Date(dateVal + 'T00:00:00');
     state.currentMonday = getMonday(resDateObj);
     renderWeeklyTimetable();
 
     closeReservationModal();
 
-    const colorLabel = chosenStatus === 'occupied' ? 'Reserved (Red)' : 'Pending (Yellow)';
-    showToast(`Reservation ${refId} (${colorLabel}) successfully submitted for ${displayName(r)} on ${dayName}, ${dateVal} (${startVal} – ${endVal})!`);
+    showToast(`Reservation request ${refId} submitted (Yellow)! Awaiting Admin review and approval.`);
   }
 
   // ── Fetch Faculty List ──────────────────────────────────────────────────
@@ -1004,19 +1089,16 @@
 
   // ── Event Wireup ────────────────────────────────────────────────────────
   function wireEvents() {
-    // Floor Filter
     const floorFilter = document.getElementById('floorFilter');
     if (floorFilter) {
       floorFilter.addEventListener('change', renderFloors);
     }
 
-    // Room Search
     const searchInput = document.getElementById('roomSearchInput');
     if (searchInput) {
       searchInput.addEventListener('input', renderFloors);
     }
 
-    // Week Navigation Buttons
     const btnPrevWeek = document.getElementById('ttBtnPrevWeek');
     if (btnPrevWeek) {
       btnPrevWeek.addEventListener('click', () => {
@@ -1045,7 +1127,6 @@
       });
     }
 
-    // "Reserve a Time" Button
     const btnReserve = document.getElementById('btnReserveTime');
     if (btnReserve) {
       btnReserve.addEventListener('click', () => {
@@ -1053,7 +1134,6 @@
       });
     }
 
-    // Modal Close
     const btnCloseModal = document.getElementById('btnCloseReserveModal');
     if (btnCloseModal) {
       btnCloseModal.addEventListener('click', closeReservationModal);
@@ -1077,7 +1157,6 @@
       }
     });
 
-    // Form inputs live validation
     const resDate = document.getElementById('resDate');
     const resStart = document.getElementById('resStart');
     const resEnd = document.getElementById('resEnd');
@@ -1103,13 +1182,11 @@
       });
     }
 
-    // Form Submit
     const form = document.getElementById('reservationForm');
     if (form) {
       form.addEventListener('submit', handleReservationSubmit);
     }
 
-    // Toast Close
     const btnCloseToast = document.getElementById('btnCloseToast');
     if (btnCloseToast) {
       btnCloseToast.addEventListener('click', () => {
@@ -1120,12 +1197,20 @@
         }
       });
     }
+
+    // Sync across tabs if Admin modifies schedules or approves reservations
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'crs_room_class_schedules' || e.key === 'crs_custom_reservations') {
+        loadData();
+        renderWeeklyTimetable();
+      }
+    });
   }
 
   // ── Global Boot ─────────────────────────────────────────────────────────
   async function init() {
     try {
-      loadReservations();
+      loadData();
       populateTimeDropdowns();
       await guard();
       await loadRooms();

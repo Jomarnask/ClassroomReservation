@@ -161,7 +161,25 @@
       color: #4b5563;
     }
 
-    /* RED: Reserved / Occupied */
+    /* BLUE: Weekly Class Schedule (Admin Assigned, Non-Reservable) */
+    .schedule-card.class-schedule {
+      background-color: #eff6ff;
+      border: 2px solid #3b82f6;
+    }
+    .schedule-card.class-schedule .card-top-bar {
+      background-color: #2563eb;
+    }
+    .schedule-card.class-schedule .card-title {
+      color: #1d4ed8;
+    }
+    .schedule-card.class-schedule .card-time {
+      color: #2563eb;
+    }
+    .schedule-card.class-schedule .card-meta {
+      color: #374151;
+    }
+
+    /* RED: Approved Reservation / Occupied */
     .schedule-card.occupied {
       background-color: #fef2f2;
       border: 2px solid #ef4444;
@@ -176,7 +194,7 @@
       color: #b91c1c;
     }
 
-    /* YELLOW: Pending Reservation */
+    /* YELLOW: Pending Reservation Request */
     .schedule-card.pending {
       background-color: #fffbeb;
       border: 2px solid #f59e0b;
@@ -375,15 +393,19 @@
         <!-- Controls: Color Legend + Week Switcher + "Reserve a Time" Button -->
         <div class="flex flex-wrap items-center gap-3">
 
-          <!-- User's Color Legend (Red = Occupied, Yellow = Pending, Green = Available) -->
+          <!-- User's Color Legend (Blue = Scheduled Class, Red = Approved/Occupied, Yellow = Pending, Green = Available) -->
           <div class="flex flex-wrap items-center gap-3 text-xs bg-gray-50 px-3 py-1.5 rounded-[8px] border border-gray-200">
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+              <span class="w-3 h-3 rounded-[3px] bg-[#2563eb] border border-[#1d4ed8]"></span>
+              <span>Scheduled Class (Blue)</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
               <span class="w-3 h-3 rounded-[3px] bg-[#dc2626] border border-[#b91c1c]"></span>
-              <span>Reserved / Occupied (Red)</span>
+              <span>Approved / Occupied (Red)</span>
             </span>
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
               <span class="w-3 h-3 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
-              <span>Pending (Yellow)</span>
+              <span>Pending Approval (Yellow)</span>
             </span>
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
               <span class="w-3 h-3 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
@@ -519,21 +541,6 @@
         <div>
           <label for="resSubject" class="block font-bold text-gray-700 mb-1">Subject Code &amp; Reservation Purpose *</label>
           <input type="text" id="resSubject" required placeholder="e.g. CS314 - OS Laboratory Practical Exam / Research Defense" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium" />
-        </div>
-
-        <!-- Status Option: Confirmed (Red) or Pending (Yellow) -->
-        <div>
-          <label class="block font-bold text-gray-700 mb-1">Reservation Type / Color Status</label>
-          <div class="grid grid-cols-2 gap-2">
-            <label class="flex items-center gap-2 p-2 border border-red-200 rounded bg-red-50/60 cursor-pointer">
-              <input type="radio" name="resStatusType" value="occupied" checked class="text-[#880000] focus:ring-[#880000]" />
-              <span class="text-xs font-bold text-[#880000]">Reserved / Occupied (Red)</span>
-            </label>
-            <label class="flex items-center gap-2 p-2 border border-amber-200 rounded bg-amber-50/60 cursor-pointer">
-              <input type="radio" name="resStatusType" value="pending" class="text-amber-600 focus:ring-amber-500" />
-              <span class="text-xs font-bold text-amber-800">Pending Request (Yellow)</span>
-            </label>
-          </div>
         </div>
 
         <!-- Real-Time Conflict / Validation Status Box -->
