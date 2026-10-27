@@ -1,5 +1,5 @@
 /**
- * PUP Canlalay Campus CRS - Browse Rooms & Weekly Timetable Controller
+ * PUP Canlalay Campus CRS - Browse Rooms & Today/Tomorrow Timetable Controller
  */
 
 (() => {
@@ -171,25 +171,23 @@
     return `${y}-${m}-${d}`;
   }
 
-  function getMonday(d) {
-    const date = new Date(d);
-    const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(date.setDate(diff));
-  }
-
-  function getWeekDates(baseMonday) {
+  function getTodayAndTomorrowDates() {
     const dates = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(baseMonday);
-      d.setDate(baseMonday.getDate() + i);
+    const now = new Date();
+    for (let i = 0; i < 2; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
+      const dayIndex = d.getDay();
+      const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
+      const labelPrefix = i === 0 ? 'Today' : 'Tomorrow';
       dates.push({
         dateStr: `${y}-${m}-${day}`,
-        dayName: DAY_NAMES[i],
-        shortDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        dayName: dayName,
+        labelPrefix: labelPrefix,
+        shortDate: `${labelPrefix} • ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
       });
     }
     return dates;
@@ -203,7 +201,6 @@
     rooms: [],
     byId: {},
     selectedRoom: null,
-    currentMonday: getMonday(new Date()),
     classSchedules: [],
     reservations: [],
     toastTimer: null
@@ -485,7 +482,7 @@
         <div class="floor-head">
           <div>
             <strong>${esc(meta.name)}</strong>
-            <small>${esc(meta.sub)} • ${floorRooms.length} Rooms</small>
+            <small>${esc(meta.sub)} (${floorRooms.length} Rooms)</small>
           </div>
           <span class="lvl">L${n}</span>
         </div>
@@ -500,9 +497,8 @@
         b.className = 'room' + (isFacility(r) ? ' facility' : '') + (isSel ? ' selected' : '');
         b.dataset.id = String(r.id);
         b.dataset.number = String(r.number);
-        b.dataset.gma = r.active ? 'full' : 'not available'; // 'not available' triggers red dot badge in admin CSS
+        b.dataset.gma = r.active ? 'full' : 'not available';
 
-        // Check if room is active/available
         if (!r.active) {
           b.disabled = true;
           b.title = `${displayName(r)}\nFloor: ${meta.name}\nType: ${roomTypeLabel(r.roomType)}\nStatus: Inactive / Unavailable (Cannot be reserved)`;
@@ -524,7 +520,7 @@
 
   // ── Select Room & Launch Timetable Panel ─────────────────────────────────
   function selectRoom(r) {
-    if (!r || !r.active) return; // Safeguard against inactive rooms
+    if (!r || !r.active) return;
     state.selectedRoom = r;
 
     document.querySelectorAll('.room').forEach(btn => {
@@ -554,7 +550,7 @@
     }
   }
 
-  // ── Render Weekly Schedule Timetable Overlay ────────────────────────────
+  // ── Render Today & Tomorrow Room Timetable Overlay ────────────────────────────
   function renderWeeklyTimetable() {
     const r = state.selectedRoom;
     if (!r) return;
@@ -589,19 +585,19 @@
       metaEl.textContent = `${floorData.name} (${floorData.sub}) • Capacity: ${r.capacity || 45} Students • ${r.features || 'Instructional Room'}`;
     }
 
-    const weekDays = getWeekDates(state.currentMonday);
+    const activeDays = getTodayAndTomorrowDates();
 
     const weekLabel = document.getElementById('ttWeekRangeLabel');
     if (weekLabel) {
-      weekLabel.textContent = `${weekDays[0].shortDate} – ${weekDays[6].shortDate}, ${state.currentMonday.getFullYear()}`;
+      weekLabel.textContent = `Schedule: ${activeDays[0].shortDate} & ${activeDays[1].shortDate}`;
     }
 
     const headersContainer = document.getElementById('timetableDaysHeader');
     if (headersContainer) {
-      headersContainer.innerHTML = weekDays.map((wd, idx) => `
-        <div class="p-3 border-r border-gray-200 ${idx === 6 ? 'border-r-0' : ''}">
-          <div class="font-extrabold text-xs uppercase tracking-wider text-gray-800">${wd.dayName}</div>
-          <div class="text-[11px] text-gray-500 font-semibold mt-0.5">${wd.shortDate}</div>
+      headersContainer.innerHTML = activeDays.map((wd, idx) => `
+        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} bg-red-50/50">
+          <div class="font-extrabold text-xs uppercase tracking-wider text-[#880000]">${wd.labelPrefix} (${wd.dayName})</div>
+          <div class="text-[11px] text-gray-600 font-bold mt-0.5">${wd.shortDate.split('• ')[1]}</div>
         </div>
       `).join('');
     }
@@ -624,7 +620,7 @@
     const startBoundary = 7 * 60;   // 07:00 AM
     const endBoundary = 21 * 60;    // 09:00 PM
 
-    weekDays.forEach((wd, colIndex) => {
+    activeDays.forEach((wd) => {
       const colEl = document.createElement('div');
       colEl.className = 'day-column';
 
@@ -774,20 +770,35 @@
     });
   }
 
-  // ── Render Green Available Slot Block ───────────────────────────────────
+  // ── Render Green Available Slot Block (Blocks Past Hours) ───────────────────
   function renderAvailableSlot(container, startMin, endMin, dateStr, dayName, room) {
-    if (endMin - startMin < 30) return;
+    const todayStr = getTodayString();
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+
+    // Do not show slots that are completely in the past for today
+    if (dateStr === todayStr && endMin <= currentMins) {
+      return;
+    }
+
+    // Clip slot start to current time if starting in the past today
+    let effectiveStartMin = startMin;
+    if (dateStr === todayStr && startMin < currentMins) {
+      effectiveStartMin = Math.ceil(currentMins / 30) * 30;
+    }
+
+    if (endMin - effectiveStartMin < 30) return;
 
     const startBoundary = 7 * 60;
-    const top = startMin - startBoundary;
-    const height = (endMin - startMin) - 4;
+    const top = effectiveStartMin - startBoundary;
+    const height = (endMin - effectiveStartMin) - 4;
 
     const slotCard = document.createElement('div');
     slotCard.className = 'schedule-card available';
     slotCard.style.top = `${top}px`;
     slotCard.style.height = `${height}px`;
 
-    const startStr = minutesToTime(startMin);
+    const startStr = minutesToTime(effectiveStartMin);
     const endStr = minutesToTime(endMin);
 
     slotCard.innerHTML = `
@@ -806,7 +817,7 @@
     `;
 
     slotCard.addEventListener('click', () => {
-      const preferredEndMin = Math.min(startMin + 60, endMin);
+      const preferredEndMin = Math.min(effectiveStartMin + 60, endMin);
       openReservationModal(startStr, minutesToTime(preferredEndMin), dateStr);
     });
 
@@ -843,7 +854,7 @@
     }
   }
 
-  // ── Open Reservation Modal Panel ────────────────────────────────────────
+  // ── Open Reservation Modal Panel (Restricted to Today & Tomorrow) ───────────
   function openReservationModal(preferredStart, preferredEnd, preferredDate) {
     const r = state.selectedRoom;
     if (!r) return;
@@ -860,10 +871,12 @@
     const roomFloorEl = document.getElementById('modalRoomFloor');
     if (roomFloorEl) roomFloorEl.textContent = `${floorMeta(r.floor).name} • ${roomTypeLabel(r.roomType)}`;
 
+    const dates = getTodayAndTomorrowDates();
     const dateInput = document.getElementById('resDate');
     if (dateInput) {
-      dateInput.min = getTodayString();
-      dateInput.value = preferredDate || getTodayString();
+      dateInput.min = dates[0].dateStr; // Today
+      dateInput.max = dates[1].dateStr; // Tomorrow
+      dateInput.value = preferredDate || dates[0].dateStr;
     }
 
     const startSel = document.getElementById('resStart');
@@ -908,7 +921,7 @@
     }
   }
 
-  // ── Live Conflict Validation ────────────────────────────────────────────
+  // ── Live Conflict Validation (Rejects Past Dates / Past Hours) ──────────────
   function validateReservationForm() {
     const r = state.selectedRoom;
     const alertBox = document.getElementById('resAlertBox');
@@ -921,6 +934,9 @@
 
     const sMins = timeToMinutes(startVal);
     const eMins = timeToMinutes(endVal);
+    const todayStr = getTodayString();
+    const now = new Date();
+    const currentMins = now.getHours() * 60 + now.getMinutes();
 
     let type = 'ok';
     let msg = 'Selected slot is clear of schedule conflicts. Request will be submitted for Admin approval.';
@@ -929,6 +945,14 @@
     if (!dateVal) {
       type = 'bad';
       msg = 'Reservation date is required.';
+      isValid = false;
+    } else if (dateVal < todayStr) {
+      type = 'bad';
+      msg = 'Invalid Date: You cannot view or reserve room slots for past dates.';
+      isValid = false;
+    } else if (dateVal === todayStr && sMins < currentMins) {
+      type = 'bad';
+      msg = 'Invalid Time: Selected start time has already passed for today.';
       isValid = false;
     } else if (eMins <= sMins) {
       type = 'bad';
@@ -950,7 +974,7 @@
 
       if (classConflict) {
         type = 'bad';
-        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" (${classConflict.section}) from ${classConflict.start} to ${classConflict.end}. Students cannot reserve during scheduled class hours.`;
+        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" (${classConflict.section}) from ${classConflict.start} to ${classConflict.end}.`;
         isValid = false;
       } else {
         const resConflict = state.reservations.find(b => {
@@ -1031,9 +1055,6 @@
     };
 
     saveReservation(newReservation);
-
-    const resDateObj = new Date(dateVal + 'T00:00:00');
-    state.currentMonday = getMonday(resDateObj);
     renderWeeklyTimetable();
 
     closeReservationModal();
@@ -1090,34 +1111,6 @@
     if (ttOverlay) {
       ttOverlay.addEventListener('mousedown', (e) => {
         if (e.target === ttOverlay) closeTimetablePanel();
-      });
-    }
-
-    const btnPrevWeek = document.getElementById('ttBtnPrevWeek');
-    if (btnPrevWeek) {
-      btnPrevWeek.addEventListener('click', () => {
-        const prev = new Date(state.currentMonday);
-        prev.setDate(prev.getDate() - 7);
-        state.currentMonday = prev;
-        renderWeeklyTimetable();
-      });
-    }
-
-    const btnNextWeek = document.getElementById('ttBtnNextWeek');
-    if (btnNextWeek) {
-      btnNextWeek.addEventListener('click', () => {
-        const next = new Date(state.currentMonday);
-        next.setDate(next.getDate() + 7);
-        state.currentMonday = next;
-        renderWeeklyTimetable();
-      });
-    }
-
-    const btnThisWeek = document.getElementById('ttBtnThisWeek');
-    if (btnThisWeek) {
-      btnThisWeek.addEventListener('click', () => {
-        state.currentMonday = getMonday(new Date());
-        renderWeeklyTimetable();
       });
     }
 
