@@ -58,6 +58,27 @@
       transform: translateY(-2px);
     }
 
+    /* INACTIVE / UNAVAILABLE ROOM STYLES (RED DOT ROOMS) */
+    .room:disabled,
+    .room[disabled] {
+      cursor: not-allowed !important;
+      opacity: 0.55 !important;
+      background-color: #f1f5f9 !important;
+      border-color: #cbd5e1 !important;
+      transform: none !important;
+      box-shadow: none !important;
+      pointer-events: auto; /* Allows hover tooltips while blocking interactions */
+    }
+
+    /* Timetable Modal Pop Animation */
+    @keyframes panelPop {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .animate-panel-pop {
+      animation: panelPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
     /* ================= WEEKLY TIMETABLE GRID ================= */
     .timetable-wrapper {
       background: #ffffff;
@@ -115,7 +136,7 @@
       pointer-events: none;
     }
 
-    /* ================= SCHEDULE EVENT CARDS (MATCHING SCREENSHOT) ================= */
+    /* ================= SCHEDULE EVENT CARDS ================= */
     .schedule-card {
       position: absolute;
       left: 6px;
@@ -161,7 +182,7 @@
       color: #4b5563;
     }
 
-    /* BLUE: Weekly Class Schedule (Admin Assigned, Non-Reservable) */
+    /* BLUE: Weekly Class Schedule (Admin Assigned) */
     .schedule-card.class-schedule {
       background-color: #eff6ff;
       border: 2px solid #3b82f6;
@@ -235,13 +256,13 @@
     .reserve-overlay {
       position: fixed;
       inset: 0;
-      z-index: 60;
-      background: rgba(15, 23, 42, 0.65);
+      z-index: 70;
+      background: rgba(15, 23, 42, 0.7);
       display: grid;
       place-items: center;
       padding: 16px;
       overflow-y: auto;
-      backdrop-filter: blur(3px);
+      backdrop-filter: blur(4px);
     }
     .reserve-overlay[hidden] {
       display: none !important;
@@ -280,7 +301,7 @@
         </a>
       </div>
 
-      <!-- Navigation Links (filled dynamically based on role: Student, Faculty, Admin) -->
+      <!-- Navigation Links -->
       <nav id="brNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
       </nav>
 
@@ -330,13 +351,13 @@
   <!-- ================= MAIN CONTAINER ================= -->
   <main class="container">
 
-    <!-- Top Banner Card (matching Admin Room Management) -->
+    <!-- Top Banner Card -->
     <section class="card banner">
       <div>
         <p class="eyebrow">PUP CANLALAY CAMPUS &bull; CLASSROOM RESERVATION SYSTEM</p>
         <h1 id="bannerTitle">Classroom Directory &amp; Timetable</h1>
         <p class="meta">
-          <span>Select any room across campus floors to view its weekly schedule timetable (7:00 AM – 9:00 PM).</span>
+          <span>Click any available room card below to open its schedule timetable overlay and reserve time slots.</span>
         </p>
       </div>
       <div class="controls flex items-center gap-3">
@@ -353,12 +374,12 @@
       </div>
     </section>
 
-    <!-- Campus Floor Manager Directory (identical to Admin-room management) -->
+    <!-- Campus Floor Manager Directory -->
     <section class="card directory">
       <div class="dir-head">
         <div>
           <h2>PUP Canlalay Campus Floor Manager</h2>
-          <p class="muted">Select a classroom or laboratory across floors to inspect schedule timetable and reserve time slots.</p>
+          <p class="muted">Click on an available classroom or laboratory to launch its weekly timetable panel.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-3 text-xs text-gray-600 mr-2">
@@ -373,101 +394,111 @@
       <div class="floors" id="floors"></div>
     </section>
 
-    <!-- ================= WEEKLY TIMETABLE (7:00 AM – 9:00 PM) ================= -->
-    <section id="timetableSection" class="card p-6 bg-white border border-gray-200 rounded-[18px] shadow-sm space-y-6">
-
-      <!-- Timetable Header Bar matching the uploaded design -->
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200">
-        <div>
-          <div class="flex items-center gap-2 mb-1">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-[#880000] bg-red-50 px-2.5 py-0.5 rounded border border-red-200" id="ttFloorBadge">3rd Floor</span>
-            <span class="text-[10px] font-bold text-gray-700 bg-gray-100 px-2.5 py-0.5 rounded border border-gray-200" id="ttTypeBadge">Laboratory</span>
-            <span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1" id="ttStatusBadge">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
-            </span>
-          </div>
-          <h2 id="ttRoomTitle" class="text-xl sm:text-2xl font-bold text-[#111111] leading-tight">Lab 301 - Advanced Networking Lab</h2>
-          <p id="ttRoomMeta" class="text-xs text-gray-500 mt-0.5">3rd Floor &bull; Capacity: 45 Students &bull; Cisco Racks, Dual Projectors</p>
-        </div>
-
-        <!-- Controls: Color Legend + Week Switcher + "Reserve a Time" Button -->
-        <div class="flex flex-wrap items-center gap-3">
-
-          <!-- User's Color Legend (Blue = Scheduled Class, Red = Approved/Occupied, Yellow = Pending, Green = Available) -->
-          <div class="flex flex-wrap items-center gap-3 text-xs bg-gray-50 px-3 py-1.5 rounded-[8px] border border-gray-200">
-            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#2563eb] border border-[#1d4ed8]"></span>
-              <span>Scheduled Class (Blue)</span>
-            </span>
-            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#dc2626] border border-[#b91c1c]"></span>
-              <span>Approved / Occupied (Red)</span>
-            </span>
-            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
-              <span>Pending Approval (Yellow)</span>
-            </span>
-            <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
-              <span>Available Time (Green)</span>
-            </span>
-          </div>
-
-          <!-- Week Switcher -->
-          <div class="flex items-center bg-gray-50 p-1 border border-gray-200 rounded-[8px]">
-            <button id="ttBtnPrevWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Previous Week">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <span id="ttWeekRangeLabel" class="px-3 py-1 text-xs font-bold text-gray-800 select-none whitespace-nowrap">Oct 19 – Oct 25, 2026</span>
-            <button id="ttBtnNextWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Next Week">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-            </button>
-            <button id="ttBtnThisWeek" type="button" class="ml-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 transition">This Week</button>
-          </div>
-
-          <!-- "Reserve a Time" Primary Action Button -->
-          <button id="btnReserveTime" type="button" class="btn-primary flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-[8px] bg-[#880000] hover:bg-[#5c0000] text-white shadow transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <span>Reserve a Time</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Weekly Schedule Grid View (Exact design from uploaded image) -->
-      <div class="timetable-wrapper">
-        <div class="timetable-inner">
-
-          <!-- Day Columns Header Row -->
-          <div class="flex border-b border-gray-200 bg-gray-50/80 sticky top-0 z-30">
-            <!-- Top-Left Corner Time Header -->
-            <div class="time-axis-col p-3 border-r border-gray-200 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right pr-3 bg-gray-50">
-              Time
-            </div>
-            <!-- 7 Day Headers: Monday to Sunday -->
-            <div class="grid grid-cols-7 flex-grow text-center" id="timetableDaysHeader">
-              <!-- Rendered dynamically by JS with day name and date -->
-            </div>
-          </div>
-
-          <!-- Main Grid Body: Left Time Axis + 7 Day Columns -->
-          <div class="flex relative" style="height: 840px;">
-            <!-- Left Time Axis (7:00 AM to 9:00 PM, 14 hours at 60px/hr) -->
-            <div class="time-axis-col" id="timeAxisLabels">
-              <!-- Rendered dynamically by JS: 7:00 AM, 8:00 AM ... 9:00 PM -->
-            </div>
-
-            <!-- 7 Day Columns Grid -->
-            <div class="grid grid-cols-7 flex-grow relative" id="timetableGridBody">
-              <!-- Rendered dynamically by JS: background hour lines + schedule cards -->
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-    </section>
-
   </main>
+
+  <!-- ================= OVERLAY PANEL: WEEKLY ROOM TIMETABLE ================= -->
+  <div id="timetableOverlay" class="fixed inset-0 z-[60] bg-slate-900/65 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div id="timetablePanel" class="bg-white border border-gray-200 rounded-[20px] shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden animate-panel-pop">
+      
+      <!-- Panel Header Bar with Close Button -->
+      <div class="flex items-center justify-between px-6 py-4 bg-[#880000] text-white shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="text-xl" aria-hidden="true">🏫</span>
+          <div>
+            <h3 class="font-bold text-base text-white leading-snug" id="ttPanelHeaderTitle">Classroom Timetable &amp; Schedule Panel</h3>
+            <p class="text-xs text-[#ffd658] font-medium">Inspect time slots and click "Reserve a Time" to submit a booking</p>
+          </div>
+        </div>
+        <button type="button" id="btnCloseTimetablePanel" class="text-white hover:bg-white/20 p-2 rounded-lg transition text-lg flex items-center justify-center w-8 h-8 font-bold" aria-label="Close timetable panel">✕</button>
+      </div>
+
+      <!-- Timetable Body Wrapper -->
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
+
+        <!-- Timetable Info & Action Header -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-[#880000] bg-red-50 px-2.5 py-0.5 rounded border border-red-200" id="ttFloorBadge">3rd Floor</span>
+              <span class="text-[10px] font-bold text-gray-700 bg-gray-100 px-2.5 py-0.5 rounded border border-gray-200" id="ttTypeBadge">Laboratory</span>
+              <span class="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1" id="ttStatusBadge">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+              </span>
+            </div>
+            <h2 id="ttRoomTitle" class="text-xl sm:text-2xl font-bold text-[#111111] leading-tight">Lab 301 - Advanced Networking Lab</h2>
+            <p id="ttRoomMeta" class="text-xs text-gray-500 mt-0.5">3rd Floor &bull; Capacity: 45 Students &bull; Cisco Racks, Dual Projectors</p>
+          </div>
+
+          <!-- Controls: Color Legend + Week Switcher + Reserve Button -->
+          <div class="flex flex-wrap items-center gap-3">
+
+            <!-- Color Legend -->
+            <div class="flex flex-wrap items-center gap-3 text-xs bg-gray-50 px-3 py-1.5 rounded-[8px] border border-gray-200">
+              <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+                <span class="w-3 h-3 rounded-[3px] bg-[#2563eb] border border-[#1d4ed8]"></span>
+                <span>Class (Blue)</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+                <span class="w-3 h-3 rounded-[3px] bg-[#dc2626] border border-[#b91c1c]"></span>
+                <span>Approved (Red)</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+                <span class="w-3 h-3 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
+                <span>Pending (Yellow)</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
+                <span class="w-3 h-3 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
+                <span>Available (Green)</span>
+              </span>
+            </div>
+
+            <!-- Week Switcher -->
+            <div class="flex items-center bg-gray-50 p-1 border border-gray-200 rounded-[8px]">
+              <button id="ttBtnPrevWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Previous Week">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <span id="ttWeekRangeLabel" class="px-3 py-1 text-xs font-bold text-gray-800 select-none whitespace-nowrap">Oct 19 – Oct 25, 2026</span>
+              <button id="ttBtnNextWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Next Week">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+              <button id="ttBtnThisWeek" type="button" class="ml-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 transition">This Week</button>
+            </div>
+
+            <!-- "Reserve a Time" Action Button -->
+            <button id="btnReserveTime" type="button" class="btn-primary flex items-center gap-2 px-5 py-2.5 text-xs font-bold rounded-[8px] bg-[#880000] hover:bg-[#5c0000] text-white shadow transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span>Reserve a Time</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Weekly Schedule Grid View -->
+        <div class="timetable-wrapper">
+          <div class="timetable-inner">
+
+            <!-- Day Columns Header Row -->
+            <div class="flex border-b border-gray-200 bg-gray-50/80 sticky top-0 z-30">
+              <div class="time-axis-col p-3 border-r border-gray-200 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right pr-3 bg-gray-50">
+                Time
+              </div>
+              <div class="grid grid-cols-7 flex-grow text-center" id="timetableDaysHeader">
+              </div>
+            </div>
+
+            <!-- Main Grid Body -->
+            <div class="flex relative" style="height: 840px;">
+              <div class="time-axis-col" id="timeAxisLabels">
+              </div>
+              <div class="grid grid-cols-7 flex-grow relative" id="timetableGridBody">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
 
   <!-- ================= MODAL PANEL: RESERVE A TIME ================= -->
   <div id="reservationOverlay" class="reserve-overlay" hidden>
@@ -498,24 +529,22 @@
           <span class="text-[10px] font-bold px-2 py-0.5 rounded-[4px] bg-emerald-100 text-emerald-800 border border-emerald-300">Available Slot</span>
         </div>
 
-        <!-- Input 1: "reservation date" calendar -->
+        <!-- Input 1: "reservation date" -->
         <div>
           <label for="resDate" class="block font-bold text-gray-700 mb-1">Reservation Date *</label>
           <input type="date" id="resDate" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium" />
         </div>
 
-        <!-- Inputs 2 & 3: "reservation start" (30mins interval) and "reservation end" dropdowns -->
+        <!-- Inputs 2 & 3: "reservation start" and "reservation end" -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label for="resStart" class="block font-bold text-gray-700 mb-1">Reservation Start (30-min interval) *</label>
             <select id="resStart" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium">
-              <!-- Populated by JS: 7:00 AM to 8:30 PM (30 min intervals) -->
             </select>
           </div>
           <div>
             <label for="resEnd" class="block font-bold text-gray-700 mb-1">Reservation End *</label>
             <select id="resEnd" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium">
-              <!-- Populated by JS: 7:30 AM to 9:00 PM (30 min intervals) -->
             </select>
           </div>
         </div>
@@ -543,7 +572,7 @@
           <input type="text" id="resSubject" required placeholder="e.g. CS314 - OS Laboratory Practical Exam / Research Defense" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs focus:outline-none focus:border-[#880000] bg-white font-medium" />
         </div>
 
-        <!-- Real-Time Conflict / Validation Status Box -->
+        <!-- Conflict Box -->
         <div id="resAlertBox" class="alert ok p-2.5 rounded-[6px] text-xs border font-medium">
           ✔ Selected slot is clear of schedule conflicts.
         </div>
@@ -576,7 +605,7 @@
   </footer>
 
   <!-- ================= TOAST NOTIFICATION ================= -->
-  <div id="brToast" class="fixed bottom-5 right-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[6px] shadow-2xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
+  <div id="brToast" class="fixed bottom-5 right-5 z-[80] bg-[#111111] text-white px-4 py-3 rounded-[6px] shadow-2xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
     <p id="brToastMsg" class="flex-grow font-medium text-gray-100"></p>
     <button type="button" id="btnCloseToast" class="text-gray-400 hover:text-white pointer-events-auto text-base">&times;</button>
   </div>
