@@ -1,22 +1,21 @@
 /**
- * PUP Canlalay Campus CRS - Browse Rooms & Weekly Timetable Controller
+ * PUP Canlalay Campus CRS - Browse Rooms & Today/Tomorrow Timetable Controller
  *
- * Implements:
- * 1. Admin Room Management Floor Directory (identical layout and visual style).
- * 2. Visual Weekly Schedule Timetable (Monday to Sunday, 7:00 AM to 9:00 PM) matching user reference:
- *    - Blue: Scheduled Class assigned by Admin in schedule-manager.html (non-reservable by students).
- *    - Red: Approved / Occupied reservation.
- *    - Yellow: Pending student reservation request (awaiting admin approval).
- *    - Green: Available time slots (clickable to reserve).
- * 3. "Reserve a Time" modal panel getting:
- *    - "reservation date" calendar (min today)
- *    - "reservation start" dropdown (30-min interval, 7:00 AM to 8:30 PM)
- *    - "reservation end" dropdown (7:30 AM to 9:00 PM)
- *    - "faculty" dropdown
- *    - "subject/purpose" textfield
- *    - Automatically submitted as Pending (Yellow).
- * 4. Conflict detection against Blue classes, Red approved bookings, and Yellow pending requests.
- * 5. Real-time multi-tab synchronization with schedule-manager.html.
+ * MERGED VERSION
+ * From the newer UI version:
+ * - Timetable opens in an overlay panel when an ACTIVE room is clicked
+ * - Today & Tomorrow schedule only; reservations limited to those two days
+ * - Inactive rooms are shown but disabled
+ * - Past hours today are hidden / blocked
+ * From the secured version:
+ * - Real session guard: no session / no profile / inactive account -> login.html (fail closed)
+ * - Rooms come ONLY from public.rooms (no hardcoded room fallback, error shown if query fails)
+ * - No hardcoded Supabase keys (uses the client from config.js)
+ * - No fake capacity / features text (rooms table has no such columns yet)
+ * - Real logged-in name saved as requester
+ *
+ * STILL DEMO DATA (needs real tables later):
+ * - Class schedules (blue) and reservations (yellow / red) live in localStorage.
  */
 
 (() => {
@@ -80,61 +79,9 @@
     }[ch]));
   }
 
-  // ── Default Campus Rooms (Floors 1 - 4) ──────────────────────────────────
-  const DEFAULT_ROOMS = [
-    // 1st Floor
-    { id: 101, number: '101', name: 'General Lecture Hall', floor: 1, roomType: 'lecture', active: true, capacity: 55, features: 'Air-conditioned, Projector, Whiteboard' },
-    { id: 102, number: '102', name: 'Lecture Room 102', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 103, number: '103', name: 'Lecture Room 103', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 104, number: '104', name: 'Lecture Room 104', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 105, number: '105', name: 'Lecture Room 105', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 106, number: '106', name: 'Lecture Room 106', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 107, number: '107', name: 'Lecture Room 107', floor: 1, roomType: 'lecture', active: true, capacity: 50, features: 'Projector, Whiteboard' },
-    { id: 113, number: '113', name: 'Lecture Room 113', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 114, number: '114', name: 'Lecture Room 114', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 115, number: '115', name: 'Lecture Room 115', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 117, number: '117', name: 'Lecture Room 117', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 121, number: '121', name: 'Lecture Room 121', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 198, number: 'Sports Dev Office', name: 'Sports Dev Office', floor: 1, roomType: 'office', active: true, capacity: 20, features: 'Athletics Equipment, Admin Desk' },
-    { id: 199, number: 'Prayers Room', name: 'Prayers Room', floor: 1, roomType: 'other', active: true, capacity: 25, features: 'Quiet Multi-Faith Prayer Area' },
-
-    // 2nd Floor
-    { id: 201, number: '201', name: 'Lecture Room 201', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 202, number: '202', name: 'Room 202 - Seminar Hall', floor: 2, roomType: 'lecture', active: true, capacity: 35, features: 'Round Table Setup, TV Display, WiFi' },
-    { id: 203, number: '203', name: 'Lecture Room 203', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 205, number: '205', name: 'Lecture Room 205', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 207, number: '207', name: 'Lecture Room 207', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 208, number: '208', name: 'Room 208 - Multimedia Room', floor: 2, roomType: 'laboratory', active: true, capacity: 50, features: 'Surround Audio, 4K Display, HDMI' },
-    { id: 209, number: '209', name: 'Lecture Room 209', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 211, number: '211', name: 'Lecture Room 211', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 221, number: '221', name: 'Lecture Room 221', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 299, number: 'Reading Room', name: 'Reading Room', floor: 2, roomType: 'other', active: true, capacity: 30, features: 'Study Carrels, Individual Lighting' },
-
-    // 3rd Floor
-    { id: 301, number: '301', name: 'Lab 301 - Advanced Networking Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 45, features: 'Cisco Racks, Dual Projectors, Linux Terminals' },
-    { id: 302, number: '302', name: 'Lecture Room 302', floor: 3, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 303, number: '303', name: 'Lab 303 - Hardware & IoT Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 30, features: 'Arduino Kits, Oscilloscopes, Soldering' },
-    { id: 304, number: '304', name: 'Lecture Room 304', floor: 3, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 305, number: '305', name: 'Lab 305 - Software Engineering Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 40, features: 'Workstations, Gigabit LAN, Docker Hosts' },
-    { id: 306, number: '306', name: 'Lecture Room 306', floor: 3, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 307, number: '307', name: 'Lecture Room 307', floor: 3, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 399, number: 'Library', name: 'Campus Library', floor: 3, roomType: 'other', active: true, capacity: 80, features: 'Reference Section, Digital Catalogs, Quiet Zone' },
-
-    // 4th Floor
-    { id: 401, number: '401', name: 'Lecture Room 401', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 402, number: '402', name: 'Room 402 - Lecture Hall', floor: 4, roomType: 'lecture', active: true, capacity: 60, features: 'Smart TV, Split AC, Whiteboard' },
-    { id: 403, number: '403', name: 'Lecture Room 403', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 404, number: '404', name: 'Room 404 - Research & Dev Room', floor: 4, roomType: 'laboratory', active: true, capacity: 20, features: 'Dual Monitor Stations, High-speed LAN' },
-    { id: 405, number: '405', name: 'Lecture Room 405', floor: 4, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 406, number: '406', name: 'Lecture Room 406', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-  ];
-
-  // ── Default Scheduled Classes (BLUE - Assigned by Admin in schedule-manager.html) ──
+  // ── Default Scheduled Classes (BLUE - demo data until a schedules table exists) ──
   const DEFAULT_CLASS_SCHEDULES = [
-    // Room 202 (The user's exact example: BSIT 2-2 every Tuesday 8am-1pm)
     { id: 'CLS-202-TUE', roomId: '202', section: 'BSIT 2-2', subject: 'Object-Oriented Programming', code: 'IT202', day: 'Tuesday', start: '08:00 AM', end: '01:00 PM', startMinutes: 480, endMinutes: 780, faculty: 'Engr. Roberto Cruz' },
-
-    // Lab 301 (Matching user's screenshot)
     { id: 'CLS-301-TUE-1', roomId: '301', section: 'BSIT 3-1', subject: 'Multimedia', code: 'COMP 017', day: 'Tuesday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, faculty: 'Aaron Atienza' },
     { id: 'CLS-301-TUE-2', roomId: '301', section: 'BSCS 3-1', subject: 'Fundamentals of Research', code: 'COMP 015', day: 'Tuesday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'McJoben Reyes' },
     { id: 'CLS-301-WED-1', roomId: '301', section: 'BSIT 2-1', subject: 'Web Development', code: 'COMP 016', day: 'Wednesday', start: '09:00 AM', end: '02:00 PM', startMinutes: 540, endMinutes: 840, faculty: 'Noel Antonio' },
@@ -399,7 +346,6 @@
   // ── Load Rooms (database only, no hardcoded fallback) ───────────────────
   async function loadRooms() {
     const floorsEl = document.getElementById('floors');
-    const ttSection = document.getElementById('timetableSection');
 
     const { data, error } = await client
       .from('rooms')
@@ -429,13 +375,17 @@
       if (r.number) state.byId[String(r.number)] = r;
     });
 
-    state.selectedRoom = state.byId['301'] || state.byId['202'] || state.byId['101'] || state.rooms[0];
+    if (state.rooms.length === 0) {
+      if (floorsEl) floorsEl.innerHTML = '<div class="muted" style="padding:16px">No rooms found in the database.</div>';
+      const totalEl = document.getElementById('totalRooms');
+      if (totalEl) totalEl.textContent = 'Total: 0 Rooms';
+      return;
+    }
 
     renderFloors();
-    renderWeeklyTimetable();
   }
 
-  // ── Render Floor Manager Directory (Identical to Admin Room Management) ──
+  // ── Render Floor Manager Directory ───────────────────────────────────
   function renderFloors() {
     const floorFilter = document.getElementById('floorFilter')?.value || 'all';
     const search = (document.getElementById('roomSearchInput')?.value || '').toLowerCase().trim();
@@ -496,6 +446,7 @@
         b.dataset.gma = r.active ? 'full' : 'not available';
 
         if (!r.active) {
+          // Inactive rooms are shown but cannot be opened or reserved
           b.disabled = true;
           b.title = `${displayName(r)}\nFloor: ${meta.name}\nType: ${roomTypeLabel(r.roomType)}\nStatus: Inactive / Unavailable (Cannot be reserved)`;
         } else {
@@ -546,7 +497,7 @@
     }
   }
 
-  // ── Render Today & Tomorrow Room Timetable Overlay ────────────────────────────
+  // ── Render Today & Tomorrow Room Timetable Overlay ───────────────────────
   function renderWeeklyTimetable() {
     const r = state.selectedRoom;
     if (!r) return;
@@ -569,16 +520,8 @@
         statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Active (Open for Reservations)';
       } else {
         statusBadge.className = 'text-[10px] font-bold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded border border-rose-200 flex items-center gap-1.5';
-        statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Inactive (Not accepting reservations)';
+        statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Inactive';
       }
-    }
-
-    // Reserve button is disabled for inactive rooms
-    const btnReserve = document.getElementById('btnReserveTime');
-    if (btnReserve) {
-      btnReserve.disabled = !r.active;
-      btnReserve.classList.toggle('opacity-50', !r.active);
-      btnReserve.classList.toggle('cursor-not-allowed', !r.active);
     }
 
     const titleEl = document.getElementById('ttRoomTitle');
@@ -624,7 +567,7 @@
     const startBoundary = 7 * 60;   // 07:00 AM
     const endBoundary = 21 * 60;    // 09:00 PM
 
-    weekDays.forEach((wd, colIndex) => {
+    activeDays.forEach((wd) => {
       const colEl = document.createElement('div');
       colEl.className = 'day-column';
 
@@ -634,7 +577,7 @@
       }
       colEl.innerHTML = linesHtml;
 
-      // 1. Get Scheduled Classes (BLUE - Admin assigned)
+      // 1. Scheduled Classes (BLUE)
       const dayClasses = state.classSchedules.filter(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === wd.dayName.toLowerCase();
@@ -645,7 +588,7 @@
         type: 'blue'
       }));
 
-      // 2. Get Custom Reservations (YELLOW for pending, RED for approved)
+      // 2. Reservations (YELLOW pending, RED approved)
       const dayReservations = state.reservations.filter(b => {
         const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
         const matchDate = b.date === wd.dateStr;
@@ -679,6 +622,7 @@
         const card = document.createElement('div');
 
         if (item.isClassSchedule) {
+          // BLUE: Regular class scheduled by Admin
           card.className = 'schedule-card class-schedule';
           card.style.top = `${top}px`;
           card.style.height = `${height}px`;
@@ -704,6 +648,7 @@
           });
 
         } else if (item.type === 'red') {
+          // RED: Approved / Occupied reservation
           card.className = 'schedule-card occupied';
           card.style.top = `${top}px`;
           card.style.height = `${height}px`;
@@ -729,6 +674,7 @@
           });
 
         } else {
+          // YELLOW: Pending reservation request
           card.className = 'schedule-card pending';
           card.style.top = `${top}px`;
           card.style.height = `${height}px`;
@@ -757,11 +703,12 @@
         colEl.appendChild(card);
       });
 
-      // Calculate and Render Available Time Gaps (GREEN)
-      let currentPointer = startBoundary;
-      allEvents.forEach(item => {
-        const iStart = item.startMinutes ?? timeToMinutes(item.start);
-        const iEnd = item.endMinutes ?? timeToMinutes(item.end);
+      // Available Time Gaps (GREEN)
+      if (r.active) {
+        let currentPointer = startBoundary;
+        allEvents.forEach(item => {
+          const iStart = item.startMinutes ?? timeToMinutes(item.start);
+          const iEnd = item.endMinutes ?? timeToMinutes(item.end);
 
           if (iStart > currentPointer) {
             renderAvailableSlot(colEl, currentPointer, iStart, wd.dateStr, wd.dayName, r);
@@ -778,7 +725,7 @@
     });
   }
 
-  // ── Render Green Available Slot Block (Blocks Past Hours) ───────────────────
+  // ── Render Green Available Slot Block (hides past hours today) ───────────
   function renderAvailableSlot(container, startMin, endMin, dateStr, dayName, room) {
     const todayStr = getTodayString();
     const now = new Date();
@@ -789,7 +736,7 @@
       return;
     }
 
-    // Clip slot start to current time if starting in the past today
+    // Clip slot start to the next 30-minute mark if it starts in the past today
     let effectiveStartMin = startMin;
     if (dateStr === todayStr && startMin < currentMins) {
       effectiveStartMin = Math.ceil(currentMins / 30) * 30;
@@ -862,7 +809,7 @@
     }
   }
 
-  // ── Open Reservation Modal Panel (Restricted to Today & Tomorrow) ───────────
+  // ── Open Reservation Modal Panel (restricted to Today & Tomorrow) ────────
   function openReservationModal(preferredStart, preferredEnd, preferredDate) {
     const r = state.selectedRoom;
     if (!r) return;
@@ -934,7 +881,7 @@
     }
   }
 
-  // ── Live Conflict Validation (Blocks Blue classes, Red approved, Yellow pending) ──
+  // ── Live Validation (inactive room, date range, past time, conflicts) ────
   function validateReservationForm() {
     const r = state.selectedRoom;
     const alertBox = document.getElementById('resAlertBox');
@@ -947,17 +894,15 @@
 
     const sMins = timeToMinutes(startVal);
     const eMins = timeToMinutes(endVal);
-    const todayStr = getTodayString();
+    const dates = getTodayAndTomorrowDates();
+    const todayStr = dates[0].dateStr;
+    const tomorrowStr = dates[1].dateStr;
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
     let type = 'ok';
     let msg = 'Selected slot is clear of schedule conflicts. Request will be submitted for Admin approval.';
     let isValid = true;
-
-    const today = getTodayString();
-    const now = new Date();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
 
     if (!r.active) {
       type = 'bad';
@@ -966,6 +911,18 @@
     } else if (!dateVal) {
       type = 'bad';
       msg = 'Reservation date is required.';
+      isValid = false;
+    } else if (dateVal < todayStr) {
+      type = 'bad';
+      msg = 'Invalid Date: You cannot view or reserve room slots for past dates.';
+      isValid = false;
+    } else if (dateVal > tomorrowStr) {
+      type = 'bad';
+      msg = 'Reservations are only allowed for today and tomorrow.';
+      isValid = false;
+    } else if (dateVal === todayStr && sMins < currentMins) {
+      type = 'bad';
+      msg = 'Invalid Time: Selected start time has already passed for today.';
       isValid = false;
     } else if (eMins <= sMins) {
       type = 'bad';
@@ -976,6 +933,7 @@
       const dayIndex = dObj.getDay();
       const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
 
+      // 1. Conflict check against Scheduled Classes (BLUE)
       const classConflict = state.classSchedules.find(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
@@ -990,6 +948,7 @@
         msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" (${classConflict.section}) from ${classConflict.start} to ${classConflict.end}.`;
         isValid = false;
       } else {
+        // 2. Conflict check against Approved (RED) or Pending (YELLOW) Reservations
         const resConflict = state.reservations.find(b => {
           const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
           const matchDate = b.date === dateVal;
@@ -1021,7 +980,8 @@
     return isValid;
   }
 
-  // ── Handle Reservation Submit (Automatically sets status = 'pending' / Yellow) ──
+  // ── Handle Reservation Submit ───────────────────────────────────────────
+  // NOTE: still saved to localStorage only. A real reservations table comes next.
   function handleReservationSubmit(e) {
     e.preventDefault();
     const r = state.selectedRoom;
@@ -1062,8 +1022,8 @@
       faculty: facultyVal,
       subject: subjectVal,
       code: 'CRS-REQ',
-      requester: state.profile?.full_name || 'Danilo Santos (Student)',
-      status: 'pending', // Automatically Yellow pending approval
+      requester: state.profile?.full_name || 'Student',
+      status: 'pending', // Yellow: awaiting admin approval
       createdAt: new Date().toISOString()
     };
 
@@ -1204,7 +1164,7 @@
       });
     }
 
-    // Sync across tabs if Admin modifies schedules or approves reservations
+    // Sync across tabs if schedules or reservations change
     window.addEventListener('storage', (e) => {
       if (e.key === 'crs_room_class_schedules' || e.key === 'crs_custom_reservations') {
         loadData();
@@ -1218,10 +1178,6 @@
     try {
       const ok = await guard();
       if (!ok) return; // guard already redirected to login
-
-      // Hide the static placeholder timetable until real rooms are loaded
-      const ttSection = document.getElementById('timetableSection');
-      if (ttSection) ttSection.style.display = 'none';
 
       loadData();
       populateTimeDropdowns();
