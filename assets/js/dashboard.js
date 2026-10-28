@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PUP Canlalay Campus CRS - Role-Based Dashboard Engine
  *
  * SECURITY CHANGES in this version:
@@ -229,7 +229,7 @@
         <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
         <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="browse-rooms.html" class="pup-nav-link">My Reservations</a>
+        <a href="my-reservations.html" class="pup-nav-link">My Reservations</a>
       `;
     } else if (role === 'Faculty') {
       nav.innerHTML = `
@@ -237,23 +237,32 @@
         <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
         <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="browse-rooms.html" class="pup-nav-link">Schedule</a>
+        <a href="schedule.html" class="pup-nav-link">Schedule</a>
       `;
     } else {
-      nav.innerHTML = `
-        <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
-        <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="room-management.html" class="pup-nav-link">Room Management</a>
-        <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="schedule-manager.html" class="pup-nav-link">Schedule Manager</a>
-        <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
-        <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="user-approvals.html" class="pup-nav-link">User Approvals</a>
-        <span class="nav-separator text-white/60 font-light select-none">|</span>
-        <a href="logs.html" class="pup-nav-link">Logs</a>
-      `;
-    }
+  nav.innerHTML = `
+    <a href="dashboard.html" class="pup-nav-link active font-bold text-[#ffd658]">Dashboard</a>
+    <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
+
+    <!-- Consolidated System Administration Dropdown -->
+    <div class="relative group inline-block">
+      <button type="button" class="pup-nav-link flex items-center gap-1.5 focus:outline-none">
+        <span>System Administration</span>
+        <svg class="w-3.5 h-3.5 fill-current opacity-80 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+        </svg>
+      </button>
+
+      <!-- Dropdown Sub-menu -->
+      <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-1.5 z-50">
+        <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Room Management</a>
+        <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Schedule Manager</a>
+        <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">User Approvals</a>
+        <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Audit Logs</a>
+      </div>
+    </div>
+  `;
+}
   }
 
   // ==========================================
