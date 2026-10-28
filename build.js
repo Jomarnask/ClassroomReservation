@@ -8,8 +8,14 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const content = `const SUPABASE_URL = ${JSON.stringify(url)};
+const content = `// Generated at build time from environment variables. Do not edit.
+const SUPABASE_URL = ${JSON.stringify(url)};
 const SUPABASE_PUBLISHABLE_KEY = ${JSON.stringify(key)};
+
+// Initialize global client using the window object created by the CDN
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+window.supabaseClient = supabaseClient;
 `;
 
 fs.writeFileSync('config.js', content);
