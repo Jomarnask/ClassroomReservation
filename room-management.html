@@ -1,0 +1,222 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PUP-CITE Reservation | Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pup: { maroon: '#880000', darkmaroon: '#5c0000', gold: '#ffd658', blue: '#337ab7' }
+          },
+          fontFamily: {
+            sans: ['Noto Sans', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <link rel="stylesheet" href="assets/css/admin-dashboard.css">
+
+  <style>
+    /* AUTH GUARD: page stays hidden until room-management.js confirms an active admin */
+    body { visibility: hidden; }
+  </style>
+</head>
+<body>
+  <!-- ================= TOP RED NAVBAR ================= -->
+  <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+
+      <!-- Brand Logo & Name -->
+      <div class="flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+          <div>
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+              PUP - Canlalay Campus
+            </div>
+            <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- Navigation Links with Pipes -->
+      <!-- NEW CONSOLIDATED NAV BLOCK -->
+<nav id="nav" class="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white" aria-label="Main Navigation">
+  <a href="dashboard.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">Dashboard</a>
+  <a href="all-reservations.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">All Reservations</a>
+
+  <!-- Dropdown Menu Group -->
+  <div class="relative group">
+    <button type="button" class="px-3 py-1.5 rounded-md bg-white/20 text-[#ffd658] font-bold flex items-center gap-1.5 hover:bg-white/25 transition focus:outline-none">
+      <span>System Administration</span>
+      <svg class="w-4 h-4 fill-current opacity-90 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
+        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+      </svg>
+    </button>
+
+    <!-- Sub-menu Links -->
+    <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-md shadow-2xl border border-gray-200 py-1.5 z-50">
+      <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-[#880000] font-bold">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+        Room Management
+      </a>
+      <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Schedule Manager</a>
+      <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">User Approvals</a>
+      <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Audit Logs</a>
+    </div>
+  </div>
+</nav>
+
+      <!-- Right: Bell & Profile menu -->
+      <div class="flex items-center gap-3 shrink-0">
+        <button id="navToggle" class="hidden" aria-label="Toggle navigation"></button>
+        <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
+          <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+        </a>
+
+        <div class="relative">
+          <button id="profileMenuBtn" type="button" aria-label="User Profile" class="w-9 h-9 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs flex items-center justify-center shadow focus:outline-none transition">
+            <span id="adminAvatar">--</span>
+          </button>
+
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p id="profileDropdownName" class="text-xs font-bold text-[#111111] truncate">Admin</p>
+              <p id="profileDropdownEmail" class="text-[11px] text-gray-500 truncate"></p>
+              <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+                <span>Role: Admin</span>
+              </div>
+            </div>
+            <div class="py-1 text-xs">
+              <a href="dashboard.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Back to Dashboard</a>
+            </div>
+            <div class="border-t border-gray-100 pt-1">
+              <button id="btnSignOut" type="button" class="w-full text-left flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card banner">
+      <div>
+        <p class="eyebrow">CITE ADMIN CONSOLE</p>
+        <h1 id="bannerName">Welcome back!</h1>
+        <p class="meta">
+          <span>CCIS Facilities &amp; Lab Administrator</span>
+          <span>PUP Webmail: <code id="adminEmail"></code></span>
+          <span>System Role: <strong>Admin</strong></span>
+        </p>
+      </div>
+      <div class="controls">
+        <select id="floorFilter" aria-label="Filter by floor">
+          <option value="all" selected>All Floors</option>
+          <option value="1">1st Floor</option>
+          <option value="2">2nd Floor</option>
+          <option value="3">3rd Floor</option>
+          <option value="4">4th Floor</option>
+        </select>
+        <button class="btn-primary" id="editToggle" aria-pressed="false">+ Edit Rooms</button>
+      </div>
+    </section>
+
+    <div class="edit-notice" id="editNotice" hidden>
+      Room Editing Mode is on. Select a room to change its configuration.
+    </div>
+
+    <section class="card directory">
+      <div class="dir-head">
+        <div>
+          <h2>PUP Canlalay Campus Floor Manager</h2>
+          <p class="muted">Select a classroom across floors to view room information and status.</p>
+        </div>
+        <span class="pill" id="totalRooms">Total: 0 Rooms</span>
+      </div>
+      <div class="floors" id="floors"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-head">
+        <span class="cal" aria-hidden="true">📅</span>
+        <div class="mh-text">
+          <div class="mh-title" id="modalTitle">Edit Room Configuration</div>
+          <div class="mh-sub">PUP College of Computer and Information Sciences</div>
+        </div>
+        <button class="close" id="closeModal" aria-label="Close">✕</button>
+      </div>
+
+      <form id="roomForm" novalidate>
+        <div class="modal-body">
+          <div class="tag">
+            <div class="avatar" id="tagAvatar">AD</div>
+            <div class="tag-info">
+              <strong id="tagName">Admin</strong>
+              <span id="tagMeta"></span>
+            </div>
+            <span class="validated">Real-Time Validated</span>
+          </div>
+
+          <div class="grid2">
+            <label>Room Number *
+              <input type="text" id="roomNumber" placeholder="e.g. 101, 205A" required>
+            </label>
+            <label>Room Name
+              <input type="text" id="roomName" placeholder="e.g. CCIS Computer Lab 1">
+            </label>
+            <label>Room Type *
+              <select id="roomType" required>
+                <option value="lecture">Lecture Room</option>
+                <option value="laboratory">Laboratory</option>
+                <option value="office">Office</option>
+                <option value="stock room">Stock Room</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label>Status *
+              <select id="availability" required>
+                <option value="active">Active (open for reservations)</option>
+                <option value="inactive">Inactive (not available)</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="alert ok" id="alertBox" role="status"></div>
+        </div>
+
+        <div class="modal-foot">
+          <button type="button" class="btn-ghost" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn-primary">➤ Save Room Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Supabase JS Client CDN & Config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+
+  <!-- Room Management Script -->
+  <script src="assets/js/room-management.js"></script>
+</body>
+</html>

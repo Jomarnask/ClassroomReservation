@@ -1,0 +1,200 @@
+/* ==========================================================================
+   PUP Canlalay Campus CRS - All Reservations Stylesheet
+   Strictly following design.md: PUP Maroon #880000, 3px border-radius, clean typography
+   ========================================================================== */
+
+:root {
+  --pup-maroon: #880000;
+  --pup-darkmaroon: #5c0000;
+  --pup-lightmaroon: #a30000;
+  --pup-gold: #ffd658;
+  --pup-blue: #337ab7;
+  --pup-blue-hover: #23527c;
+  --text-primary: #111111;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --bg-page: #f8fafc;
+  --card-bg: #ffffff;
+  --border-default: #d1d5db;
+  --border-subtle: #e5e7eb;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-family: 'Noto Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Top Red Navbar matching reference screenshots */
+.pup-topbar-red {
+  background-color: var(--pup-maroon);
+  border-bottom: 2px solid var(--pup-darkmaroon);
+}
+
+.pup-nav-item {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 3px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.pup-nav-item:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.pup-nav-item.active {
+  color: #ffffff;
+  font-weight: 700;
+  border-bottom: 2px solid var(--pup-gold);
+}
+
+/* Filter Tab Pills */
+.filter-tab {
+  background-color: #ffffff;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-tab:hover {
+  border-color: var(--pup-maroon);
+  color: var(--pup-maroon);
+}
+
+.filter-tab.active {
+  background-color: var(--pup-maroon);
+  border-color: var(--pup-maroon);
+  color: #ffffff;
+}
+
+/* Buttons matching design.md */
+.btn-primary {
+  background-color: var(--pup-maroon);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--pup-darkmaroon);
+}
+
+.btn-secondary {
+  background-color: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--pup-maroon);
+  color: var(--pup-maroon);
+}
+
+/* Table Design */
+.reservations-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.reservations-table th {
+  background-color: #f9fafb;
+  color: #374151;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+.reservations-table td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.reservations-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.status-badge.approved {
+  background-color: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.status-badge.pending {
+  background-color: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.status-badge.occupied,
+.status-badge.rejected {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.status-badge.completed {
+  background-color: #eff6ff;
+  border-color: #dbeafe;
+  color: #1e40af;
+}
+
+/* Floor Badge */
+.floor-tag {
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #4b5563;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
