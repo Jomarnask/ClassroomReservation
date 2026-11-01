@@ -1,21 +1,20 @@
 /**
  * PUP Canlalay Campus CRS - Browse Rooms & Today/Tomorrow Timetable Controller
  *
- * MERGED VERSION
- * From the newer UI version:
- * - Timetable opens in an overlay panel when an ACTIVE room is clicked
- * - Today & Tomorrow schedule only; reservations limited to those two days
- * - Inactive rooms are shown but disabled
- * - Past hours today are hidden / blocked
- * From the secured version:
- * - Real session guard: no session / no profile / inactive account -> login.html (fail closed)
- * - Rooms come ONLY from public.rooms (no hardcoded room fallback, error shown if query fails)
- * - No hardcoded Supabase keys (uses the client from config.js)
- * - No fake capacity / features text (rooms table has no such columns yet)
- * - Real logged-in name saved as requester
+ * Connected to Supabase (run supabase_reservations.sql first):
+ * - Rooms:            public.rooms
+ * - Reservations:     public.room_reservations (RLS)
+ * - Busy slots:       rpc get_taken_slots   (times + status only, no names/subjects)
+ * - Faculty dropdown: rpc list_active_faculty
+ * - Cancel:           rpc cancel_reservation (student, own, pending only)
  *
- * STILL DEMO DATA (needs real tables later):
- * - Class schedules (blue) and reservations (yellow / red) live in localStorage.
+ * Rules shown in the UI:
+ * - Only students can reserve. Admin / faculty can browse only.
+ * - A slot with other students' PENDING requests shows as yellow "In Process",
+ *   but a student can still request it. The admin approves only one; the rest
+ *   are auto-rejected by the database.
+ * - APPROVED slots are red / occupied and cannot be requested.
+ * - Regular class schedules (blue) will come from room_schedules later.
  */
 
 (() => {
@@ -79,32 +78,8 @@
     }[ch]));
   }
 
-  // ── Default Scheduled Classes (BLUE - demo data until a schedules table exists) ──
-  const DEFAULT_CLASS_SCHEDULES = [
-    { id: 'CLS-202-TUE', roomId: '202', section: 'BSIT 2-2', subject: 'Object-Oriented Programming', code: 'IT202', day: 'Tuesday', start: '08:00 AM', end: '01:00 PM', startMinutes: 480, endMinutes: 780, faculty: 'Engr. Roberto Cruz' },
-    { id: 'CLS-301-TUE-1', roomId: '301', section: 'BSIT 3-1', subject: 'Multimedia', code: 'COMP 017', day: 'Tuesday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, faculty: 'Aaron Atienza' },
-    { id: 'CLS-301-TUE-2', roomId: '301', section: 'BSCS 3-1', subject: 'Fundamentals of Research', code: 'COMP 015', day: 'Tuesday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'McJoben Reyes' },
-    { id: 'CLS-301-WED-1', roomId: '301', section: 'BSIT 2-1', subject: 'Web Development', code: 'COMP 016', day: 'Wednesday', start: '09:00 AM', end: '02:00 PM', startMinutes: 540, endMinutes: 840, faculty: 'Noel Antonio' },
-    { id: 'CLS-301-WED-2', roomId: '301', section: 'BSIT 2-2', subject: 'Database Administration', code: 'COMP 018', day: 'Wednesday', start: '03:00 PM', end: '08:00 PM', startMinutes: 900, endMinutes: 1200, faculty: 'McJoben Reyes' },
-    { id: 'CLS-301-SAT-1', roomId: '301', section: 'BSIT 3-2', subject: 'System Integration and Architecture 1', code: 'INTE 301', day: 'Saturday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'Indaleen Quinsayas' },
-    { id: 'CLS-301-SAT-2', roomId: '301', section: 'BSIT 3-2', subject: 'Project Management', code: 'ELECT IT E-1', day: 'Saturday', start: '05:00 PM', end: '08:00 PM', startMinutes: 1020, endMinutes: 1200, faculty: 'Indaleen Quinsayas' },
-    { id: 'CLS-402-WED', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems and Technologies', code: 'IT305', day: 'Wednesday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
-    { id: 'CLS-402-FRI', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems Capstone Defense', code: 'IT305', day: 'Friday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
-    { id: 'CLS-305-FRI', roomId: '305', section: 'BSIT 3-1', subject: 'Software Engineering Capstone', code: 'CS301', day: 'Friday', start: '08:00 AM', end: '11:00 AM', startMinutes: 480, endMinutes: 660, faculty: 'Prof. Ferdinand Silva' },
-    { id: 'CLS-101-MON', roomId: '101', section: 'BSIT 1-1', subject: 'Purposive Communication', code: 'GEED 006', day: 'Monday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' },
-    { id: 'CLS-101-WED', roomId: '101', section: 'BSIT 1-1', subject: 'Oral Communication in Context', code: 'GEED 006', day: 'Wednesday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' }
-  ];
-
-  // ── Default Reservations (YELLOW = Pending, RED = Approved) - demo data ──
-  const DEFAULT_RESERVATIONS = [
-    { id: 'RES-9014', roomId: '301', day: 'Thursday', date: '', start: '10:00 AM', end: '01:00 PM', startMinutes: 600, endMinutes: 780, subject: 'Operating Systems Kernel Practical Exam', faculty: 'Dr. Alicia Reyes', requester: 'Danilo Santos (BSIT 3-1)', status: 'pending' },
-    { id: 'RES-9008', roomId: '301', day: 'Friday', date: '', start: '08:30 AM', end: '11:30 AM', startMinutes: 510, endMinutes: 690, subject: 'Cisco Routing Switch Mock Certification', faculty: 'Dr. Alicia Reyes', requester: 'Bea Alonzo (BSCS 3-2)', status: 'approved' },
-    { id: 'RES-9007', roomId: '402', day: 'Monday', date: '', start: '09:00 AM', end: '12:00 PM', startMinutes: 540, endMinutes: 720, subject: 'Database Systems Midterm Exam Make-up', faculty: 'Engr. Roberto Cruz', requester: 'Christian Diaz (BSCPE 4-1)', status: 'approved' },
-    { id: 'RES-9012', roomId: '305', day: 'Thursday', date: '', start: '08:00 AM', end: '10:00 AM', startMinutes: 480, endMinutes: 600, subject: 'Agile Software Testing Mock Sprint', faculty: 'Prof. Ferdinand Silva', requester: 'Samantha Ramos (BSIT 3-2)', status: 'pending' },
-    { id: 'RES-8702', roomId: '208', day: 'Friday', date: '', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'Embedded Systems Hardware Defense', faculty: 'Prof. Maria Morales', requester: 'Christian Diaz', status: 'pending' }
-  ];
-
   // ── Time Conversion Utilities ───────────────────────────────────────────
+  // '08:30 AM' -> 510
   function timeToMinutes(timeStr) {
     if (!timeStr) return 0;
     const parts = timeStr.trim().split(' ');
@@ -116,6 +91,7 @@
     return hours * 60 + (minutes || 0);
   }
 
+  // 510 -> '08:30 AM'
   function minutesToTime(mins) {
     let hours = Math.floor(mins / 60);
     const minutes = mins % 60;
@@ -125,6 +101,20 @@
     const hStr = hours < 10 ? '0' + hours : String(hours);
     const mStr = minutes < 10 ? '0' + minutes : String(minutes);
     return `${hStr}:${mStr} ${modifier}`;
+  }
+
+  // '08:30:00' (database TIME) -> 510
+  function sqlTimeToMinutes(t) {
+    const [h, m] = String(t || '0:0').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  // '08:30 AM' -> '08:30:00' (database TIME)
+  function toSqlTime(label) {
+    const mins = timeToMinutes(label);
+    const h = String(Math.floor(mins / 60)).padStart(2, '0');
+    const m = String(mins % 60).padStart(2, '0');
+    return `${h}:${m}:00`;
   }
 
   function getTodayString() {
@@ -162,11 +152,14 @@
     user: null,
     profile: null,
     role: 'Student',
+    canReserve: false,          // only students can reserve
     rooms: [],
     byId: {},
     selectedRoom: null,
-    classSchedules: [],
-    reservations: [],
+    classSchedules: [],         // BLUE cards: will come from room_schedules later
+    reservations: [],           // reservations of the selected room (today & tomorrow)
+    facultyMap: {},             // faculty user_id -> full name
+    submitting: false,
     toastTimer: null
   };
 
@@ -194,43 +187,7 @@
     state.toastTimer = setTimeout(() => {
       toast.classList.add('translate-y-12', 'opacity-0');
       toast.classList.remove('translate-y-0', 'opacity-100');
-    }, 4000);
-  }
-
-  // ── Persistence: Class Schedules & Reservations (demo, localStorage) ─────
-  function loadData() {
-    try {
-      const storedClasses = localStorage.getItem('crs_room_class_schedules');
-      if (storedClasses) {
-        state.classSchedules = JSON.parse(storedClasses);
-      } else {
-        state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
-        localStorage.setItem('crs_room_class_schedules', JSON.stringify(state.classSchedules));
-      }
-    } catch (e) {
-      state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
-    }
-
-    try {
-      const storedRes = localStorage.getItem('crs_custom_reservations');
-      if (storedRes) {
-        state.reservations = JSON.parse(storedRes);
-      } else {
-        state.reservations = [...DEFAULT_RESERVATIONS];
-        localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
-      }
-    } catch (e) {
-      state.reservations = [...DEFAULT_RESERVATIONS];
-    }
-  }
-
-  function saveReservation(newRes) {
-    state.reservations.push(newRes);
-    try {
-      localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
-    } catch (e) {
-      console.warn('Could not persist reservation:', e);
-    }
+    }, 4500);
   }
 
   // ── Auth Guard: signed in + profile exists + account active ──────────────
@@ -255,6 +212,7 @@
     state.user = session.user;
     state.profile = profile;
     state.role = normalizeRole(profile.role);
+    state.canReserve = state.role === 'Student';
 
     initProfileUI();
     renderNavbar(state.role);
@@ -343,7 +301,7 @@
     }
   }
 
-  // ── Load Rooms (database only, no hardcoded fallback) ───────────────────
+  // ── Load Rooms (database only) ──────────────────────────────────────────
   async function loadRooms() {
     const floorsEl = document.getElementById('floors');
 
@@ -383,6 +341,118 @@
     }
 
     renderFloors();
+  }
+
+  // ── Faculty dropdown (real faculty from the database) ───────────────────
+  async function loadFacultyList() {
+    const facultySel = document.getElementById('resFaculty');
+    if (!client || !facultySel) return;
+
+    // remove any hardcoded options, keep only the placeholder
+    facultySel.innerHTML = '<option value="" disabled selected>-- Select Faculty Professor --</option>';
+
+    const { data, error } = await client.rpc('list_active_faculty');
+    if (error) {
+      console.error('Faculty list failed:', error);
+      showToast('Could not load the faculty list: ' + error.message);
+      return;
+    }
+
+    state.facultyMap = {};
+    (data || []).forEach(u => {
+      state.facultyMap[u.user_id] = u.full_name;
+      const opt = document.createElement('option');
+      opt.value = u.user_id;          // the tagged faculty's user_id is what gets saved
+      opt.textContent = u.full_name;
+      facultySel.appendChild(opt);
+    });
+
+    if (!data || data.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.disabled = true;
+      opt.textContent = 'No active faculty available yet';
+      facultySel.appendChild(opt);
+    }
+  }
+
+  // ── Load reservations for the selected room (today & tomorrow) ───────────
+  // Two sources:
+  //  1. room_reservations (RLS): full details of MY requests (admin: all; faculty: tagged)
+  //  2. get_taken_slots: other students' busy slots, TIMES + STATUS only
+  async function loadReservationsForRoom(room) {
+    const days = getTodayAndTomorrowDates();
+    const from = days[0].dateStr;
+    const to = days[1].dateStr;
+
+    const [visible, taken] = await Promise.all([
+      client
+        .from('room_reservations')
+        .select('reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status')
+        .eq('room_id', room.id)
+        .gte('reservation_date', from)
+        .lte('reservation_date', to)
+        .in('status', ['pending', 'approved']),
+      client.rpc('get_taken_slots', { p_room_id: room.id, p_from: from, p_to: to })
+    ]);
+
+    if (visible.error) throw visible.error;
+    if (taken.error) throw taken.error;
+
+    const withDetails = (visible.data || []).map(r => {
+      const mine = r.student_id === state.user.id;
+      const startMinutes = sqlTimeToMinutes(r.start_time);
+      const endMinutes = sqlTimeToMinutes(r.end_time);
+      return {
+        id: r.reservation_id,
+        roomId: r.room_id,
+        date: r.reservation_date,
+        startMinutes,
+        endMinutes,
+        start: minutesToTime(startMinutes),
+        end: minutesToTime(endMinutes),
+        status: r.status,
+        subject: r.subject,
+        faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
+        requester: mine ? (state.profile?.full_name || 'You') : 'Student',
+        mine,
+        detail: true
+      };
+    });
+
+    const knownIds = new Set(withDetails.map(r => r.id));
+
+    const timesOnly = (taken.data || [])
+      .filter(t => !knownIds.has(t.reservation_id))
+      .map(t => {
+        const startMinutes = sqlTimeToMinutes(t.start_time);
+        const endMinutes = sqlTimeToMinutes(t.end_time);
+        return {
+          id: t.reservation_id,
+          roomId: room.id,
+          date: t.reservation_date,
+          startMinutes,
+          endMinutes,
+          start: minutesToTime(startMinutes),
+          end: minutesToTime(endMinutes),
+          status: t.status,
+          mine: false,
+          detail: false
+        };
+      });
+
+    state.reservations = [...withDetails, ...timesOnly];
+  }
+
+  async function refreshReservations() {
+    if (!state.selectedRoom) return;
+    try {
+      await loadReservationsForRoom(state.selectedRoom);
+    } catch (e) {
+      console.error('Load reservations failed:', e);
+      state.reservations = [];
+      showToast('Could not load reservations: ' + (e.message || e));
+    }
   }
 
   // ── Render Floor Manager Directory ───────────────────────────────────
@@ -466,7 +536,7 @@
   }
 
   // ── Select Room & Launch Timetable Panel ─────────────────────────────────
-  function selectRoom(r) {
+  async function selectRoom(r) {
     if (!r || !r.active) return;
     state.selectedRoom = r;
 
@@ -475,6 +545,7 @@
       btn.classList.toggle('selected', matches);
     });
 
+    await refreshReservations();
     renderWeeklyTimetable();
     openTimetablePanel();
   }
@@ -495,6 +566,89 @@
     if (resOverlay && resOverlay.hidden) {
       document.body.style.overflow = '';
     }
+  }
+
+  // ── Card builders ───────────────────────────────────────────────────────
+  function cardFrame(cls, top, height) {
+    const card = document.createElement('div');
+    card.className = 'schedule-card ' + cls;
+    card.style.top = `${top}px`;
+    card.style.height = `${height}px`;
+    return card;
+  }
+
+  // A reservation counts as BLOCKING (no green slot, cannot be requested) when:
+  // it is APPROVED, or it is MY OWN pending request. Other students' pending
+  // requests do NOT block: they show as yellow but the slot can still be requested.
+  function isBlocking(item) {
+    if (item.isClassSchedule) return true;
+    if (item.status === 'approved') return true;
+    return item.status === 'pending' && item.mine;
+  }
+
+  function buildReservationCard(item, top, height, dayInfo) {
+    const isApproved = item.status === 'approved';
+    const card = cardFrame(isApproved ? 'occupied' : 'pending', top, height);
+    const canRequestThisSlot = !isApproved && !item.mine && state.canReserve;
+
+    let title, meta, badge;
+
+    if (item.detail) {
+      title = item.subject || 'Room Reservation';
+      meta = `
+        <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
+        <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.mine ? 'You' : item.requester)}</div>`;
+      badge = isApproved ? 'Approved / Occupied' : (item.mine ? 'Your request - Pending approval' : 'Pending approval');
+    } else {
+      title = isApproved ? 'Occupied' : 'In Process';
+      meta = isApproved
+        ? '<div>Reserved</div>'
+        : '<div>Requested by another student.</div>' + (state.canReserve ? '<div class="mt-0.5 font-semibold">You can still request this time.</div>' : '');
+      badge = isApproved ? 'Approved / Occupied' : 'In Process (Pending)';
+    }
+
+    const titleColor = isApproved ? 'text-[#880000]' : 'text-[#b45309]';
+    const timeColor = isApproved ? 'text-[#b91c1c]' : 'text-[#d97706]';
+    const badgeClass = isApproved ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800';
+
+    const cancelBtn = (item.mine && item.status === 'pending' && state.role === 'Student')
+      ? `<button type="button" data-cancel-id="${item.id}" class="mt-1 text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-red-300 text-red-700 hover:bg-red-50">Cancel request</button>`
+      : '';
+
+    card.innerHTML = `
+      <div class="card-top-bar"></div>
+      <div class="card-title ${titleColor}">${esc(title)}</div>
+      <div class="card-time ${timeColor}">${esc(item.start)} – ${esc(item.end)}</div>
+      <div class="card-meta">
+        ${meta}
+        <div class="mt-1">
+          <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded ${badgeClass}">${esc(badge)}</span>
+        </div>
+        ${cancelBtn}
+      </div>
+    `;
+
+    const cancel = card.querySelector('[data-cancel-id]');
+    if (cancel) {
+      cancel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cancelMyReservation(item.id);
+      });
+    }
+
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (canRequestThisSlot) {
+        // yellow slot of another student: still requestable
+        openReservationModal(item.start, item.end, item.date);
+      } else if (item.detail) {
+        showToast(`${item.subject} (${item.start} – ${item.end}) • ${badge}`);
+      } else {
+        showToast(`${title}: ${item.start} – ${item.end}`);
+      }
+    });
+
+    return card;
   }
 
   // ── Render Today & Tomorrow Room Timetable Overlay ───────────────────────
@@ -523,6 +677,10 @@
         statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> Inactive';
       }
     }
+
+    // Only students can reserve: hide the Reserve button for admin / faculty
+    const btnReserve = document.getElementById('btnReserveTime');
+    if (btnReserve) btnReserve.classList.toggle('hidden', !state.canReserve);
 
     const titleEl = document.getElementById('ttRoomTitle');
     if (titleEl) titleEl.textContent = displayName(r);
@@ -577,28 +735,17 @@
       }
       colEl.innerHTML = linesHtml;
 
-      // 1. Scheduled Classes (BLUE)
+      // 1. Regular class schedules (BLUE) - empty until room_schedules exists
       const dayClasses = state.classSchedules.filter(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === wd.dayName.toLowerCase();
         return matchRoom && matchDay;
-      }).map(c => ({
-        ...c,
-        isClassSchedule: true,
-        type: 'blue'
-      }));
+      }).map(c => ({ ...c, isClassSchedule: true }));
 
-      // 2. Reservations (YELLOW pending, RED approved)
-      const dayReservations = state.reservations.filter(b => {
-        const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
-        const matchDate = b.date === wd.dateStr;
-        const matchDay = (!b.date || b.date === '') && b.day && b.day.toLowerCase() === wd.dayName.toLowerCase();
-        return matchRoom && (matchDate || matchDay) && b.status !== 'rejected';
-      }).map(b => ({
-        ...b,
-        isClassSchedule: false,
-        type: String(b.status).toLowerCase() === 'approved' ? 'red' : 'yellow'
-      }));
+      // 2. Reservations from the database for this room and date
+      const dayReservations = state.reservations.filter(b =>
+        String(b.roomId) === String(r.id) && b.date === wd.dateStr
+      ).map(b => ({ ...b, isClassSchedule: false }));
 
       const allEvents = [...dayClasses, ...dayReservations];
       allEvents.sort((a, b) => {
@@ -607,26 +754,42 @@
         return aStart - bStart;
       });
 
+      // Green "available" gaps are computed from BLOCKING items only
+      // (class, approved, my own pending). Other students' pending requests
+      // do not block, so they are drawn on top of the green slot.
+      if (r.active) {
+        const blockers = allEvents.filter(isBlocking);
+        let currentPointer = startBoundary;
+        blockers.forEach(item => {
+          const iStart = item.startMinutes ?? timeToMinutes(item.start);
+          const iEnd = item.endMinutes ?? timeToMinutes(item.end);
+          if (iStart > currentPointer) {
+            renderAvailableSlot(colEl, currentPointer, iStart, wd.dateStr);
+          }
+          currentPointer = Math.max(currentPointer, iEnd);
+        });
+        if (currentPointer < endBoundary) {
+          renderAvailableSlot(colEl, currentPointer, endBoundary, wd.dateStr);
+        }
+      }
+
+      // Event cards are drawn after the green slots so they sit on top
       allEvents.forEach(item => {
         const iStart = item.startMinutes ?? timeToMinutes(item.start);
         const iEnd = item.endMinutes ?? timeToMinutes(item.end);
 
         const visualStart = Math.max(iStart, startBoundary);
         const visualEnd = Math.min(iEnd, endBoundary);
-
         if (visualEnd <= visualStart) return;
 
         const top = visualStart - startBoundary;
         const height = Math.max((visualEnd - visualStart) - 4, 38);
 
-        const card = document.createElement('div');
+        let card;
 
         if (item.isClassSchedule) {
-          // BLUE: Regular class scheduled by Admin
-          card.className = 'schedule-card class-schedule';
-          card.style.top = `${top}px`;
-          card.style.height = `${height}px`;
-
+          // BLUE: regular class (will be filled from room_schedules later)
+          card = cardFrame('class-schedule', top, height);
           card.innerHTML = `
             <div class="card-top-bar"></div>
             <div class="card-title text-[#1d4ed8]">${esc(item.subject)}</div>
@@ -641,92 +804,23 @@
               </div>
             </div>
           `;
-
           card.addEventListener('click', (e) => {
             e.stopPropagation();
-            showToast(`[Scheduled Class] ${item.section}: ${item.subject} (${item.start} – ${item.end}) by Prof. ${item.faculty || 'Unassigned'}`);
+            showToast(`[Scheduled Class] ${item.section}: ${item.subject} (${item.start} – ${item.end})`);
           });
-
-        } else if (item.type === 'red') {
-          // RED: Approved / Occupied reservation
-          card.className = 'schedule-card occupied';
-          card.style.top = `${top}px`;
-          card.style.height = `${height}px`;
-
-          card.innerHTML = `
-            <div class="card-top-bar"></div>
-            <div class="card-title text-[#880000]">${esc(item.subject || 'Room Reservation')}</div>
-            <div class="card-time text-[#b91c1c]">${esc(item.start)} – ${esc(item.end)}</div>
-            <div class="card-meta">
-              <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
-              <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.requester || 'Student')}</div>
-              <div class="mt-1">
-                <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800">
-                  Approved / Occupied
-                </span>
-              </div>
-            </div>
-          `;
-
-          card.addEventListener('click', (e) => {
-            e.stopPropagation();
-            showToast(`[Approved Reservation] ${item.subject} (${item.start} – ${item.end}) • Tagged: ${item.faculty}`);
-          });
-
         } else {
-          // YELLOW: Pending reservation request
-          card.className = 'schedule-card pending';
-          card.style.top = `${top}px`;
-          card.style.height = `${height}px`;
-
-          card.innerHTML = `
-            <div class="card-top-bar"></div>
-            <div class="card-title text-[#b45309]">${esc(item.subject || 'Reservation Request')}</div>
-            <div class="card-time text-[#d97706]">${esc(item.start)} – ${esc(item.end)}</div>
-            <div class="card-meta">
-              <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
-              <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.requester || 'Student')}</div>
-              <div class="mt-1">
-                <span class="inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                  Pending Approval
-                </span>
-              </div>
-            </div>
-          `;
-
-          card.addEventListener('click', (e) => {
-            e.stopPropagation();
-            showToast(`[Pending Request] ${item.subject} (${item.start} – ${item.end}) • Awaiting Admin Confirmation`);
-          });
+          card = buildReservationCard(item, top, height, wd);
         }
 
         colEl.appendChild(card);
       });
-
-      // Available Time Gaps (GREEN)
-      if (r.active) {
-        let currentPointer = startBoundary;
-        allEvents.forEach(item => {
-          const iStart = item.startMinutes ?? timeToMinutes(item.start);
-          const iEnd = item.endMinutes ?? timeToMinutes(item.end);
-
-          if (iStart > currentPointer) {
-            renderAvailableSlot(colEl, currentPointer, iStart, wd.dateStr, wd.dayName, r);
-          }
-          currentPointer = Math.max(currentPointer, iEnd);
-        });
-
-        if (currentPointer < endBoundary) {
-          renderAvailableSlot(colEl, currentPointer, endBoundary, wd.dateStr, wd.dayName, r);
-        }
-      }
 
       gridBody.appendChild(colEl);
     });
   }
 
   // ── Render Green Available Slot Block (hides past hours today) ───────────
-  function renderAvailableSlot(container, startMin, endMin, dateStr, dayName, room) {
+  function renderAvailableSlot(container, startMin, endMin, dateStr) {
     const todayStr = getTodayString();
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
@@ -764,17 +858,20 @@
       </div>
       <div class="card-time text-emerald-700">${startStr} – ${endStr}</div>
       <div class="card-meta text-emerald-900/80">
-        <div>Click to Reserve this time slot</div>
-        <div class="text-[10px] font-semibold text-emerald-700 mt-1 flex items-center gap-1">
-          <span>+ Reserve Slot</span>
-        </div>
+        ${state.canReserve
+          ? '<div>Click to Reserve this time slot</div><div class="text-[10px] font-semibold text-emerald-700 mt-1 flex items-center gap-1"><span>+ Reserve Slot</span></div>'
+          : '<div>Open for student reservations</div>'}
       </div>
     `;
 
-    slotCard.addEventListener('click', () => {
-      const preferredEndMin = Math.min(effectiveStartMin + 60, endMin);
-      openReservationModal(startStr, minutesToTime(preferredEndMin), dateStr);
-    });
+    if (state.canReserve) {
+      slotCard.addEventListener('click', () => {
+        const preferredEndMin = Math.min(effectiveStartMin + 60, endMin);
+        openReservationModal(startStr, minutesToTime(preferredEndMin), dateStr);
+      });
+    } else {
+      slotCard.style.cursor = 'default';
+    }
 
     container.appendChild(slotCard);
   }
@@ -809,10 +906,15 @@
     }
   }
 
-  // ── Open Reservation Modal Panel (restricted to Today & Tomorrow) ────────
+  // ── Open Reservation Modal Panel (students only, today & tomorrow) ───────
   function openReservationModal(preferredStart, preferredEnd, preferredDate) {
     const r = state.selectedRoom;
     if (!r) return;
+
+    if (!state.canReserve) {
+      showToast('Only students can reserve rooms.');
+      return;
+    }
 
     if (!r.active) {
       showToast(`${displayName(r)} is inactive and cannot be reserved.`);
@@ -863,6 +965,9 @@
     const subjInput = document.getElementById('resSubject');
     if (subjInput) subjInput.value = '';
 
+    const facultySel = document.getElementById('resFaculty');
+    if (facultySel) facultySel.value = '';
+
     validateReservationForm();
 
     overlay.hidden = false;
@@ -881,7 +986,8 @@
     }
   }
 
-  // ── Live Validation (inactive room, date range, past time, conflicts) ────
+  // ── Live Validation ─────────────────────────────────────────────────────
+  // The database re-checks everything; this only gives instant feedback.
   function validateReservationForm() {
     const r = state.selectedRoom;
     const alertBox = document.getElementById('resAlertBox');
@@ -901,10 +1007,14 @@
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
     let type = 'ok';
-    let msg = 'Selected slot is clear of schedule conflicts. Request will be submitted for Admin approval.';
+    let msg = 'Selected slot is clear. Your request will be sent to the Admin for approval.';
     let isValid = true;
 
-    if (!r.active) {
+    if (!state.canReserve) {
+      type = 'bad';
+      msg = 'Only students can reserve rooms.';
+      isValid = false;
+    } else if (!r.active) {
       type = 'bad';
       msg = 'This room is inactive and cannot be reserved.';
       isValid = false;
@@ -914,7 +1024,7 @@
       isValid = false;
     } else if (dateVal < todayStr) {
       type = 'bad';
-      msg = 'Invalid Date: You cannot view or reserve room slots for past dates.';
+      msg = 'Invalid Date: You cannot reserve room slots for past dates.';
       isValid = false;
     } else if (dateVal > tomorrowStr) {
       type = 'bad';
@@ -933,7 +1043,7 @@
       const dayIndex = dObj.getDay();
       const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
 
-      // 1. Conflict check against Scheduled Classes (BLUE)
+      // 1. Regular class (BLUE) - empty until room_schedules exists
       const classConflict = state.classSchedules.find(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
@@ -943,47 +1053,53 @@
         return cStart < eMins && cEnd > sMins;
       });
 
+      // 2. Reservations of this room on that date that overlap the chosen time
+      const overlapping = state.reservations.filter(b =>
+        String(b.roomId) === String(r.id) &&
+        b.date === dateVal &&
+        b.startMinutes < eMins &&
+        b.endMinutes > sMins
+      );
+
+      const approved = overlapping.find(b => b.status === 'approved');
+      const myPending = overlapping.find(b => b.status === 'pending' && b.mine);
+      const othersPending = overlapping.filter(b => b.status === 'pending' && !b.mine);
+
       if (classConflict) {
         type = 'bad';
-        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" (${classConflict.section}) from ${classConflict.start} to ${classConflict.end}.`;
+        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" from ${classConflict.start} to ${classConflict.end}.`;
         isValid = false;
-      } else {
-        // 2. Conflict check against Approved (RED) or Pending (YELLOW) Reservations
-        const resConflict = state.reservations.find(b => {
-          const matchRoom = String(b.roomId) === String(r.id) || String(b.roomId) === String(r.number);
-          const matchDate = b.date === dateVal;
-          const matchDay = (!b.date || b.date === '') && b.day && b.day.toLowerCase() === dayName.toLowerCase();
-          if (!matchRoom || (!matchDate && !matchDay) || b.status === 'rejected') return false;
-          const bStart = b.startMinutes ?? timeToMinutes(b.start);
-          const bEnd = b.endMinutes ?? timeToMinutes(b.end);
-          return bStart < eMins && bEnd > sMins;
-        });
-
-        if (resConflict) {
-          type = 'bad';
-          const isAppr = String(resConflict.status).toLowerCase() === 'approved';
-          msg = `Reservation Conflict: Slot overlaps with an ${isAppr ? 'approved' : 'existing pending'} reservation "${resConflict.subject}" (${resConflict.start} – ${resConflict.end}).`;
-          isValid = false;
-        }
+      } else if (approved) {
+        type = 'bad';
+        msg = `This time overlaps an approved reservation (${approved.start} – ${approved.end}).`;
+        isValid = false;
+      } else if (myPending) {
+        type = 'bad';
+        msg = `You already have a pending request for this time (${myPending.start} – ${myPending.end}).`;
+        isValid = false;
+      } else if (othersPending.length > 0) {
+        type = 'warn';
+        msg = 'Other students already have pending requests for this time. You can still request it, but the Admin approves only one request.';
       }
     }
 
     alertBox.className = `alert ${type} p-2.5 rounded-[6px] text-xs border font-medium`;
-    alertBox.textContent = (type === 'ok' ? '✔ ' : '✖ ') + msg;
+    alertBox.textContent = (type === 'ok' ? '✔ ' : type === 'warn' ? '⚠ ' : '✖ ') + msg;
 
     if (submitBtn) {
-      submitBtn.disabled = !isValid;
-      submitBtn.classList.toggle('opacity-50', !isValid);
-      submitBtn.classList.toggle('cursor-not-allowed', !isValid);
+      submitBtn.disabled = !isValid || state.submitting;
+      submitBtn.classList.toggle('opacity-50', !isValid || state.submitting);
+      submitBtn.classList.toggle('cursor-not-allowed', !isValid || state.submitting);
     }
 
     return isValid;
   }
 
-  // ── Handle Reservation Submit ───────────────────────────────────────────
-  // NOTE: still saved to localStorage only. A real reservations table comes next.
-  function handleReservationSubmit(e) {
+  // ── Submit: INSERT into room_reservations (status defaults to 'pending') ──
+  async function handleReservationSubmit(e) {
     e.preventDefault();
+    if (state.submitting) return;
+
     const r = state.selectedRoom;
     if (!r) return;
 
@@ -1003,66 +1119,50 @@
       return;
     }
 
-    const dObj = new Date(dateVal + 'T00:00:00');
-    const dayIndex = dObj.getDay();
-    const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
+    state.submitting = true;
+    validateReservationForm();
 
-    const refId = `RES-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newReservation = {
-      id: refId,
-      roomId: String(r.id),
-      roomNumber: String(r.number),
-      roomName: displayName(r),
-      date: dateVal,
-      day: dayName,
-      start: startVal,
-      end: endVal,
-      startMinutes: timeToMinutes(startVal),
-      endMinutes: timeToMinutes(endVal),
-      faculty: facultyVal,
-      subject: subjectVal,
-      code: 'CRS-REQ',
-      requester: state.profile?.full_name || 'Student',
-      status: 'pending', // Yellow: awaiting admin approval
-      createdAt: new Date().toISOString()
-    };
+    const { error } = await client.from('room_reservations').insert({
+      room_id: r.id,
+      student_id: state.user.id,
+      faculty_id: facultyVal,
+      subject: subjectVal.slice(0, 150),
+      reservation_date: dateVal,
+      start_time: toSqlTime(startVal),
+      end_time: toSqlTime(endVal)
+    });
 
-    saveReservation(newReservation);
+    state.submitting = false;
+
+    if (error) {
+      console.error('Reservation insert failed:', error);
+      let message = error.message || 'Could not submit the reservation.';
+      if (/row-level security/i.test(message)) message = 'Only active students can submit reservation requests.';
+      showToast(message);
+      validateReservationForm();
+      return;
+    }
+
+    await refreshReservations();
     renderWeeklyTimetable();
-
     closeReservationModal();
-
-    showToast(`Reservation request ${refId} submitted (Yellow)! Awaiting Admin review and approval.`);
+    showToast('Reservation request submitted! It is now Pending until the Admin decides.');
   }
 
-  // ── Fetch Faculty List ──────────────────────────────────────────────────
-  // NOTE: students cannot read other users under RLS, so this only adds names
-  // for admins. A safe faculty list for students needs a small database function.
-  async function fetchFacultyList() {
-    if (!client) return;
-    try {
-      const { data, error } = await client
-        .from('users')
-        .select('full_name, role')
-        .ilike('role', 'faculty');
+  // ── Cancel my own pending request ───────────────────────────────────────
+  async function cancelMyReservation(id) {
+    if (!confirm('Cancel this pending reservation request?')) return;
 
-      if (!error && data && data.length > 0) {
-        const facultySel = document.getElementById('resFaculty');
-        if (!facultySel) return;
-
-        const existingNames = new Set([...facultySel.options].map(o => o.value));
-        data.forEach(u => {
-          if (u.full_name && !existingNames.has(u.full_name)) {
-            const opt = document.createElement('option');
-            opt.value = u.full_name;
-            opt.textContent = `${u.full_name} (Faculty)`;
-            facultySel.appendChild(opt);
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('Faculty list notice:', e);
+    const { error } = await client.rpc('cancel_reservation', { p_id: id });
+    if (error) {
+      console.error('Cancel failed:', error);
+      showToast(error.message || 'Could not cancel the request.');
+      return;
     }
+
+    await refreshReservations();
+    renderWeeklyTimetable();
+    showToast('Your pending request was cancelled.');
   }
 
   // ── Event Wireup ────────────────────────────────────────────────────────
@@ -1163,14 +1263,6 @@
         }
       });
     }
-
-    // Sync across tabs if schedules or reservations change
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'crs_room_class_schedules' || e.key === 'crs_custom_reservations') {
-        loadData();
-        if (state.selectedRoom) renderWeeklyTimetable();
-      }
-    });
   }
 
   // ── Global Boot ─────────────────────────────────────────────────────────
@@ -1179,11 +1271,15 @@
       const ok = await guard();
       if (!ok) return; // guard already redirected to login
 
-      loadData();
+      // remove old demo data left in this browser by earlier versions
+      ['crs_custom_reservations', 'crs_room_class_schedules'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      });
+
       populateTimeDropdowns();
       wireEvents();
       await loadRooms();
-      await fetchFacultyList();
+      await loadFacultyList();
     } catch (err) {
       console.error('Browse rooms initialization error:', err);
       goToLogin(); // fail closed
