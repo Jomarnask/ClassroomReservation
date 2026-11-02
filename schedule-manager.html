@@ -237,13 +237,21 @@
 
   <!-- ================= TOP RED NAVBAR ================= -->
   <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div class="navbar-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+
+      <!-- CSS-only mobile menu toggle. Keep this before #nav. -->
+      <input type="checkbox" id="mobileNavToggle" class="mobile-nav-toggle" />
+      <label for="mobileNavToggle" class="mobile-menu-button" aria-label="Toggle navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </label>
 
       <!-- Brand Logo & Title -->
-      <div class="flex items-center gap-3 shrink-0">
-        <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+      <div class="brand-container flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="brand-link flex items-center gap-3.5 group focus:outline-none">
           <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
-          <div>
+          <div class="brand-text">
             <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
               PUP - Canlalay Campus
             </div>
@@ -254,34 +262,34 @@
 
       <!-- Navigation Links with Pipes (Admin Bar) -->
       <!-- NEW CONSOLIDATED NAV BLOCK -->
-<nav id="nav" class="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white" aria-label="Main Navigation">
-  <a href="dashboard.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">Dashboard</a>
-  <a href="all-reservations.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">All Reservations</a>
+      <nav id="nav" class="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white overflow-visible" aria-label="Main Navigation">
+        <a href="dashboard.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">Dashboard</a>
+        <a href="all-reservations.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">All Reservations</a>
 
-  <!-- Dropdown Menu Group -->
-  <div class="relative group">
-    <button type="button" class="px-3 py-1.5 rounded-md bg-white/20 text-[#ffd658] font-bold flex items-center gap-1.5 hover:bg-white/25 transition focus:outline-none">
-      <span>System Administration</span>
-      <svg class="w-4 h-4 fill-current opacity-90 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
-        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
-      </svg>
-    </button>
+        <!-- Dropdown Menu Group -->
+        <div class="relative group">
+          <button type="button" class="px-3 py-1.5 rounded-md bg-white/20 text-[#ffd658] font-bold flex items-center gap-1.5 hover:bg-white/25 transition focus:outline-none">
+            <span>System Administration</span>
+            <svg class="w-4 h-4 fill-current opacity-90 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+            </svg>
+          </button>
 
-    <!-- Sub-menu Links -->
-    <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-md shadow-2xl border border-gray-200 py-1.5 z-50">
-      <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Room Management</a>
-      <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-[#880000] font-bold">
-        <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
-        Schedule Manager
-      </a>
-      <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">User Approvals</a>
-      <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Audit Logs</a>
-    </div>
-  </div>
-</nav>
+          <!-- Sub-menu Links -->
+          <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-md shadow-2xl border border-gray-200 py-1.5 z-50">
+            <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Room Management</a>
+            <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-[#880000] font-bold">
+              <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
+              Schedule Manager
+            </a>
+            <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">User Approvals</a>
+            <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-gray-700">Audit Logs</a>
+          </div>
+        </div>
+      </nav>
 
       <!-- Right: Dashboard Link & Profile Menu -->
-      <div class="flex items-center gap-3 shrink-0">
+      <div class="navbar-actions flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
           <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
         </a>

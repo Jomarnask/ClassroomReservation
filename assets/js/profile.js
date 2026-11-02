@@ -322,7 +322,32 @@
   }
 
   // ==========================================
-  // 6. SESSION & TAB LISTENERS
+  // 6. MOBILE NAV TOGGLE (click-outside auto-close)
+  // ==========================================
+  (function initMobileNav() {
+    const toggle = document.getElementById('mobileNavToggle');
+    if (!toggle) return;
+
+    // Add nav-separator class to pipe spans for mobile hiding
+    const navEl = document.getElementById('roleNavLinks');
+    if (navEl) {
+      navEl.querySelectorAll(':scope > span').forEach(function (sp) {
+        sp.classList.add('nav-separator');
+      });
+    }
+
+    // Close mobile nav when clicking outside the navbar
+    document.addEventListener('click', function (e) {
+      if (!toggle.checked) return;
+      const header = toggle.closest('header');
+      if (header && !header.contains(e.target)) {
+        toggle.checked = false;
+      }
+    });
+  })();
+
+  // ==========================================
+  // 7. SESSION & TAB LISTENERS
   // ==========================================
   if (client && client.auth) {
     client.auth.onAuthStateChange((event) => {

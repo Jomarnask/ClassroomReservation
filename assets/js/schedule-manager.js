@@ -347,14 +347,40 @@
     const menuBtn = document.getElementById('profileMenuBtn');
     const dropdown = document.getElementById('profileDropdown');
     const signOutBtn = document.getElementById('btnSignOut');
+    const mobileToggle = document.getElementById('mobileNavToggle');
 
     if (menuBtn && dropdown) {
       menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (mobileToggle) mobileToggle.checked = false;
         dropdown.classList.toggle('hidden');
       });
-      document.addEventListener('click', () => dropdown.classList.add('hidden'));
+      document.addEventListener('click', (e) => {
+        dropdown.classList.add('hidden');
+        if (mobileToggle && !e.target.closest('#nav') && !e.target.closest('.mobile-menu-button') && !e.target.closest('#mobileNavToggle')) {
+          mobileToggle.checked = false;
+        }
+      });
     }
+
+    if (mobileToggle) {
+      mobileToggle.addEventListener('change', () => {
+        if (mobileToggle.checked && dropdown) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+
+    // System Administration sub-menu toggle on mobile
+    document.querySelectorAll('nav .group > button').forEach(subBtn => {
+      subBtn.addEventListener('click', (e) => {
+        if (window.innerWidth < 640) {
+          e.preventDefault();
+          const sub = subBtn.nextElementSibling;
+          if (sub) sub.classList.toggle('hidden');
+        }
+      });
+    });
 
     if (signOutBtn) {
       signOutBtn.addEventListener('click', async () => {

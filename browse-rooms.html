@@ -95,6 +95,129 @@
       animation: panelPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
+    /* Mobile navbar controls: hidden on desktop */
+    .mobile-nav-toggle,
+    .mobile-menu-button {
+      display: none;
+    }
+
+    @media (max-width: 639px) {
+      .navbar-inner {
+        position: relative;
+        justify-content: flex-end;
+        gap: 0;
+      }
+
+      .nav-separator,
+      #brNavLinks > span,
+      #roleNavLinks > span {
+        display: none !important;
+      }
+
+      .mobile-nav-toggle {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .mobile-menu-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 36px;
+        height: 36px;
+        color: #ffffff;
+        cursor: pointer;
+        z-index: 3;
+        border-radius: 4px;
+      }
+
+      .mobile-menu-button:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .mobile-menu-button svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      .mobile-nav-toggle:focus-visible + .mobile-menu-button {
+        outline: 2px solid #ffd658;
+        outline-offset: 2px;
+      }
+
+      /* Center the logo image; hide the long brand text on small screens */
+      .brand-container {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2;
+      }
+
+      .brand-link {
+        justify-content: center;
+      }
+
+      .brand-link img {
+        width: 40px;
+        height: 40px;
+      }
+
+      .brand-text {
+        display: none !important;
+      }
+
+      /* Preserve notification and profile controls on the right */
+      .navbar-actions {
+        margin-left: auto;
+        gap: 10px;
+        z-index: 3;
+      }
+
+      /* Navigation links displayed in a dropdown under the navbar */
+      #brNavLinks {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        width: 100%;
+        max-height: 70vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 12px 16px;
+        background: #880000;
+        border-top: 1px solid #a30000;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        z-index: 50;
+      }
+
+      #mobileNavToggle:checked ~ #brNavLinks {
+        display: flex;
+      }
+
+      #brNavLinks a,
+      #brNavLinks button {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 42px;
+        padding: 10px 12px;
+        text-align: left;
+        white-space: normal;
+      }
+    }
+
     /* ================= WEEKLY TIMETABLE GRID ================= */
     .timetable-wrapper {
       background: #ffffff;
@@ -340,13 +463,21 @@
 
   <!-- ================= TOP RED NAVBAR ================= -->
   <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <div class="navbar-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
-      <!-- Brand Logo & Campus Title -->
-      <div class="flex items-center gap-3 shrink-0">
-        <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
+      <!-- CSS-only mobile menu toggle. Keep this before #brNavLinks. -->
+      <input type="checkbox" id="mobileNavToggle" class="mobile-nav-toggle" />
+      <label for="mobileNavToggle" class="mobile-menu-button" aria-label="Toggle navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </label>
+
+      <!-- Left on desktop; centered logo image on mobile -->
+      <div class="brand-container flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="brand-link flex items-center gap-3.5 group focus:outline-none">
           <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
-          <div>
+          <div class="brand-text">
             <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
               PUP - Canlalay Campus
             </div>
@@ -357,12 +488,12 @@
 
       <!-- Navigation Links -->
       <nav id="brNavLinks"
-        class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto"
+        class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-visible"
         aria-label="Main Navigation">
       </nav>
 
       <!-- Right: User Avatar & Profile Dropdown -->
-      <div class="flex items-center gap-3 shrink-0">
+      <div class="navbar-actions flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
           <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />

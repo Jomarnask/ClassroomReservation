@@ -155,13 +155,28 @@
     const menuBtn = document.getElementById('brProfileMenuBtn');
     const dropdown = document.getElementById('brProfileDropdown');
     const signOutBtn = document.getElementById('brBtnSignOut');
+    const mobileToggle = document.getElementById('mobileNavToggle');
 
     if (menuBtn && dropdown) {
       menuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (mobileToggle) mobileToggle.checked = false;
         dropdown.classList.toggle('hidden');
       });
-      document.addEventListener('click', () => dropdown.classList.add('hidden'));
+      document.addEventListener('click', (e) => {
+        dropdown.classList.add('hidden');
+        if (mobileToggle && !e.target.closest('#brNavLinks') && !e.target.closest('.mobile-menu-button') && !e.target.closest('#mobileNavToggle')) {
+          mobileToggle.checked = false;
+        }
+      });
+    }
+
+    if (mobileToggle) {
+      mobileToggle.addEventListener('change', () => {
+        if (mobileToggle.checked && dropdown) {
+          dropdown.classList.add('hidden');
+        }
+      });
     }
 
     if (signOutBtn) {
@@ -184,23 +199,23 @@
     if (role === 'Admin') {
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="room-management.html" class="pup-nav-item">Room Management</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="schedule-manager.html" class="pup-nav-item">Schedule Manager</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="browse-rooms.html" class="pup-nav-item">Browse Rooms</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="all-reservations.html" class="pup-nav-item">All Reservations</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="user-approvals.html" class="pup-nav-item">User Approvals</a>
       `;
     } else {
       nav.innerHTML = `
         <a href="dashboard.html" class="pup-nav-item">Dashboard</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="browse-rooms.html" class="pup-nav-item">Browse Rooms</a>
-        <span class="text-white/50 font-light select-none">|</span>
+        <span class="nav-separator text-white/50 font-light select-none">|</span>
         <a href="my-reservations.html" class="pup-nav-item active">My Reservations</a>
       `;
     }
