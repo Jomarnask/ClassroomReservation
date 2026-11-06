@@ -174,7 +174,7 @@
             <tr>
               <th class="whitespace-nowrap">RES ID</th>
               <th>Facility / Room</th>
-              <th>Applicant &amp; Role</th>
+              <th>APPLICANT</th>
               <th>Schedule Window</th>
               <th>Academic Purpose</th>
               <th>Tagged Faculty</th>
@@ -254,10 +254,8 @@
     (function () {
       'use strict';
 
-      // Reuse the client created in config.js (no hardcoded keys here)
       const _client = (typeof supabaseClient !== 'undefined') ? supabaseClient : window.supabaseClient;
 
-      // Share the client + admin identity with the reservations script below
       window.__crsClient = _client;
       window.__crsAdminId = null;
       window.__crsAdminName = 'Admin';
@@ -270,7 +268,6 @@
         return 'Student';
       }
 
-      // Resolves true only for a signed-in, ACTIVE admin. Otherwise redirects and resolves false.
       async function guardAdminOnly() {
         if (!_client || !_client.auth) {
           window.location.replace('login.html');
@@ -297,7 +294,6 @@
 
         const role = normalizeRole(profile.role);
 
-        // This page is Admin-only. Non-admins go back to their dashboard.
         if (role !== 'Admin') {
           window.location.replace('dashboard.html');
           return false;
@@ -306,7 +302,6 @@
         window.__crsAdminId = session.user.id;
         window.__crsAdminName = profile.full_name || 'Admin';
 
-        // Update avatar initials
         const avatarEl = document.getElementById('arAvatarText');
         if (avatarEl && profile.full_name) {
           const initials = profile.full_name
@@ -319,7 +314,6 @@
           avatarEl.textContent = initials;
         }
 
-        // Populate profile dropdown fields
         const nameEl = document.getElementById('arProfileName');
         const emailEl = document.getElementById('arProfileEmail');
         const roleEl = document.getElementById('arProfileRole');
@@ -327,7 +321,6 @@
         if (emailEl) emailEl.textContent = session.user.email || '';
         if (roleEl) roleEl.textContent = `Role: ${role}`;
 
-        // Wire up profile dropdown toggle
         const profileMenuBtn = document.getElementById('arProfileMenuBtn');
         const profileDropdown = document.getElementById('arProfileDropdown');
         const mobileToggle = document.getElementById('mobileNavToggle');
@@ -353,7 +346,6 @@
           });
         }
 
-        // System Administration sub-menu toggle on mobile
         document.querySelectorAll('nav .group > button').forEach(btn => {
           btn.addEventListener('click', (e) => {
             if (window.innerWidth < 640) {
@@ -364,7 +356,6 @@
           });
         });
 
-        // Wire up Sign Out
         const btnSignOut = document.getElementById('arBtnSignOut');
         if (btnSignOut) {
           btnSignOut.addEventListener('click', async () => {
@@ -376,24 +367,20 @@
           });
         }
 
-        // Page is verified — reveal it
         document.body.style.visibility = 'visible';
         return true;
       }
 
-      // Kick to login if signed out in another tab
       if (_client && _client.auth) {
         _client.auth.onAuthStateChange((event) => {
           if (event === 'SIGNED_OUT') window.location.replace('login.html');
         });
       }
 
-      // Prevent stale cached page after logout
       window.addEventListener('pageshow', (e) => {
         if (e.persisted) window.location.reload();
       });
 
-      // The reservations script below waits for this before loading any data
       window.__crsReady = guardAdminOnly().catch(err => {
         console.error('Admin guard error:', err);
         window.location.replace('login.html');
@@ -413,7 +400,7 @@
         tab: 'pending',
         pendingAll: [],   // every pending request (used to find competing requests)
         rows: [],         // rows of the active tab
-        users: {},        // user_id -> { full_name, student_number, ... }
+        users: {},        // user_id -> { full_name, student_number, program_course, year_level, section }
         rooms: {},        // room_id -> { room_number, room_name, floor }
         search: ''
       };
@@ -445,6 +432,28 @@
         ));
       }
 
+      /**
+       * Formats Program Course, Year Level, and Section
+       * e.g., "BS of Information Technology (BSIT)", 1, 1 -> "BSIT 1-1"
+       */
+      function formatStudentSection(user) {
+        if (!user) return 'Student Request';
+
+        let programCode = user.program_course || '';
+        const match = programCode.match(/\(([^)]+)\)/);
+        if (match) {
+          programCode = match[1];
+        }
+
+        if (user.year_level && user.section) {
+          return `${programCode} ${user.year_level}-${user.section}`.trim();
+        } else if (programCode) {
+          return programCode;
+        }
+
+        return 'Student Request';
+      }
+
       function showToast(msg, type) {
         const t = document.getElementById('toast');
         t.textContent = msg;
@@ -454,12 +463,12 @@
         showToast._t = setTimeout(() => t.classList.add('hidden'), 4500);
       }
 
-      function toMin(t) {               // '08:30:00' -> 510
+      function toMin(t) {
         const [h, m] = String(t || '0:0').split(':').map(Number);
         return (h || 0) * 60 + (m || 0);
       }
 
-      function fmt12(t) {               // '13:30:00' -> '1:30 PM'
+      function fmt12(t) {
         const mins = toMin(t);
         let h = Math.floor(mins / 60);
         const m = mins % 60;
@@ -491,14 +500,14 @@
 
       function refOf(r) { return '#RES-' + String(r.reservation_id).padStart(4, '0'); }
 
-      function isExpired(r) {           // start/end already passed (cannot be approved)
+      function isExpired(r) {
         const now = new Date();
         const today = localDateStr(now);
         if (r.reservation_date < today) return true;
         return r.reservation_date === today && toMin(r.end_time) <= now.getHours() * 60 + now.getMinutes();
       }
 
-      function competingOf(r) {         // other PENDING requests for the same room, date and overlapping time
+      function competingOf(r) {
         return state.pendingAll.filter(o =>
           o.reservation_id !== r.reservation_id &&
           o.room_id === r.room_id &&
@@ -542,7 +551,7 @@
 
         const [u, rm] = await Promise.all([
           userIds.size
-            ? client.from('users').select('user_id, full_name, student_number, program_course').in('user_id', [...userIds])
+            ? client.from('users').select('user_id, full_name, student_number, program_course, year_level, section').in('user_id', [...userIds])
             : Promise.resolve({ data: [] }),
           roomIds.size
             ? client.from('rooms').select('room_id, room_number, room_name, floor').in('room_id', [...roomIds])
@@ -557,7 +566,6 @@
       async function refresh() {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-10">Loading reservations...</td></tr>';
         try {
-          // 1. all pending requests (always needed for the counter and competing requests)
           const pend = await client.from('room_reservations').select(COLS)
             .eq('status', 'pending')
             .order('reservation_date', { ascending: true })
@@ -565,7 +573,6 @@
           if (pend.error) throw pend.error;
           state.pendingAll = pend.data || [];
 
-          // 2. rows of the active tab
           if (state.tab === 'pending') {
             state.rows = state.pendingAll;
           } else if (state.tab === 'approved') {
@@ -602,7 +609,8 @@
       function matchesSearch(r) {
         const q = state.search;
         if (!q) return true;
-        return [refOf(r), roomLabel(r.room_id), userName(r.student_id), userName(r.faculty_id), r.subject]
+        const stu = state.users[r.student_id];
+        return [refOf(r), roomLabel(r.room_id), userName(r.student_id), formatStudentSection(stu), userName(r.faculty_id), r.subject]
           .some(v => String(v).toLowerCase().includes(q));
       }
 
@@ -651,7 +659,7 @@
               </td>
               <td>
                 <div class="font-bold text-gray-800">${esc(userName(r.student_id))}</div>
-                <span class="text-[10px] text-gray-500 font-semibold">Student${stu.student_number ? ' • ' + esc(stu.student_number) : ''}</span>
+                <span class="text-[10px] text-gray-500 font-semibold">${esc(formatStudentSection(stu))}</span>
               </td>
               <td class="text-gray-700 font-medium">${esc(whenLabel(r))}</td>
               <td class="text-gray-600">${esc(r.subject)}</td>
@@ -671,10 +679,11 @@
       // ---------- Approve / Decline flow ----------
       function openReview(row, action) {
         pending = { row, action };
+        const stu = state.users[row.student_id];
         rmRef.textContent = refOf(row);
         rmRoom.textContent = roomLabel(row.room_id);
         rmTime.textContent = whenLabel(row);
-        rmApplicant.textContent = `${userName(row.student_id)} (Student)`;
+        rmApplicant.textContent = `${userName(row.student_id)} (${formatStudentSection(stu)})`;
         rmPurpose.textContent = row.subject;
         rmReason.value = '';
         rmConflict.classList.add('hidden');
@@ -712,7 +721,6 @@
         pending = null;
       }
 
-      // TEMPORARY: keeps logs.html working until it reads decisions from the database.
       function mirrorToAuditLog(row, action, reason, autoDeclined) {
         try {
           const logs = JSON.parse(localStorage.getItem('crs_audit_logs')) || [];
@@ -734,7 +742,7 @@
             status: action === 'approve' ? 'APPROVED' : 'DECLINED'
           });
           localStorage.setItem('crs_audit_logs', JSON.stringify(logs));
-        } catch (e) { /* the log mirror is optional */ }
+        } catch (e) { /* optional mirror */ }
       }
 
       async function confirmReview() {
@@ -797,7 +805,6 @@
         renderAll();
       });
 
-      // Wait for the admin guard, then load real data
       (window.__crsReady || Promise.resolve(false)).then(ok => {
         if (ok) refresh();
       });
