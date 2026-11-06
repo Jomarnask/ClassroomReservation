@@ -1,6 +1,7 @@
 /**
  * PUP Canlalay Campus CRS - Faculty Schedule Controller
- * Connected to Supabase (room_schedules, room_reservations, rooms, users).
+ * Connected to Supabase (room_schedules, room_reservations, rooms, users,
+ * get_my_tagged_reservations()).
  */
 
 (() => {
@@ -15,8 +16,6 @@
             (typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined' ? SUPABASE_PUBLISHABLE_KEY : 'sb_publishable_hdwDHmIKSBnFijVSlqB4lA_pC4qwI4t')
           )
         : null);
-
-  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   // ── Global State ────────────────────────────────────────────────────────
   const state = {
@@ -63,7 +62,7 @@
     }, 4000);
   }
 
-  // ── Time & Program Formatting Helpers ───────────────────────────────────
+  // ── Time, Date & Program Formatting Helpers ─────────────────────────────
   function formatTime(t) {
     if (!t) return '';
     const [hh, mm] = String(t).split(':');
@@ -79,8 +78,22 @@
     return 'RES-' + String(num).padStart(4, '0');
   }
 
+  // Today's date as YYYY-MM-DD in Manila time (not UTC)
+  function getTodayYMD() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  }
+
+  // Today's weekday name in Manila time, e.g. "Friday"
   function getTodayDayName() {
-    return DAY_NAMES[new Date().getDay()];
+    return new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
+  }
+
+  // '2026-10-23' -> 'Fri, Oct 23, 2026'
+  function formatDateLabel(ymd) {
+    if (!ymd) return 'Scheduled';
+    return new Date(ymd + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+    });
   }
 
   /**
@@ -103,6 +116,14 @@
     }
 
     return 'Student Request';
+  }
+
+  // True if the item belongs to "today" (used by the Today tab and the stats card)
+  function isToday(s) {
+    if (s.itemType === 'class') {
+      return String(s.day || '').toLowerCase() === getTodayDayName().toLowerCase();
+    }
+    return s.itemType === 'reservation' && s.status === 'approved' && s.dateStr === getTodayYMD();
   }
 
   // ── Auth Guard & Header Nav ─────────────────────────────────────────────
@@ -134,8 +155,15 @@
       console.warn('Supabase session check error:', err);
     }
 
+    // No valid session or inactive account -> back to login
     if (!sessionUser || !userProfile) {
       window.location.replace('login.html');
+      return false;
+    }
+
+    // This page is for faculty only
+    if (normalizeRole(userProfile.role) !== 'Faculty') {
+      window.location.replace('dashboard.html');
       return false;
     }
 
@@ -245,14 +273,8 @@
       const { data: rooms } = await client.from('rooms').select('room_id, room_number, room_name');
       (rooms || []).forEach(r => { roomMap[r.room_id] = r; });
 
-      // 2) Fetch Users map (including student program, year level, and section)
-      const userMap = {};
-      const { data: users } = await client
-        .from('users')
-        .select('user_id, full_name, program_course, year_level, section');
-      (users || []).forEach(u => { userMap[u.user_id] = u; });
-
-      // 3) Fetch Regular Class Schedules for this faculty
+      // 2) Fetch Regular Class Schedules for this faculty
+      //    (if the room_schedules table does not exist yet, this is simply skipped)
       let classItems = [];
       const { data: classes, error: classErr } = await client
         .from('room_schedules')
@@ -270,46 +292,45 @@
             roomName: room.room_name || ('Room ' + (room.room_number || c.room_id)),
             day: c.day_of_week,
             dateStr: 'Weekly (' + c.day_of_week + ')',
+            dateLabel: 'Weekly (' + c.day_of_week + ')',
             start: formatTime(c.start_time),
             end: formatTime(c.end_time),
             subject: c.subject_code,
             section: c.course_section || 'N/A',
             requesterName: 'Administration',
             requesterDetails: 'Regular Class Schedule',
-            status: 'active'
+            status: 'active',
+            remarks: ''
           };
         });
       }
 
-      // 4) Fetch Tagged Student Reservations where this faculty is assigned
+      // 3) Fetch Student Reservations that tag this faculty.
+      //    Done through a database function so student names can be read safely.
       let reservationItems = [];
-      const { data: resData, error: resErr } = await client
-        .from('room_reservations')
-        .select('reservation_id, room_id, student_id, subject, reservation_date, start_time, end_time, status, admin_remarks')
-        .eq('faculty_id', state.user.id)
-        .order('reservation_date', { ascending: false });
+      const { data: resData, error: resErr } = await client.rpc('get_my_tagged_reservations');
 
-      if (!resErr && resData) {
-        reservationItems = resData.map(r => {
+      if (resErr) {
+        console.error('Could not load tagged reservations:', resErr);
+        showToast('Could not load tagged reservations. Please refresh.');
+      } else {
+        reservationItems = (resData || []).map(r => {
           const room = roomMap[r.room_id] || {};
-          const student = userMap[r.student_id];
-          const d = new Date(r.reservation_date + 'T00:00:00');
-          const dayName = DAY_NAMES[d.getDay()];
-
           return {
             id: formatRefId(r.reservation_id),
             dbId: r.reservation_id,
             itemType: 'reservation',
             roomId: room.room_number || String(r.room_id),
             roomName: room.room_name || ('Room ' + (room.room_number || r.room_id)),
-            day: dayName,
+            day: '',
             dateStr: r.reservation_date,
+            dateLabel: formatDateLabel(r.reservation_date),
             start: formatTime(r.start_time),
             end: formatTime(r.end_time),
             subject: r.subject,
             section: 'Student Request',
-            requesterName: student?.full_name || 'Student',
-            requesterDetails: formatStudentSection(student),
+            requesterName: r.student_name || 'Student',
+            requesterDetails: formatStudentSection(r),
             status: String(r.status || '').toLowerCase(),
             remarks: r.admin_remarks || ''
           };
@@ -335,15 +356,8 @@
     const taggedEl = document.getElementById('statTaggedCount');
     const apprEl = document.getElementById('statApprovedCount');
 
-    const todayDay = getTodayDayName();
-    const todayYMD = new Date().toISOString().split('T')[0];
-
     const total = state.schedules.length;
-    const todayCount = state.schedules.filter(s => 
-      (s.itemType === 'class' && s.day.toLowerCase() === todayDay.toLowerCase()) ||
-      (s.itemType === 'reservation' && s.dateStr === todayYMD)
-    ).length;
-
+    const todayCount = state.schedules.filter(isToday).length;
     const taggedCount = state.schedules.filter(s => s.itemType === 'reservation').length;
     const approvedCount = state.schedules.filter(s => s.itemType === 'reservation' && s.status === 'approved').length;
 
@@ -351,6 +365,26 @@
     if (todayEl) todayEl.textContent = todayCount;
     if (taggedEl) taggedEl.textContent = taggedCount;
     if (apprEl) apprEl.textContent = approvedCount;
+  }
+
+  // ── Status Badge ────────────────────────────────────────────────────────
+  function buildStatusBadge(s) {
+    const base = 'px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1';
+
+    if (s.itemType === 'class') {
+      return `<span class="status-badge-class ${base}"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Class Schedule</span>`;
+    }
+    if (s.status === 'approved') {
+      return `<span class="status-badge-approved ${base}"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Approved</span>`;
+    }
+    if (s.status === 'pending') {
+      return `<span class="status-badge-pending ${base}"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pending</span>`;
+    }
+    if (s.status === 'rejected') {
+      return `<span class="status-badge-rejected ${base}"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Rejected</span>`;
+    }
+    // cancelled (styled inline so no extra CSS is needed in schedule.html)
+    return `<span class="bg-slate-100 text-slate-600 border border-slate-200 ${base}"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Cancelled</span>`;
   }
 
   // ── Render Schedule Table ───────────────────────────────────────────────
@@ -369,18 +403,12 @@
 
     const query = state.searchQuery.toLowerCase().trim();
     const filter = state.activeFilter;
-    const todayDay = getTodayDayName();
-    const todayYMD = new Date().toISOString().split('T')[0];
 
     const filtered = state.schedules.filter(s => {
       // Type Filter
       if (filter === 'class' && s.itemType !== 'class') return false;
       if (filter === 'reservation' && s.itemType !== 'reservation') return false;
-      if (filter === 'today') {
-        const isTodayClass = s.itemType === 'class' && s.day.toLowerCase() === todayDay.toLowerCase();
-        const isTodayRes = s.itemType === 'reservation' && s.dateStr === todayYMD;
-        if (!isTodayClass && !isTodayRes) return false;
-      }
+      if (filter === 'today' && !isToday(s)) return false;
 
       // Search Filter
       if (query) {
@@ -407,17 +435,6 @@
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50/80 transition';
 
-      let statusBadge = '';
-      if (s.itemType === 'class') {
-        statusBadge = '<span class="status-badge-class px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Class Schedule</span>';
-      } else if (s.status === 'approved') {
-        statusBadge = '<span class="status-badge-approved px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Approved Request</span>';
-      } else if (s.status === 'pending') {
-        statusBadge = '<span class="status-badge-pending px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Pending Approval</span>';
-      } else {
-        statusBadge = '<span class="status-badge-rejected px-2.5 py-1 rounded-[6px] text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> ' + esc(s.status) + '</span>';
-      }
-
       tr.innerHTML = `
         <td class="py-4 px-4 sm:px-6 font-extrabold text-[#880000]">${esc(s.id)}</td>
         <td class="py-4 px-4">
@@ -425,7 +442,7 @@
           <div class="text-[11px] text-gray-500">Room: ${esc(s.roomId)}</div>
         </td>
         <td class="py-4 px-4">
-          <div class="font-semibold text-gray-900">${esc(s.dateStr)}</div>
+          <div class="font-semibold text-gray-900">${esc(s.dateLabel)}</div>
           <div class="text-[11px] text-gray-500 font-medium">${esc(s.start)} – ${esc(s.end)}</div>
         </td>
         <td class="py-4 px-4 max-w-xs">
@@ -436,7 +453,7 @@
           <div class="font-bold text-gray-900">${esc(s.requesterName)}</div>
           <div class="text-[11px] text-gray-500 font-medium">${esc(s.requesterDetails)}</div>
         </td>
-        <td class="py-4 px-4">${statusBadge}</td>
+        <td class="py-4 px-4">${buildStatusBadge(s)}</td>
         <td class="py-4 px-4 sm:px-6 text-right whitespace-nowrap">
           <button type="button" class="btn-view-details px-2.5 py-1 text-[11px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-[5px] transition" data-id="${esc(s.id)}">
             Details
@@ -465,6 +482,13 @@
 
     if (modalRef) modalRef.textContent = `Item Details — ${s.id}`;
 
+    const statusText = s.itemType === 'class' ? 'Class Schedule' : s.status;
+    const statusColor = s.itemType === 'class'
+      ? 'text-blue-700'
+      : (s.status === 'approved' ? 'text-emerald-700'
+        : (s.status === 'pending' ? 'text-amber-700'
+          : (s.status === 'cancelled' ? 'text-slate-600' : 'text-rose-700')));
+
     body.innerHTML = `
       <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200 space-y-1">
         <p class="text-[10px] font-bold uppercase text-gray-500 tracking-wider">Assigned Room</p>
@@ -474,7 +498,7 @@
       <div class="grid grid-cols-2 gap-3">
         <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
           <p class="text-[10px] font-bold uppercase text-gray-500">Schedule / Date</p>
-          <p class="font-bold text-gray-800 mt-0.5">${esc(s.dateStr)}</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(s.dateLabel)}</p>
         </div>
         <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
           <p class="text-[10px] font-bold uppercase text-gray-500">Time Slot</p>
@@ -498,6 +522,18 @@
           <p class="text-[11px] text-gray-500 font-medium">${esc(s.requesterDetails)}</p>
         </div>
       </div>
+
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+        <p class="text-[10px] font-bold uppercase text-gray-500">Status</p>
+        <p class="font-bold capitalize mt-0.5 ${statusColor}">${esc(statusText)}</p>
+      </div>
+
+      ${s.remarks ? `
+        <div class="p-3 bg-rose-50 border border-rose-200 rounded-[8px] text-rose-800">
+          <p class="text-[10px] font-bold uppercase">Admin Remarks</p>
+          <p class="mt-0.5 font-medium">${esc(s.remarks)}</p>
+        </div>
+      ` : ''}
     `;
 
     overlay.classList.remove('hidden');
@@ -559,6 +595,11 @@
         }
       });
     }
+
+    // Refresh when the faculty returns to this tab, so new requests/approvals show up
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') loadSchedule();
+    });
   }
 
   // ── Initialization ──────────────────────────────────────────────────────
