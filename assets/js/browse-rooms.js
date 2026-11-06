@@ -595,10 +595,11 @@
   // A reservation counts as BLOCKING (no green slot, cannot be requested) when:
   // it is APPROVED, or it is MY OWN pending request. Other students' pending
   // requests do NOT block: they show as yellow but the slot can still be requested.
+  // ── AFTER (Fixes green/yellow scroll flickering) ─────────────────────────
   function isBlocking(item) {
     if (item.isClassSchedule) return true;
-    if (item.status === 'approved') return true;
-    return item.status === 'pending' && item.mine;
+    if (item.status === 'approved' || item.status === 'pending') return true;
+    return false;
   }
 
   function buildReservationCard(item, top, height, dayInfo) {
