@@ -130,33 +130,40 @@
 
   <!-- ================= TOP NAVBAR ================= -->
   <header class="pup-navbar-red text-white sticky top-0 z-50 shadow-md">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-      
-      <!-- Brand Logo & Name -->
-      <div class="flex items-center gap-3 shrink-0">
-      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
-        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
-        <div>
-          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
-            PUP - Canlalay Campus
-          </div>
-          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
-        </div>
-      </a>
-    </div>
+    <div class="navbar-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
+      <!-- CSS-only mobile menu toggle. Keep this before #roleNavLinks. -->
+      <input type="checkbox" id="mobileNavToggle" class="mobile-nav-toggle" />
+      <label for="mobileNavToggle" class="mobile-menu-button" aria-label="Toggle navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </label>
+
+      <!-- Left on desktop; centered logo image on mobile -->
+      <div class="brand-container flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="brand-link flex items-center gap-3.5 group focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+          <div class="brand-text">
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+              PUP - Canlalay Campus
+            </div>
+            <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
+          </div>
+        </a>
+      </div>
 
       <!-- Center: Navigation Links -->
-      <nav id="roleNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-x-auto" aria-label="Main Navigation">
+      <nav id="roleNavLinks" class="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium text-white overflow-visible" aria-label="Main Navigation">
         <a href="dashboard.html" class="pup-nav-link">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/60 font-light select-none">|</span>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
         <a href="profile.html" class="pup-nav-link active">Profile</a>
       </nav>
 
       <!-- Right: Navigation Action -->
-      <div class="flex items-center gap-3 sm:gap-4 shrink-0">
+      <div class="navbar-actions flex items-center gap-3 sm:gap-4 shrink-0">
         <a href="dashboard.html" class="btn-pup-secondary text-xs text-white bg-white/10 hover:bg-white/20 border-white/20">
           &larr; Return to Dashboard
         </a>

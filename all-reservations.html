@@ -40,48 +40,55 @@
 
   <!-- ================= TOP RED NAVBAR ================= -->
   <header class="pup-topbar-red text-white sticky top-0 z-50 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-      
+    <div class="navbar-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+
+      <!-- CSS-only mobile menu toggle. Keep this before #adminNavLinks. -->
+      <input type="checkbox" id="mobileNavToggle" class="mobile-nav-toggle" />
+      <label for="mobileNavToggle" class="mobile-menu-button" aria-label="Toggle navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"></path>
+        </svg>
+      </label>
+
       <!-- Brand Logo & Name -->
-      <div class="flex items-center gap-3 shrink-0">
-      <a href="dashboard.html" class="flex items-center gap-3.5 group focus:outline-none">
-        <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
-        <div>
-          <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
-            PUP - Canlalay Campus
+      <div class="brand-container flex items-center gap-3 shrink-0">
+        <a href="dashboard.html" class="brand-link flex items-center gap-3.5 group focus:outline-none">
+          <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-10 h-10 object-contain drop-shadow" />
+          <div class="brand-text">
+            <div class="text-white font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-1">
+              PUP - Canlalay Campus
+            </div>
+            <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom &amp; Facility Reservation System</p>
           </div>
-          <p class="text-[11px] sm:text-xs text-[#ffd658] font-medium">Classroom & Facility Reservation System</p>
+        </a>
+      </div>
+
+      <!-- Navigation Links — Admin-only -->
+      <nav id="adminNavLinks" class="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white overflow-visible" aria-label="Main Navigation">
+        <a href="dashboard.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">Dashboard</a>
+        <a href="all-reservations.html" class="text-white font-bold border-b-2 border-[#ffd658] pb-1">All Reservations</a>
+
+        <!-- Consolidated System Administration Dropdown -->
+        <div class="relative group inline-block">
+          <button type="button" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-1.5 focus:outline-none">
+            <span>System Administration</span>
+            <svg class="w-3.5 h-3.5 fill-current opacity-80 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+            </svg>
+          </button>
+
+          <!-- Dropdown Sub-menu -->
+          <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-1.5 z-50">
+            <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Room Management</a>
+            <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Schedule Manager</a>
+            <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">User Approvals</a>
+            <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Logs</a>
+          </div>
         </div>
-      </a>
-    </div>
-
-      <!-- Navigation Links — Admin-only (rendered by auth guard JS) -->
-      <!-- Consolidated Navigation Links -->
-<nav id="adminNavLinks" class="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-white overflow-visible" aria-label="Main Navigation">
-  <a href="dashboard.html" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition">Dashboard</a>
-  <a href="all-reservations.html" class="text-white font-bold border-b-2 border-[#ffd658] pb-1">All Reservations</a>
-
-  <!-- Consolidated System Administration Dropdown -->
-  <div class="relative group inline-block">
-    <button type="button" class="px-3 py-1.5 rounded-md hover:bg-white/10 transition flex items-center gap-1.5 focus:outline-none">
-      <span>System Administration</span>
-      <svg class="w-3.5 h-3.5 fill-current opacity-80 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
-        <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
-      </svg>
-    </button>
-
-    <!-- Dropdown Sub-menu -->
-    <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-1.5 z-50">
-      <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Room Management</a>
-      <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Schedule Manager</a>
-      <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">User Approvals</a>
-      <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Logs</a>
-    </div>
-  </div>
-</nav>
+      </nav>
 
       <!-- Right: Bell & Profile Dropdown -->
-      <div class="flex items-center gap-3 shrink-0">
+      <div class="navbar-actions flex items-center gap-3 shrink-0">
         <a href="dashboard.html" class="p-1.5 text-white hover:text-[#ffd658] transition" title="Return to Dashboard">
           <svg class="w-6 h-6 fill-white" viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
         </a>
@@ -95,7 +102,7 @@
           <div id="arProfileDropdown" class="hidden absolute right-0 mt-2 w-64 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-2 z-50">
             <div class="px-4 py-3 border-b border-gray-100">
               <p id="arProfileName" class="text-xs font-bold text-[#111111] truncate">PUP Admin</p>
-              <p id="arProfileEmail" class="text-[11px] text-gray-500 truncate">admin@pup.edu.ph</p>
+              <p id="arProfileEmail" class="text-[11px] text-gray-500 truncate"></p>
               <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] bg-red-50 border border-red-200 text-[10px] font-semibold text-[#880000]">
                 <span class="w-1.5 h-1.5 rounded-full bg-[#880000]"></span>
                 <span id="arProfileRole">Role: Admin</span>
@@ -129,34 +136,26 @@
         <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
           <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
           <span>&rsaquo;</span>
-          <span class="text-gray-700 font-bold">All Reservations</span>
+          <span class="text-gray-700 font-bold">Reservation Requests</span>
         </div>
-        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Classroom &amp; Facility Reservations</h1>
-        <p class="text-xs text-gray-500 mt-0.5">Manage, filter, and inspect all active, upcoming, and past reservations across campus blocks.</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Reservation Requests</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Review student requests. Several students may request the same time; approving one automatically declines the others for that slot.</p>
       </div>
 
       <div class="flex items-center gap-2">
-        <button id="btnExportCSV" type="button" class="btn-secondary">
-          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Export CSV
-        </button>
-        <button id="btnNewReservation" type="button" class="btn-primary">
-          <span>+</span>
-          New Reservation
-        </button>
+        <a href="browse-rooms.html" class="btn-secondary">Room Timetables &rarr;</a>
       </div>
     </div>
 
     <!-- Filter & Search Toolbar -->
     <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <!-- Status Tabs -->
-        <div class="flex flex-wrap items-center gap-2" id="statusFilterTabs">
-          <button class="filter-tab active" data-status="all">All (18)</button>
-          <button class="filter-tab" data-status="Approved">Approved (10)</button>
-          <button class="filter-tab" data-status="Pending">Pending (4)</button>
-          <button class="filter-tab" data-status="Completed">Completed (2)</button>
-          <button class="filter-tab" data-status="Rejected">Rejected (2)</button>
+        <!-- Tabs -->
+        <div class="flex flex-wrap items-center gap-2" id="tabBar">
+          <button type="button" data-tab="pending" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-[3px] border">Pending <span id="pendingCountLabel" class="ml-1 font-bold">0</span></button>
+          <button type="button" data-tab="approved" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-[3px] border">Approved</button>
+          <button type="button" data-tab="closed" class="tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-[3px] border">Declined &amp; Cancelled</button>
+          <button type="button" id="btnRefresh" class="px-3 py-1.5 text-xs font-semibold rounded-[3px] border border-gray-300 bg-white text-gray-700 hover:border-[#880000] hover:text-[#880000]">Refresh</button>
         </div>
 
         <!-- Search Input -->
@@ -173,35 +172,68 @@
         <table class="reservations-table">
           <thead>
             <tr>
-              <th>Ref Code</th>
+              <th class="whitespace-nowrap">RES ID</th>
               <th>Facility / Room</th>
               <th>Applicant &amp; Role</th>
               <th>Schedule Window</th>
               <th>Academic Purpose</th>
-              <th>Endorsed By</th>
+              <th>Tagged Faculty</th>
               <th>Status</th>
               <th class="text-right">Actions</th>
             </tr>
           </thead>
           <tbody id="reservationsTableBody">
-            <!-- Populated dynamically via JS -->
+            <tr><td colspan="8" class="text-center text-gray-500 py-10">Loading reservations...</td></tr>
           </tbody>
         </table>
       </div>
 
-      <!-- Pagination / Footer Info -->
+      <!-- Footer Info -->
       <div class="p-3 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
-        <span id="recordCountInfo">Showing 1 to 10 of 18 total records</span>
-        <div class="flex items-center gap-1">
-          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50" disabled>&laquo; Prev</button>
-          <button class="px-2.5 py-1 border border-[#880000] bg-[#880000] text-white rounded font-bold">1</button>
-          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">2</button>
-          <button class="px-2.5 py-1 border border-gray-300 rounded bg-white text-gray-600 hover:bg-gray-50">Next &raquo;</button>
-        </div>
+        <span id="recordCountInfo">Showing 0 records</span>
+        <a href="logs.html" class="text-[#337ab7] font-semibold hover:underline">View decisions in Audit Logs &rarr;</a>
       </div>
     </div>
 
   </main>
+
+  <!-- ================= REVIEW MODAL (Approve / Decline) ================= -->
+  <div id="reviewModal" class="hidden fixed inset-0 z-[60] items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="reviewModalTitle">
+    <div class="bg-white w-full max-w-md rounded-[4px] shadow-2xl border border-gray-200 overflow-hidden">
+      <div id="reviewModalHeader" class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+        <h2 id="reviewModalTitle" class="text-sm font-bold text-[#111111]">Review Reservation</h2>
+        <button id="reviewModalClose" type="button" class="text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="px-5 py-4 space-y-3 text-xs">
+        <div class="bg-gray-50 border border-gray-200 rounded-[3px] p-3 space-y-1">
+          <div><span class="font-mono font-bold text-[#880000]" id="rmRef"></span></div>
+          <div class="font-semibold text-gray-900" id="rmRoom"></div>
+          <div class="text-gray-600" id="rmTime"></div>
+          <div class="text-gray-600"><span class="font-semibold">Applicant:</span> <span id="rmApplicant"></span></div>
+          <div class="text-gray-600"><span class="font-semibold">Purpose:</span> <span id="rmPurpose"></span></div>
+        </div>
+
+        <div id="rmConflictWarning" class="hidden p-2.5 rounded-[3px] bg-amber-50 border border-amber-300 text-amber-800 font-medium"></div>
+
+        <div id="rmReasonWrap" class="hidden">
+          <label for="rmReason" class="block font-semibold text-gray-700 mb-1">Reason for declining <span class="text-gray-400 font-normal">(optional)</span></label>
+          <textarea id="rmReason" rows="3" maxlength="300" placeholder="Optional. e.g. Room is reserved for a scheduled class at that time."
+            class="w-full px-3 py-2 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]"></textarea>
+        </div>
+
+        <p id="rmApproveNote" class="hidden text-gray-600">The applicant will be marked as approved for this schedule window.</p>
+      </div>
+
+      <div class="px-5 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+        <button id="rmCancel" type="button" class="btn-secondary">Cancel</button>
+        <button id="rmConfirm" type="button" class="px-3.5 py-1.5 rounded-[3px] text-xs font-bold text-white transition disabled:opacity-60">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-[70] px-4 py-2.5 rounded-[4px] shadow-xl text-xs font-semibold text-white max-w-sm"></div>
 
   <!-- ================= FOOTER ================= -->
   <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
@@ -222,14 +254,13 @@
     (function () {
       'use strict';
 
-      const _client = (typeof window !== 'undefined' && window.supabaseClient)
-        ? window.supabaseClient
-        : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient)
-            ? window.supabase.createClient(
-                (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : 'https://fyoxzdfxlosxlonxckqv.supabase.co'),
-                (typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined' ? SUPABASE_PUBLISHABLE_KEY : 'sb_publishable_hdwDHmIKSBnFijVSlqB4lA_pC4qwI4t')
-              )
-            : null);
+      // Reuse the client created in config.js (no hardcoded keys here)
+      const _client = (typeof supabaseClient !== 'undefined') ? supabaseClient : window.supabaseClient;
+
+      // Share the client + admin identity with the reservations script below
+      window.__crsClient = _client;
+      window.__crsAdminId = null;
+      window.__crsAdminName = 'Admin';
 
       function normalizeRole(raw) {
         if (!raw) return 'Student';
@@ -239,16 +270,17 @@
         return 'Student';
       }
 
+      // Resolves true only for a signed-in, ACTIVE admin. Otherwise redirects and resolves false.
       async function guardAdminOnly() {
         if (!_client || !_client.auth) {
           window.location.replace('login.html');
-          return;
+          return false;
         }
 
         const { data: { session }, error } = await _client.auth.getSession();
         if (error || !session || !session.user) {
           window.location.replace('login.html');
-          return;
+          return false;
         }
 
         const { data: profile, error: profileError } = await _client
@@ -257,13 +289,10 @@
           .eq('user_id', session.user.id)
           .maybeSingle();
 
-        if (profileError || !profile) {
+        if (profileError || !profile || String(profile.account_status).toLowerCase() !== 'active') {
+          try { await _client.auth.signOut(); } catch (e) { /* ignore */ }
           window.location.replace('login.html');
-          return;
-        }
-        if (String(profile.account_status).toLowerCase() !== 'active') {
-          window.location.replace('login.html');
-          return;
+          return false;
         }
 
         const role = normalizeRole(profile.role);
@@ -271,8 +300,11 @@
         // This page is Admin-only. Non-admins go back to their dashboard.
         if (role !== 'Admin') {
           window.location.replace('dashboard.html');
-          return;
+          return false;
         }
+
+        window.__crsAdminId = session.user.id;
+        window.__crsAdminName = profile.full_name || 'Admin';
 
         // Update avatar initials
         const avatarEl = document.getElementById('arAvatarText');
@@ -292,19 +324,45 @@
         const emailEl = document.getElementById('arProfileEmail');
         const roleEl = document.getElementById('arProfileRole');
         if (nameEl) nameEl.textContent = profile.full_name || 'PUP Admin';
-        if (emailEl) emailEl.textContent = session.user.email || 'admin@pup.edu.ph';
+        if (emailEl) emailEl.textContent = session.user.email || '';
         if (roleEl) roleEl.textContent = `Role: ${role}`;
 
         // Wire up profile dropdown toggle
         const profileMenuBtn = document.getElementById('arProfileMenuBtn');
         const profileDropdown = document.getElementById('arProfileDropdown');
+        const mobileToggle = document.getElementById('mobileNavToggle');
         if (profileMenuBtn && profileDropdown) {
           profileMenuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (mobileToggle) mobileToggle.checked = false;
             profileDropdown.classList.toggle('hidden');
           });
-          document.addEventListener('click', () => profileDropdown.classList.add('hidden'));
+          document.addEventListener('click', (e) => {
+            profileDropdown.classList.add('hidden');
+            if (mobileToggle && !e.target.closest('#adminNavLinks') && !e.target.closest('.mobile-menu-button') && !e.target.closest('#mobileNavToggle')) {
+              mobileToggle.checked = false;
+            }
+          });
         }
+
+        if (mobileToggle) {
+          mobileToggle.addEventListener('change', () => {
+            if (mobileToggle.checked && profileDropdown) {
+              profileDropdown.classList.add('hidden');
+            }
+          });
+        }
+
+        // System Administration sub-menu toggle on mobile
+        document.querySelectorAll('nav .group > button').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            if (window.innerWidth < 640) {
+              e.preventDefault();
+              const sub = btn.nextElementSibling;
+              if (sub) sub.classList.toggle('hidden');
+            }
+          });
+        });
 
         // Wire up Sign Out
         const btnSignOut = document.getElementById('arBtnSignOut');
@@ -320,6 +378,7 @@
 
         // Page is verified — reveal it
         document.body.style.visibility = 'visible';
+        return true;
       }
 
       // Kick to login if signed out in another tab
@@ -334,84 +393,413 @@
         if (e.persisted) window.location.reload();
       });
 
-      guardAdminOnly();
+      // The reservations script below waits for this before loading any data
+      window.__crsReady = guardAdminOnly().catch(err => {
+        console.error('Admin guard error:', err);
+        window.location.replace('login.html');
+        return false;
+      });
     })();
   </script>
 
+  <!-- Reservation requests (Supabase) -->
   <script>
-    (function() {
-      const data = [
-        { ref: '#RES-9014', room: 'Lab 301 - Advanced Networking Lab', floor: '3rd Floor', applicant: 'Danilo Santos', role: 'Student', time: 'Today • 10:00 AM - 1:00 PM', purpose: 'OS Kernel Compiling Practical Exam', endorsed: 'Dr. Alicia Reyes', status: 'Approved' },
-        { ref: '#RES-9013', room: 'Room 402 - Lecture Hall', floor: '4th Floor', applicant: 'Engr. Roberto Cruz', role: 'Faculty', time: 'Today • 1:30 PM - 4:30 PM', purpose: 'Web Systems Capstone Final Presentation', endorsed: 'Department Chair', status: 'Approved' },
-        { ref: '#RES-9012', room: 'Lab 305 - Software Engineering Lab', floor: '3rd Floor', applicant: 'Samantha Ramos', role: 'Student', time: 'Today • 8:00 AM - 10:00 AM', purpose: 'Agile Sprint Testing Workshop', endorsed: 'Prof. Ferdinand Silva', status: 'Pending' },
-        { ref: '#RES-9011', room: 'Room 202 - Seminar Hall', floor: '2nd Floor', applicant: 'John Paul Perez', role: 'Student', time: 'Today • 11:00 AM - 1:00 PM', purpose: 'Mathematics Society General Assembly', endorsed: 'Dr. Gloria Mendoza', status: 'Rejected' },
-        { ref: '#RES-9010', room: 'Room 101 - General Lecture', floor: '1st Floor', applicant: 'Prof. Dante Santos', role: 'Faculty', time: 'Today • 7:30 AM - 9:00 AM', purpose: 'Purposive Communication Lecture', endorsed: 'Self', status: 'Completed' },
-        { ref: '#RES-9009', room: 'Room 208 - Multimedia Room', floor: '2nd Floor', applicant: 'Prof. Maria Morales', role: 'Faculty', time: 'Tomorrow • 1:00 PM - 4:00 PM', purpose: 'Multimedia Audio Production Workshop', endorsed: 'Self', status: 'Approved' },
-        { ref: '#RES-9008', room: 'Lab 301 - Advanced Networking Lab', floor: '3rd Floor', applicant: 'Bea Alonzo', role: 'Student', time: 'Tomorrow • 2:00 PM - 5:00 PM', purpose: 'Cisco Routing Switch Mock Certification', endorsed: 'Dr. Alicia Reyes', status: 'Pending' },
-        { ref: '#RES-9007', room: 'Room 402 - Lecture Hall', floor: '4th Floor', applicant: 'Christian Diaz', role: 'Student', time: 'Friday • 9:00 AM - 12:00 PM', purpose: 'Database Systems Midterm Exam Make-up', endorsed: 'Engr. Roberto Cruz', status: 'Approved' },
-      ];
+    (function () {
+      'use strict';
+
+      const client = window.__crsClient;
+
+      const state = {
+        tab: 'pending',
+        pendingAll: [],   // every pending request (used to find competing requests)
+        rows: [],         // rows of the active tab
+        users: {},        // user_id -> { full_name, student_number, ... }
+        rooms: {},        // room_id -> { room_number, room_name, floor }
+        search: ''
+      };
 
       const tbody = document.getElementById('reservationsTableBody');
       const searchInput = document.getElementById('searchInput');
-      const tabs = document.querySelectorAll('.filter-tab');
-      let currentFilter = 'all';
+      const recordInfo = document.getElementById('recordCountInfo');
+      const pendingLabel = document.getElementById('pendingCountLabel');
 
-      function render(items) {
-        tbody.innerHTML = items.map(r => `
-          <tr>
-            <td class="font-bold text-[#880000] font-mono">${r.ref}</td>
-            <td>
-              <div class="font-semibold text-gray-900">${r.room}</div>
-              <span class="floor-tag">${r.floor}</span>
-            </td>
-            <td>
-              <div class="font-bold text-gray-800">${r.applicant}</div>
-              <span class="text-[10px] text-gray-500 font-semibold">${r.role}</span>
-            </td>
-            <td class="text-gray-700 font-medium">${r.time}</td>
-            <td class="text-gray-600">${r.purpose}</td>
-            <td class="text-gray-500 font-medium">${r.endorsed}</td>
-            <td>
-              <span class="status-badge ${r.status.toLowerCase()}">${r.status}</span>
-            </td>
-            <td class="text-right space-x-1 font-semibold">
-              <a href="dashboard.html" class="text-[#337ab7] hover:underline">Inspect &rarr;</a>
-            </td>
-          </tr>
-        `).join('');
+      // Modal elements
+      const modal = document.getElementById('reviewModal');
+      const rmTitle = document.getElementById('reviewModalTitle');
+      const rmRef = document.getElementById('rmRef');
+      const rmRoom = document.getElementById('rmRoom');
+      const rmTime = document.getElementById('rmTime');
+      const rmApplicant = document.getElementById('rmApplicant');
+      const rmPurpose = document.getElementById('rmPurpose');
+      const rmReasonWrap = document.getElementById('rmReasonWrap');
+      const rmReason = document.getElementById('rmReason');
+      const rmApproveNote = document.getElementById('rmApproveNote');
+      const rmConflict = document.getElementById('rmConflictWarning');
+      const rmConfirm = document.getElementById('rmConfirm');
+      let pending = null; // { row, action: 'approve' | 'decline' }
+
+      // ---------- helpers ----------
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+          { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
       }
 
-      function filterData() {
-        const query = searchInput.value.toLowerCase().trim();
-        const filtered = data.filter(item => {
-          const matchesStatus = currentFilter === 'all' || item.status === currentFilter;
-          const matchesSearch = !query ||
-            item.ref.toLowerCase().includes(query) ||
-            item.room.toLowerCase().includes(query) ||
-            item.applicant.toLowerCase().includes(query) ||
-            item.purpose.toLowerCase().includes(query);
-          return matchesStatus && matchesSearch;
-        });
-        render(filtered);
+      function showToast(msg, type) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = 'fixed bottom-6 right-6 z-[70] px-4 py-2.5 rounded-[4px] shadow-xl text-xs font-semibold text-white max-w-sm '
+          + (type === 'error' ? 'bg-red-600' : type === 'decline' ? 'bg-gray-800' : 'bg-green-600');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => t.classList.add('hidden'), 4500);
       }
 
-      searchInput.addEventListener('input', filterData);
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          tabs.forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          currentFilter = tab.dataset.status;
-          filterData();
+      function toMin(t) {               // '08:30:00' -> 510
+        const [h, m] = String(t || '0:0').split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+      }
+
+      function fmt12(t) {               // '13:30:00' -> '1:30 PM'
+        const mins = toMin(t);
+        let h = Math.floor(mins / 60);
+        const m = mins % 60;
+        const ap = h >= 12 ? 'PM' : 'AM';
+        if (h > 12) h -= 12;
+        if (h === 0) h = 12;
+        return `${h}:${String(m).padStart(2, '0')} ${ap}`;
+      }
+
+      function localDateStr(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      function dayLabel(dateStr) {
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        if (dateStr === localDateStr(now)) return 'Today';
+        if (dateStr === localDateStr(tomorrow)) return 'Tomorrow';
+        return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      function floorName(n) {
+        if (!n) return 'No floor';
+        const s = ['th', 'st', 'nd', 'rd'];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]) + ' Floor';
+      }
+
+      function refOf(r) { return '#RES-' + String(r.reservation_id).padStart(4, '0'); }
+
+      function isExpired(r) {           // start/end already passed (cannot be approved)
+        const now = new Date();
+        const today = localDateStr(now);
+        if (r.reservation_date < today) return true;
+        return r.reservation_date === today && toMin(r.end_time) <= now.getHours() * 60 + now.getMinutes();
+      }
+
+      function competingOf(r) {         // other PENDING requests for the same room, date and overlapping time
+        return state.pendingAll.filter(o =>
+          o.reservation_id !== r.reservation_id &&
+          o.room_id === r.room_id &&
+          o.reservation_date === r.reservation_date &&
+          toMin(o.start_time) < toMin(r.end_time) &&
+          toMin(o.end_time) > toMin(r.start_time));
+      }
+
+      function userName(id) { return (state.users[id] && state.users[id].full_name) || 'Unknown'; }
+
+      function roomLabel(id) {
+        const rm = state.rooms[id];
+        if (!rm) return 'Unknown room';
+        return rm.room_name || ('Room ' + rm.room_number);
+      }
+
+      function whenLabel(r) {
+        return `${dayLabel(r.reservation_date)} • ${fmt12(r.start_time)} - ${fmt12(r.end_time)}`;
+      }
+
+      function statusBadge(r) {
+        if (r.status === 'pending') {
+          if (isExpired(r)) return '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-gray-100 text-gray-600 border border-gray-300">Time passed</span>';
+          return '<span class="status-badge pending">Pending</span>';
+        }
+        if (r.status === 'approved') return '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200">Approved</span>';
+        if (r.status === 'rejected') return '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-red-50 text-red-700 border border-red-200">Declined</span>';
+        return '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-gray-100 text-gray-600 border border-gray-300">Cancelled</span>';
+      }
+
+      // ---------- data ----------
+      const COLS = 'reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status, created_at, admin_id, responded_at, admin_remarks';
+
+      async function fetchLookups(rows) {
+        const userIds = new Set();
+        const roomIds = new Set();
+        rows.forEach(r => {
+          [r.student_id, r.faculty_id, r.admin_id].forEach(id => { if (id && !state.users[id]) userIds.add(id); });
+          if (r.room_id && !state.rooms[r.room_id]) roomIds.add(r.room_id);
         });
+
+        const [u, rm] = await Promise.all([
+          userIds.size
+            ? client.from('users').select('user_id, full_name, student_number, program_course').in('user_id', [...userIds])
+            : Promise.resolve({ data: [] }),
+          roomIds.size
+            ? client.from('rooms').select('room_id, room_number, room_name, floor').in('room_id', [...roomIds])
+            : Promise.resolve({ data: [] })
+        ]);
+        if (u.error) throw u.error;
+        if (rm.error) throw rm.error;
+        (u.data || []).forEach(x => { state.users[x.user_id] = x; });
+        (rm.data || []).forEach(x => { state.rooms[x.room_id] = x; });
+      }
+
+      async function refresh() {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-10">Loading reservations...</td></tr>';
+        try {
+          // 1. all pending requests (always needed for the counter and competing requests)
+          const pend = await client.from('room_reservations').select(COLS)
+            .eq('status', 'pending')
+            .order('reservation_date', { ascending: true })
+            .order('start_time', { ascending: true });
+          if (pend.error) throw pend.error;
+          state.pendingAll = pend.data || [];
+
+          // 2. rows of the active tab
+          if (state.tab === 'pending') {
+            state.rows = state.pendingAll;
+          } else if (state.tab === 'approved') {
+            const q = await client.from('room_reservations').select(COLS)
+              .eq('status', 'approved')
+              .order('responded_at', { ascending: false }).limit(100);
+            if (q.error) throw q.error;
+            state.rows = q.data || [];
+          } else {
+            const q = await client.from('room_reservations').select(COLS)
+              .in('status', ['rejected', 'cancelled'])
+              .order('created_at', { ascending: false }).limit(100);
+            if (q.error) throw q.error;
+            state.rows = q.data || [];
+          }
+
+          await fetchLookups([...state.pendingAll, ...state.rows]);
+          renderAll();
+        } catch (err) {
+          console.error('Load reservations failed:', err);
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center text-red-600 py-10">Could not load reservations: ${esc(err.message || err)}</td></tr>`;
+        }
+      }
+
+      // ---------- rendering ----------
+      function updateTabs() {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          const on = b.dataset.tab === state.tab;
+          b.className = 'tab-btn px-3.5 py-1.5 text-xs font-semibold rounded-[3px] border ' +
+            (on ? 'bg-[#880000] text-white border-[#880000]' : 'bg-white text-gray-700 border-gray-300 hover:border-[#880000] hover:text-[#880000]');
+        });
+      }
+
+      function matchesSearch(r) {
+        const q = state.search;
+        if (!q) return true;
+        return [refOf(r), roomLabel(r.room_id), userName(r.student_id), userName(r.faculty_id), r.subject]
+          .some(v => String(v).toLowerCase().includes(q));
+      }
+
+      function actionsCell(r) {
+        if (r.status === 'pending') {
+          const expired = isExpired(r);
+          return `
+            <button type="button" data-action="approve" data-id="${r.reservation_id}" ${expired ? 'disabled title="This time has already passed"' : ''}
+              class="px-2.5 py-1 rounded-[3px] bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold transition ${expired ? 'opacity-40 cursor-not-allowed' : ''}">Approve</button>
+            <button type="button" data-action="decline" data-id="${r.reservation_id}"
+              class="px-2.5 py-1 rounded-[3px] bg-white border border-red-300 hover:bg-red-50 text-red-600 text-[11px] font-bold transition">Decline</button>`;
+        }
+        const when = r.responded_at ? new Date(r.responded_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+        const who = r.admin_id ? userName(r.admin_id) : '';
+        return `
+          <div class="text-[11px] text-gray-500 font-normal whitespace-normal text-right">
+            ${who ? 'By ' + esc(who) : ''}${when ? '<br>' + esc(when) : ''}
+            ${r.admin_remarks ? '<br><span class="text-gray-600 italic">' + esc(r.admin_remarks) + '</span>' : ''}
+          </div>`;
+      }
+
+      function renderAll() {
+        updateTabs();
+        pendingLabel.textContent = state.pendingAll.length;
+
+        const items = state.rows.filter(matchesSearch);
+
+        if (!items.length) {
+          const empty = {
+            pending: 'No pending reservation requests.',
+            approved: 'No approved reservations yet.',
+            closed: 'No declined or cancelled reservations.'
+          }[state.tab];
+          tbody.innerHTML = `<tr><td colspan="8" class="text-center text-gray-500 py-10">${state.rows.length ? 'Nothing matches your search.' : empty}</td></tr>`;
+        } else {
+          tbody.innerHTML = items.map(r => {
+            const rm = state.rooms[r.room_id] || {};
+            const stu = state.users[r.student_id] || {};
+            const competing = r.status === 'pending' ? competingOf(r).length : 0;
+            return `
+            <tr>
+              <td class="font-bold text-[#880000] font-mono whitespace-nowrap">${esc(refOf(r))}</td>
+              <td>
+                <div class="font-semibold text-gray-900">${esc(roomLabel(r.room_id))}</div>
+                <span class="floor-tag">${esc(floorName(rm.floor))}</span>
+              </td>
+              <td>
+                <div class="font-bold text-gray-800">${esc(userName(r.student_id))}</div>
+                <span class="text-[10px] text-gray-500 font-semibold">Student${stu.student_number ? ' • ' + esc(stu.student_number) : ''}</span>
+              </td>
+              <td class="text-gray-700 font-medium">${esc(whenLabel(r))}</td>
+              <td class="text-gray-600">${esc(r.subject)}</td>
+              <td class="text-gray-500 font-medium">${esc(userName(r.faculty_id))}</td>
+              <td>
+                ${statusBadge(r)}
+                ${competing ? `<div class="mt-1 text-[10px] font-bold text-amber-700">${competing} competing request${competing === 1 ? '' : 's'}</div>` : ''}
+              </td>
+              <td class="text-right font-semibold whitespace-nowrap space-x-1">${actionsCell(r)}</td>
+            </tr>`;
+          }).join('');
+        }
+
+        recordInfo.textContent = `Showing ${items.length} of ${state.rows.length} record${state.rows.length === 1 ? '' : 's'}`;
+      }
+
+      // ---------- Approve / Decline flow ----------
+      function openReview(row, action) {
+        pending = { row, action };
+        rmRef.textContent = refOf(row);
+        rmRoom.textContent = roomLabel(row.room_id);
+        rmTime.textContent = whenLabel(row);
+        rmApplicant.textContent = `${userName(row.student_id)} (Student)`;
+        rmPurpose.textContent = row.subject;
+        rmReason.value = '';
+        rmConflict.classList.add('hidden');
+
+        if (action === 'approve') {
+          rmTitle.textContent = 'Approve Reservation';
+          rmReasonWrap.classList.add('hidden');
+          rmApproveNote.classList.remove('hidden');
+          rmConfirm.textContent = 'Approve';
+          rmConfirm.className = 'px-3.5 py-1.5 rounded-[3px] text-xs font-bold text-white transition disabled:opacity-60 bg-green-600 hover:bg-green-700';
+
+          const others = competingOf(row);
+          if (others.length) {
+            const list = others.map(o => `${userName(o.student_id)} (${fmt12(o.start_time)} - ${fmt12(o.end_time)})`).join(', ');
+            rmConflict.textContent = `Approving this will automatically decline ${others.length} other pending request${others.length === 1 ? '' : 's'} for an overlapping time: ${list}.`;
+            rmConflict.classList.remove('hidden');
+          }
+        } else {
+          rmTitle.textContent = 'Decline Reservation';
+          rmReasonWrap.classList.remove('hidden');
+          rmApproveNote.classList.add('hidden');
+          rmConfirm.textContent = 'Decline';
+          rmConfirm.className = 'px-3.5 py-1.5 rounded-[3px] text-xs font-bold text-white transition disabled:opacity-60 bg-red-600 hover:bg-red-700';
+        }
+
+        rmConfirm.disabled = false;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        if (action === 'decline') setTimeout(() => rmReason.focus(), 0);
+      }
+
+      function closeReview() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        pending = null;
+      }
+
+      // TEMPORARY: keeps logs.html working until it reads decisions from the database.
+      function mirrorToAuditLog(row, action, reason, autoDeclined) {
+        try {
+          const logs = JSON.parse(localStorage.getItem('crs_audit_logs')) || [];
+          const adminName = window.__crsAdminName || 'Admin';
+          logs.unshift({
+            id: Date.now() + '-' + row.reservation_id,
+            ts: new Date().toISOString(),
+            type: 'APPROVAL',
+            chipClass: 'approval',
+            user: `${adminName} (Admin)`,
+            room: roomLabel(row.room_id),
+            slot: whenLabel(row),
+            ref: refOf(row),
+            action: action === 'approve'
+              ? `Approved reservation ${refOf(row)} for ${userName(row.student_id)} (${whenLabel(row)}). Purpose: ${row.subject}.` +
+                (autoDeclined ? ` ${autoDeclined} overlapping request(s) were declined automatically.` : '')
+              : `Declined reservation ${refOf(row)} for ${userName(row.student_id)} (${whenLabel(row)}). Reason: ${reason || 'none given'}`,
+            ip: 'Web Client',
+            status: action === 'approve' ? 'APPROVED' : 'DECLINED'
+          });
+          localStorage.setItem('crs_audit_logs', JSON.stringify(logs));
+        } catch (e) { /* the log mirror is optional */ }
+      }
+
+      async function confirmReview() {
+        if (!pending) return;
+        const { row, action } = pending;
+        const reason = rmReason.value.trim();
+
+        rmConfirm.disabled = true;
+        const autoDeclined = action === 'approve' ? competingOf(row).length : 0;
+
+        const { error } = await client.rpc('decide_reservation', {
+          p_id: row.reservation_id,
+          p_approve: action === 'approve',
+          p_reason: action === 'decline' && reason ? reason : null
+        });
+
+        if (error) {
+          console.error('Decision failed:', error);
+          showToast(error.message || 'Could not save the decision.', 'error');
+          rmConfirm.disabled = false;
+          return;
+        }
+
+        mirrorToAuditLog(row, action, reason, autoDeclined);
+        closeReview();
+        await refresh();
+
+        if (action === 'approve') {
+          showToast(`${refOf(row)} approved.` + (autoDeclined ? ` ${autoDeclined} overlapping request(s) declined automatically.` : ''), 'approve');
+        } else {
+          showToast(`${refOf(row)} declined.`, 'decline');
+        }
+      }
+
+      // ---------- events ----------
+      tbody.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn || btn.disabled) return;
+        const row = state.rows.find(r => String(r.reservation_id) === btn.dataset.id);
+        if (row) openReview(row, btn.dataset.action);
       });
 
-      render(data);
-
-      document.getElementById('btnExportCSV').addEventListener('click', () => {
-        alert('Exporting All Reservations CSV...');
+      document.getElementById('tabBar').addEventListener('click', (e) => {
+        const t = e.target.closest('.tab-btn');
+        if (!t) return;
+        state.tab = t.dataset.tab;
+        refresh();
       });
-      document.getElementById('btnNewReservation').addEventListener('click', () => {
-        window.location.href = 'dashboard.html';
+
+      document.getElementById('btnRefresh').addEventListener('click', refresh);
+
+      rmConfirm.addEventListener('click', confirmReview);
+      document.getElementById('rmCancel').addEventListener('click', closeReview);
+      document.getElementById('reviewModalClose').addEventListener('click', closeReview);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeReview(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pending) closeReview(); });
+
+      searchInput.addEventListener('input', () => {
+        state.search = searchInput.value.toLowerCase().trim();
+        renderAll();
+      });
+
+      // Wait for the admin guard, then load real data
+      (window.__crsReady || Promise.resolve(false)).then(ok => {
+        if (ok) refresh();
       });
     })();
   </script>

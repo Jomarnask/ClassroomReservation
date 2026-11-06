@@ -83,20 +83,50 @@
     const btn = getEl('profileMenuBtn');
     const menu = getEl('profileDropdown');
     const signOutBtn = getEl('btnSignOut');
+    const mobileToggle = getEl('mobileNavToggle');
 
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      menu.classList.toggle('hidden');
-    });
-    document.addEventListener('click', () => menu.classList.add('hidden'));
+    if (btn && menu) {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (mobileToggle) mobileToggle.checked = false;
+        menu.classList.toggle('hidden');
+      });
+      document.addEventListener('click', (e) => {
+        menu.classList.add('hidden');
+        if (mobileToggle && !e.target.closest('#nav') && !e.target.closest('.mobile-menu-button') && !e.target.closest('#mobileNavToggle')) {
+          mobileToggle.checked = false;
+        }
+      });
+    }
 
-    signOutBtn.addEventListener('click', async () => {
-      signOutBtn.disabled = true;
-      try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
-      localStorage.removeItem('user_role');
-      localStorage.removeItem('pup_user');
-      goTo('login.html');
+    if (mobileToggle) {
+      mobileToggle.addEventListener('change', () => {
+        if (mobileToggle.checked && menu) {
+          menu.classList.add('hidden');
+        }
+      });
+    }
+
+    // System Administration sub-menu toggle on mobile
+    document.querySelectorAll('nav .group > button').forEach(subBtn => {
+      subBtn.addEventListener('click', (e) => {
+        if (window.innerWidth < 640) {
+          e.preventDefault();
+          const sub = subBtn.nextElementSibling;
+          if (sub) sub.classList.toggle('hidden');
+        }
+      });
     });
+
+    if (signOutBtn) {
+      signOutBtn.addEventListener('click', async () => {
+        signOutBtn.disabled = true;
+        try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('pup_user');
+        goTo('login.html');
+      });
+    }
   }
 
   /* ---------- Data ---------- */
