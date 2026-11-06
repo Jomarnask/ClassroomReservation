@@ -109,6 +109,16 @@
     return (h || 0) * 60 + (m || 0);
   }
 
+  // "BS of Information Technology (BSIT)", 3, 1 -> "BSIT 3-1"
+  function formatStudentSection(u) {
+    if (!u) return '';
+    let code = u.program_course || '';
+    const m = code.match(/\(([^)]+)\)/);
+    if (m) code = m[1];
+    if (u.year_level && u.section) return `${code} ${u.year_level}-${u.section}`.trim();
+    return code;
+  }
+
   // '08:30 AM' -> '08:30:00' (database TIME)
   function toSqlTime(label) {
     const mins = timeToMinutes(label);
@@ -400,6 +410,37 @@
     const from = days[0].dateStr;
     const to = days[1].dateStr;
 
+        // Faculty: see EVERY pending/approved reservation of this room, with the
+    // student's name and year & section (through a database function).
+    if (state.role === 'Faculty') {
+      const { data, error } = await client.rpc('get_room_timetable_for_faculty', {
+        p_room_id: room.id, p_from: from, p_to: to
+      });
+      if (error) throw error;
+
+      state.reservations = (data || []).map(r => {
+        const startMinutes = sqlTimeToMinutes(r.start_time);
+        const endMinutes = sqlTimeToMinutes(r.end_time);
+        return {
+          id: r.reservation_id,
+          roomId: room.id,
+          date: r.reservation_date,
+          startMinutes,
+          endMinutes,
+          start: minutesToTime(startMinutes),
+          end: minutesToTime(endMinutes),
+          status: r.status,
+          subject: r.subject,
+          faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
+          requester: r.student_name || 'Student',
+          requesterSection: formatStudentSection(r),
+          mine: false,
+          detail: true
+        };
+      });
+      return;
+    }
+
     const [visible, taken] = await Promise.all([
       client
         .from('room_reservations')
@@ -595,10 +636,11 @@
   // A reservation counts as BLOCKING (no green slot, cannot be requested) when:
   // it is APPROVED, or it is MY OWN pending request. Other students' pending
   // requests do NOT block: they show as yellow but the slot can still be requested.
+  // ── AFTER (Fixes green/yellow scroll flickering) ─────────────────────────
   function isBlocking(item) {
     if (item.isClassSchedule) return true;
-    if (item.status === 'approved') return true;
-    return item.status === 'pending' && item.mine;
+    if (item.status === 'approved' || item.status === 'pending') return true;
+    return false;
   }
 
   function buildReservationCard(item, top, height, dayInfo) {
@@ -610,9 +652,10 @@
 
     if (item.detail) {
       title = item.subject || 'Room Reservation';
-      meta = `
+            meta = `
         <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
-        <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.mine ? 'You' : item.requester)}</div>`;
+        <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.mine ? 'You' : item.requester)}</div>
+        ${item.requesterSection ? `<div class="text-gray-500">Year &amp; Section: ${esc(item.requesterSection)}</div>` : ''}`;
       badge = isApproved ? 'Approved / Occupied' : (item.mine ? 'Your request - Pending approval' : 'Pending approval');
     } else {
       title = isApproved ? 'Occupied' : 'In Process';
@@ -656,8 +699,9 @@
       if (canRequestThisSlot) {
         // yellow slot of another student: still requestable
         openReservationModal(item.start, item.end, item.date);
-      } else if (item.detail) {
-        showToast(`${item.subject} (${item.start} – ${item.end}) • ${badge}`);
+            } else if (item.detail) {
+        const who = item.requesterSection ? ` • ${item.requester} (${item.requesterSection})` : '';
+        showToast(`${item.subject} (${item.start} – ${item.end}) • ${badge}${who}`);
       } else {
         showToast(`${title}: ${item.start} – ${item.end}`);
       }
