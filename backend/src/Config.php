@@ -25,6 +25,10 @@ class Config
             'db_user' => $_ENV['DB_USER'] ?? '',
             'db_password' => $_ENV['DB_PASSWORD'] ?? '',
             'db_sslmode' => $_ENV['DB_SSLMODE'] ?? 'require',
+            // Keep the database connection open between requests (faster). Set DB_PERSISTENT=false to turn off.
+            'db_persistent' => filter_var($_ENV['DB_PERSISTENT'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            // Seconds to remember a verified access token. Set AUTH_CACHE_TTL=0 to turn off.
+            'auth_cache_ttl' => max(0, (int) ($_ENV['AUTH_CACHE_TTL'] ?? 60)),
         ];
     }
 

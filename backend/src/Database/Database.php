@@ -35,21 +35,32 @@ class Database
         $options = [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
+            // Client-side parameter binding: one round trip per query instead of two
+            // (prepare + execute), and it also works behind a transaction-mode pooler.
+            PDO::ATTR_EMULATE_PREPARES => true,
             PDO::ATTR_TIMEOUT => 5,
+            // Reuse the open connection for the next request instead of reconnecting
+            // (TLS + login to the pooler is the slowest part of a request).
+            PDO::ATTR_PERSISTENT => (bool) Config::get('db_persistent', true),
         ];
 
         try {
             self::$pdo = new PDO($dsn, $user, $password, $options);
+
+            // A reused connection must never start inside a leftover transaction.
+            if (self::$pdo->inTransaction()) {
+                self::$pdo->rollBack();
+            }
+
             return self::$pdo;
         } catch (PDOException $e) {
-    error_log('[Database Connection Error] ' . $e->getMessage());
+            error_log('[Database Connection Error] ' . $e->getMessage());
 
-    throw new ApiException(
-        'Database connection failed: ' . $e->getMessage(),
-        500
-    );
-}
+            throw new ApiException(
+                'Database connection failed: ' . $e->getMessage(),
+                500
+            );
+        }
     }
 
     /**
@@ -68,26 +79,26 @@ class Database
         $pdo->beginTransaction();
 
         try {
-            // Set transaction-local claims in both PostgREST JSON format and individual claim variables
             $claimsJson = json_encode($user->getClaims(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $userId = $user->getId();
-            $role = $user->getRole();
 
-            // is_local = true ensures these settings vanish automatically on commit or rollback
-            $stmt = $pdo->prepare("SELECT set_config('request.jwt.claims', :claims, true);");
-            $stmt->execute([':claims' => $claimsJson]);
-
-            $stmtSub = $pdo->prepare("SELECT set_config('request.jwt.claim.sub', :sub, true);");
-            $stmtSub->execute([':sub' => $userId]);
-
-            $stmtRole = $pdo->prepare("SELECT set_config('request.jwt.claim.role', :role, true);");
-            $stmtRole->execute([':role' => $role]);
-
-            // Switch to the authenticated role for RLS policy evaluation
-            // Fallback silently if role switching is not supported by current db user
+            // One round trip: set the JWT claims (PostgREST JSON format plus the individual
+            // claim variables) and switch to the 'authenticated' role so RLS applies.
+            // is_local = true makes every setting vanish on commit or rollback.
+            // set_config('role', ..., true) is the same as SET LOCAL ROLE.
             try {
-                $pdo->exec("SET LOCAL ROLE authenticated;");
-            } catch (\Throwable $e) {
+                $stmt = $pdo->prepare(
+                    "SELECT
+                        set_config('request.jwt.claims', :claims, true),
+                        set_config('request.jwt.claim.sub', :sub, true),
+                        set_config('request.jwt.claim.role', :role, true),
+                        set_config('role', 'authenticated', true)"
+                );
+                $stmt->execute([
+                    ':claims' => $claimsJson,
+                    ':sub' => $user->getId(),
+                    ':role' => $user->getRole(),
+                ]);
+            } catch (Throwable $e) {
                 throw new \RuntimeException(
                     'Unable to establish authenticated database role.',
                     0,
@@ -105,11 +116,7 @@ class Database
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            try {
-                $pdo->exec("RESET ROLE;");
-            } catch (Throwable) {
-                // Ignore reset error if already rolled back
-            }
+
             throw $e;
         }
     }
