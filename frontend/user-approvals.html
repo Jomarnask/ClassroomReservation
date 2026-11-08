@@ -185,6 +185,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Root Configuration File -->
   <script src="config.js"></script>
+  <script src="assets/js/api.js"></script>
 
   <script>
     (function () {
@@ -233,38 +234,25 @@
 
       // ---------- Data ----------
       async function loadUsers() {
-        const { data, error } = await client
-          .from('users')
-          .select('user_id, full_name, pup_webmail, role, account_status, student_number, program_course, year_level, section, created_at')
-          .order('created_at', { ascending: false });
-
-        if (error) {
+        try {
+          state.users = (await api.users.list({ limit: 1000 })) || [];
+        } catch (error) {
           console.error('Load users failed:', error);
           queueEl.innerHTML = `<div class="bg-white p-6 rounded-[4px] border border-red-200 text-xs text-red-700">Could not load users: ${esc(error.message)}</div>`;
           return;
         }
-        state.users = data || [];
         render();
       }
 
       async function setStatus(userId, newStatus) {
-        const { data, error } = await client
-          .from('users')
-          .update({ account_status: newStatus, updated_at: new Date().toISOString() })
-          .eq('user_id', userId)
-          .select('user_id');
-
-        if (error) {
+        try {
+          await api.users.setStatus(userId, newStatus);
+          return true;
+        } catch (error) {
           console.error('Update failed:', error);
           alert(`Update failed: ${error.message}`);
           return false;
         }
-        // RLS can block an update without an error; zero rows back means nothing changed
-        if (!data || data.length === 0) {
-          alert('Nothing was updated. You may not have permission (check the admin policies).');
-          return false;
-        }
-        return true;
       }
 
       // ---------- Rendering ----------

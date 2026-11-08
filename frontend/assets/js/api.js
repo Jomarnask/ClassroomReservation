@@ -69,6 +69,17 @@
         return request('/api/rooms/' + encodeURIComponent(roomId) + '/taken-slots' + toQuery({ from: from, to: to }));
       },
     },
+    users: {
+      // Admin only. filters: { status: 'pending', role: 'student', limit: 500 }
+      list: function (filters) { return request('/api/users' + toQuery(filters)); },
+      // Admin only. status: 'active' | 'rejected' | 'inactive'
+      setStatus: function (userId, status) {
+        return request('/api/users/' + encodeURIComponent(userId) + '/status', {
+          method: 'PATCH',
+          body: { status: status },
+        });
+      },
+    },
     reservations: {
       // filters: { status, room_id, date_from, date_to, mine: true, limit }
       list: function (filters) { return request('/api/reservations' + toQuery(filters)); },

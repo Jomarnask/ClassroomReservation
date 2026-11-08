@@ -10,6 +10,7 @@ use App\Controllers\HealthController;
 use App\Controllers\UserController;
 use App\Controllers\ReservationController;
 use App\Controllers\RoomController;
+use App\Controllers\UserManagementController;
 use App\Http\Request;
 use App\Http\Router;
 
@@ -51,6 +52,11 @@ $router->get('/api/reservations/{reservationId}', [ReservationController::class,
 $router->patch('/api/reservations/{reservationId}/decision', [ReservationController::class, 'decide'], [$authMiddleware]);
 
 $router->patch('/api/reservations/{reservationId}/cancel', [ReservationController::class, 'cancel'], [$authMiddleware]);
+
+// 6. User management API - admin only (Protected)
+$router->get('/api/users', [UserManagementController::class, 'index'], [$authMiddleware]);
+
+$router->patch('/api/users/{userId}/status', [UserManagementController::class, 'updateStatus'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request
