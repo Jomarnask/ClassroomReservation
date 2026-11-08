@@ -21,7 +21,7 @@
     : (window.supabaseClient ||
        ((window.supabase && window.supabase.createClient && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
          ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY) : null));
-
+window.supabaseClient = client;
   // ── Helpers ──────────────────────────────────────────────────────────────
   var DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   var START_BOUNDARY = 7 * 60;   // 07:00 AM

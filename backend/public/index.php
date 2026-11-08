@@ -8,6 +8,7 @@ use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
 use App\Controllers\HealthController;
 use App\Controllers\UserController;
+use App\Controllers\RoomController;
 use App\Http\Request;
 use App\Http\Router;
 
@@ -28,5 +29,17 @@ $router->get('/api/me', [UserController::class, 'me'], [$authMiddleware]);
 // 3. Admin verification check (Protected)
 $router->get('/api/admin/check', [AdminController::class, 'check'], [$authMiddleware]);
 
+// 4. Rooms API (Protected)
+$router->get('/api/rooms', [RoomController::class, 'index'], [$authMiddleware]);
+
+$router->get('/api/rooms/{roomId}', [RoomController::class, 'show'], [$authMiddleware]);
+
+$router->post('/api/rooms', [RoomController::class, 'store'], [$authMiddleware]);
+
+$router->patch('/api/rooms/{roomId}', [RoomController::class, 'update'], [$authMiddleware]);
+
+// -------------------------------------------------------------
 // Dispatch incoming request
+// -------------------------------------------------------------
+
 $router->dispatch($request);

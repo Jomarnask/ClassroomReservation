@@ -43,9 +43,13 @@ class Database
             self::$pdo = new PDO($dsn, $user, $password, $options);
             return self::$pdo;
         } catch (PDOException $e) {
-            error_log('[Database Connection Error] ' . $e->getMessage());
-            throw new ApiException('Could not establish database connection.', 500);
-        }
+    error_log('[Database Connection Error] ' . $e->getMessage());
+
+    throw new ApiException(
+        'Database connection failed: ' . $e->getMessage(),
+        500
+    );
+}
     }
 
     /**
@@ -83,9 +87,12 @@ class Database
             // Fallback silently if role switching is not supported by current db user
             try {
                 $pdo->exec("SET LOCAL ROLE authenticated;");
-            } catch (Throwable $roleEx) {
-                // In case the DB user does not have membership in 'authenticated' role
-                error_log('[Database Context Warning] SET LOCAL ROLE authenticated failed: ' . $roleEx->getMessage());
+            } catch (\Throwable $e) {
+                throw new \RuntimeException(
+                    'Unable to establish authenticated database role.',
+                    0,
+                    $e
+                );
             }
 
             // Execute the caller's repository/service operations

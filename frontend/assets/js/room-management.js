@@ -131,13 +131,10 @@
 
   /* ---------- Data ---------- */
   async function loadRooms() {
-    const { data, error } = await client
-      .from('rooms')
-      .select('room_id, room_number, room_name, floor, room_type, is_active')
-      .order('floor', { ascending: true })
-      .order('room_id', { ascending: true });
-
-    if (error) {
+    let data;
+    try {
+      data = await api.rooms.list();
+    } catch (error) {
       console.error('Load rooms failed:', error);
       floorsEl.innerHTML = '<div class="muted" style="padding:16px">Could not load rooms: ' + esc(error.message) + '</div>';
       return;
@@ -289,7 +286,7 @@
     return type !== 'bad';
   }
 
-  /* ---------- Save to Supabase ---------- */
+  /* ---------- Save through the PHP API ---------- */
   async function saveRoom() {
     const r = state.byId[currentId];
     if (!r) return;
@@ -301,20 +298,11 @@
       is_active: fields.availability.value === 'active',
     };
 
-    const { data, error } = await client
-      .from('rooms')
-      .update(payload)
-      .eq('room_id', r.id)
-      .select('room_id');
-
-    if (error) {
+    try {
+      await api.rooms.update(r.id, payload);
+    } catch (error) {
       console.error('Save room failed:', error);
       showToast('Save failed: ' + error.message);
-      return false;
-    }
-    // RLS can block an update without an error; zero rows back means nothing changed
-    if (!data || data.length === 0) {
-      showToast('Nothing was saved. You may not have permission (check the rooms policies).');
       return false;
     }
 

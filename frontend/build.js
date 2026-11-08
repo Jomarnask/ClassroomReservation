@@ -3,6 +3,8 @@ const fs = require('fs');
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_PUBLISHABLE_KEY;
 
+window.API_BASE_URL = 'http://localhost:8000';
+
 if (!url || !key) {
   console.error('Missing SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY');
   process.exit(1);
