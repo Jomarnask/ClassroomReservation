@@ -8,6 +8,7 @@ use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
 use App\Controllers\HealthController;
 use App\Controllers\UserController;
+use App\Controllers\ReservationController;
 use App\Controllers\RoomController;
 use App\Http\Request;
 use App\Http\Router;
@@ -37,6 +38,19 @@ $router->get('/api/rooms/{roomId}', [RoomController::class, 'show'], [$authMiddl
 $router->post('/api/rooms', [RoomController::class, 'store'], [$authMiddleware]);
 
 $router->patch('/api/rooms/{roomId}', [RoomController::class, 'update'], [$authMiddleware]);
+
+// 5. Reservations API (Protected)
+$router->get('/api/rooms/{roomId}/taken-slots', [ReservationController::class, 'takenSlots'], [$authMiddleware]);
+
+$router->get('/api/reservations', [ReservationController::class, 'index'], [$authMiddleware]);
+
+$router->post('/api/reservations', [ReservationController::class, 'store'], [$authMiddleware]);
+
+$router->get('/api/reservations/{reservationId}', [ReservationController::class, 'show'], [$authMiddleware]);
+
+$router->patch('/api/reservations/{reservationId}/decision', [ReservationController::class, 'decide'], [$authMiddleware]);
+
+$router->patch('/api/reservations/{reservationId}/cancel', [ReservationController::class, 'cancel'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request

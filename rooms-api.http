@@ -25,3 +25,5 @@ Content-Type: application/json
     "room_name": "Updated Computer Laboratory",
     "is_active": false
 }
+
+

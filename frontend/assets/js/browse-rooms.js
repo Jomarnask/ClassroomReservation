@@ -330,20 +330,20 @@
   async function loadRooms() {
     const floorsEl = document.getElementById('floors');
 
-    const { data, error } = await client
-      .from('rooms')
-      .select('room_id, room_number, room_name, floor, room_type, is_active')
-      .order('floor', { ascending: true })
-      .order('room_id', { ascending: true });
-
-    if (error) {
+    let data;
+    try {
+      data = await api.rooms.list();
+    } catch (error) {
       console.error('Load rooms failed:', error);
       if (floorsEl) floorsEl.innerHTML = `<div class="muted" style="padding:16px">Could not load rooms: ${esc(error.message)}</div>`;
       state.rooms = [];
       return;
     }
 
-    state.rooms = (data || []).map(r => ({
+    // same order as before: by floor, then room id
+    data = (data || []).slice().sort((a, b) => ((a.floor ?? 0) - (b.floor ?? 0)) || (a.room_id - b.room_id));
+
+    state.rooms = data.map(r => ({
       id: r.room_id,
       number: r.room_number || '',
       name: r.room_name || '',
@@ -477,21 +477,16 @@
       }
     }
 
-    const [visible, taken] = await Promise.all([
-      client
-        .from('room_reservations')
-        .select('reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status')
-        .eq('room_id', room.id)
-        .gte('reservation_date', from)
-        .lte('reservation_date', to)
-        .in('status', ['pending', 'approved']),
-      client.rpc('get_taken_slots', { p_room_id: room.id, p_from: from, p_to: to })
+    // Both calls go through the PHP API
+    const [allVisible, takenRows] = await Promise.all([
+      api.reservations.list({ room_id: room.id, date_from: from, date_to: to, limit: 500 }),
+      api.rooms.takenSlots(room.id, from, to)
     ]);
 
-    if (visible.error) throw visible.error;
-    if (taken.error) throw taken.error;
+    // only pending and approved requests block the timetable
+    const visibleRows = (allVisible || []).filter(r => r.status === 'pending' || r.status === 'approved');
 
-    const withDetails = (visible.data || []).map(r => {
+    const withDetails = visibleRows.map(r => {
       const mine = r.student_id === state.user.id;
       const startMinutes = sqlTimeToMinutes(r.start_time);
       const endMinutes = sqlTimeToMinutes(r.end_time);
@@ -514,8 +509,13 @@
 
     const knownIds = new Set(withDetails.map(r => r.id));
 
-    const timesOnly = (taken.data || [])
-      .filter(t => !knownIds.has(t.reservation_id))
+    // taken slots carry no reservation id, so also skip a slot that matches one we already show in detail
+    const slotKey = (date, startMin, endMin, status) => `${date}|${startMin}|${endMin}|${status}`;
+    const knownSlots = new Set(withDetails.map(r => slotKey(r.date, r.startMinutes, r.endMinutes, r.status)));
+
+    const timesOnly = (takenRows || [])
+      .filter(t => !knownIds.has(t.reservation_id) &&
+        !knownSlots.has(slotKey(t.reservation_date, sqlTimeToMinutes(t.start_time), sqlTimeToMinutes(t.end_time), t.status)))
       .map(t => {
         const startMinutes = sqlTimeToMinutes(t.start_time);
         const endMinutes = sqlTimeToMinutes(t.end_time);
@@ -1190,7 +1190,7 @@
     return isValid;
   }
 
-  // ── Submit: INSERT into room_reservations (status defaults to 'pending') ──
+  // ── Submit: create the reservation through the PHP API (status starts as 'pending') ──
   async function handleReservationSubmit(e) {
     e.preventDefault();
     if (state.submitting) return;
@@ -1217,23 +1217,25 @@
     state.submitting = true;
     validateReservationForm();
 
-    const { error } = await client.from('room_reservations').insert({
-      room_id: r.id,
-      student_id: state.user.id,
-      faculty_id: facultyVal,
-      subject: subjectVal.slice(0, 150),
-      reservation_date: dateVal,
-      start_time: toSqlTime(startVal),
-      end_time: toSqlTime(endVal)
-    });
+    let error = null;
+    try {
+      await api.reservations.create({
+        room_id: r.id,
+        faculty_id: facultyVal,
+        subject: subjectVal.slice(0, 150),
+        reservation_date: dateVal,
+        start_time: toSqlTime(startVal),
+        end_time: toSqlTime(endVal)
+      });
+    } catch (err) {
+      error = err;
+    }
 
     state.submitting = false;
 
     if (error) {
-      console.error('Reservation insert failed:', error);
-      let message = error.message || 'Could not submit the reservation.';
-      if (/row-level security/i.test(message)) message = 'Only active students can submit reservation requests.';
-      showToast(message);
+      console.error('Reservation request failed:', error);
+      showToast(error.message || 'Could not submit the reservation.');
       validateReservationForm();
       return;
     }
@@ -1248,8 +1250,9 @@
   async function cancelMyReservation(id) {
     if (!confirm('Cancel this pending reservation request?')) return;
 
-    const { error } = await client.rpc('cancel_reservation', { p_id: id });
-    if (error) {
+    try {
+      await api.reservations.cancel(id);
+    } catch (error) {
       console.error('Cancel failed:', error);
       showToast(error.message || 'Could not cancel the request.');
       return;

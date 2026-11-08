@@ -1,7 +1,7 @@
 /**
  * PUP Canlalay Campus CRS - My Reservations Controller
- * Connected to Supabase (room_reservations, rooms, users,
- * cancel_reservation(), list_active_faculty()).
+ * Reservations are loaded and cancelled through the PHP API (api.js).
+ * Supabase is still used for login and the user profile.
  */
 
 (() => {
@@ -92,49 +92,22 @@
     renderTable();
 
     try {
-      // 1) My reservations (RLS also limits this to my own rows)
-      const { data: rows, error } = await client
-        .from('room_reservations')
-        .select('reservation_id, room_id, faculty_id, subject, reservation_date, start_time, end_time, status, created_at, admin_remarks')
-        .eq('student_id', state.user.id)
-        .order('created_at', { ascending: false });
+      // My reservations come from the PHP API (room and faculty names included)
+      const rows = await api.reservations.list({ mine: true });
 
-      if (error) throw error;
-
-      // 2) Rooms (for room names)
-      const roomMap = {};
-      const { data: rooms, error: roomsErr } = await client
-        .from('rooms')
-        .select('room_id, room_number, room_name');
-      if (roomsErr) {
-        console.warn('Could not load rooms:', roomsErr);
-      } else {
-        (rooms || []).forEach(rm => { roomMap[rm.room_id] = rm; });
-      }
-
-      // 3) Faculty names (only active faculty are returned)
-      const facultyMap = {};
-      const { data: faculty, error: facErr } = await client.rpc('list_active_faculty');
-      if (facErr) {
-        console.warn('Could not load faculty list:', facErr);
-      } else {
-        (faculty || []).forEach(f => { facultyMap[f.user_id] = f.full_name; });
-      }
-
-      // 4) Convert DB rows into the shape the table already uses
+      // Convert API rows into the shape the table already uses
       state.reservations = (rows || []).map(r => {
-        const room = roomMap[r.room_id] || {};
         const status = String(r.status || '').toLowerCase();
         return {
           id: formatRefId(r.reservation_id),
           dbId: r.reservation_id,
-          roomId: room.room_number || String(r.room_id),
-          roomName: room.room_name || ('Room ' + (room.room_number || r.room_id)),
+          roomId: r.room_number || String(r.room_id),
+          roomName: r.room_name || ('Room ' + (r.room_number || r.room_id)),
           date: r.reservation_date,
           start: formatTime(r.start_time),
           end: formatTime(r.end_time),
           subject: r.subject,
-          faculty: facultyMap[r.faculty_id] || '',
+          faculty: r.faculty_name || '',
           status: status,
           rejectionReason: r.admin_remarks || '',
           createdAt: r.created_at
@@ -483,8 +456,7 @@
     if (!confirm(`Are you sure you want to cancel reservation request ${r.id}?`)) return;
 
     try {
-      const { error } = await client.rpc('cancel_reservation', { p_id: r.dbId });
-      if (error) throw error;
+      await api.reservations.cancel(r.dbId);
 
       showToast(`Reservation ${r.id} has been cancelled.`);
     } catch (err) {

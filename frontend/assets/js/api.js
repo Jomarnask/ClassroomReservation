@@ -64,6 +64,27 @@
       update: function (id, data) {
         return request('/api/rooms/' + encodeURIComponent(id), { method: 'PATCH', body: data });
       },
+      // Pending + approved slots of a room between two dates (YYYY-MM-DD)
+      takenSlots: function (roomId, from, to) {
+        return request('/api/rooms/' + encodeURIComponent(roomId) + '/taken-slots' + toQuery({ from: from, to: to }));
+      },
+    },
+    reservations: {
+      // filters: { status, room_id, date_from, date_to, mine: true, limit }
+      list: function (filters) { return request('/api/reservations' + toQuery(filters)); },
+      get: function (id) { return request('/api/reservations/' + encodeURIComponent(id)); },
+      // data: { room_id, faculty_id, subject, reservation_date, start_time, end_time }
+      create: function (data) { return request('/api/reservations', { method: 'POST', body: data }); },
+      // Admin only: approve = true | false, reason optional
+      decide: function (id, approve, reason) {
+        return request('/api/reservations/' + encodeURIComponent(id) + '/decision', {
+          method: 'PATCH',
+          body: { approve: approve, reason: reason || undefined },
+        });
+      },
+      cancel: function (id) {
+        return request('/api/reservations/' + encodeURIComponent(id) + '/cancel', { method: 'PATCH' });
+      },
     },
   };
 })();

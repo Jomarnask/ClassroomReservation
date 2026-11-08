@@ -248,6 +248,7 @@
   <!-- Supabase & Script -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="assets/js/api.js"></script>
 
   <!-- Admin-only Auth Guard -->
   <script>
@@ -389,7 +390,7 @@
     })();
   </script>
 
-  <!-- Reservation requests (Supabase) -->
+  <!-- Reservation requests (PHP API) -->
   <script>
     (function () {
       'use strict';
@@ -538,58 +539,53 @@
         return '<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-gray-100 text-gray-600 border border-gray-300">Cancelled</span>';
       }
 
-      // ---------- data ----------
-      const COLS = 'reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status, created_at, admin_id, responded_at, admin_remarks';
-
-      async function fetchLookups(rows) {
-        const userIds = new Set();
-        const roomIds = new Set();
+      // ---------- data (PHP API) ----------
+      // The API returns every reservation with its room, student, faculty and
+      // admin details already joined, so the lookup maps are rebuilt from the rows.
+      function hydrateLookups(rows) {
         rows.forEach(r => {
-          [r.student_id, r.faculty_id, r.admin_id].forEach(id => { if (id && !state.users[id]) userIds.add(id); });
-          if (r.room_id && !state.rooms[r.room_id]) roomIds.add(r.room_id);
+          if (r.room_id && !state.rooms[r.room_id]) {
+            state.rooms[r.room_id] = { room_number: r.room_number, room_name: r.room_name, floor: r.floor };
+          }
+          if (r.student_id) {
+            state.users[r.student_id] = {
+              full_name: r.student_name,
+              student_number: r.student_number,
+              program_course: r.program_course,
+              year_level: r.year_level,
+              section: r.section
+            };
+          }
+          if (r.faculty_id && !state.users[r.faculty_id]) state.users[r.faculty_id] = { full_name: r.faculty_name };
+          if (r.admin_id && !state.users[r.admin_id]) state.users[r.admin_id] = { full_name: r.admin_name };
         });
-
-        const [u, rm] = await Promise.all([
-          userIds.size
-            ? client.from('users').select('user_id, full_name, student_number, program_course, year_level, section').in('user_id', [...userIds])
-            : Promise.resolve({ data: [] }),
-          roomIds.size
-            ? client.from('rooms').select('room_id, room_number, room_name, floor').in('room_id', [...roomIds])
-            : Promise.resolve({ data: [] })
-        ]);
-        if (u.error) throw u.error;
-        if (rm.error) throw rm.error;
-        (u.data || []).forEach(x => { state.users[x.user_id] = x; });
-        (rm.data || []).forEach(x => { state.rooms[x.room_id] = x; });
       }
+
+      const byRequestedTime = (a, b) =>
+        (a.reservation_date + a.start_time).localeCompare(b.reservation_date + b.start_time);
+      const byRespondedDesc = (a, b) => String(b.responded_at || '').localeCompare(String(a.responded_at || ''));
+      const byCreatedDesc = (a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''));
 
       async function refresh() {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-10">Loading reservations...</td></tr>';
         try {
-          const pend = await client.from('room_reservations').select(COLS)
-            .eq('status', 'pending')
-            .order('reservation_date', { ascending: true })
-            .order('start_time', { ascending: true });
-          if (pend.error) throw pend.error;
-          state.pendingAll = pend.data || [];
+          const pend = await api.reservations.list({ status: 'pending', limit: 500 });
+          state.pendingAll = pend.slice().sort(byRequestedTime);
 
           if (state.tab === 'pending') {
             state.rows = state.pendingAll;
           } else if (state.tab === 'approved') {
-            const q = await client.from('room_reservations').select(COLS)
-              .eq('status', 'approved')
-              .order('responded_at', { ascending: false }).limit(100);
-            if (q.error) throw q.error;
-            state.rows = q.data || [];
+            const approved = await api.reservations.list({ status: 'approved', limit: 500 });
+            state.rows = approved.sort(byRespondedDesc).slice(0, 100);
           } else {
-            const q = await client.from('room_reservations').select(COLS)
-              .in('status', ['rejected', 'cancelled'])
-              .order('created_at', { ascending: false }).limit(100);
-            if (q.error) throw q.error;
-            state.rows = q.data || [];
+            const [rejected, cancelled] = await Promise.all([
+              api.reservations.list({ status: 'rejected', limit: 500 }),
+              api.reservations.list({ status: 'cancelled', limit: 500 })
+            ]);
+            state.rows = rejected.concat(cancelled).sort(byCreatedDesc).slice(0, 100);
           }
 
-          await fetchLookups([...state.pendingAll, ...state.rows]);
+          hydrateLookups([...state.pendingAll, ...state.rows]);
           renderAll();
         } catch (err) {
           console.error('Load reservations failed:', err);
@@ -753,13 +749,13 @@
         rmConfirm.disabled = true;
         const autoDeclined = action === 'approve' ? competingOf(row).length : 0;
 
-        const { error } = await client.rpc('decide_reservation', {
-          p_id: row.reservation_id,
-          p_approve: action === 'approve',
-          p_reason: action === 'decline' && reason ? reason : null
-        });
-
-        if (error) {
+        try {
+          await api.reservations.decide(
+            row.reservation_id,
+            action === 'approve',
+            action === 'decline' && reason ? reason : null
+          );
+        } catch (error) {
           console.error('Decision failed:', error);
           showToast(error.message || 'Could not save the decision.', 'error');
           rmConfirm.disabled = false;
