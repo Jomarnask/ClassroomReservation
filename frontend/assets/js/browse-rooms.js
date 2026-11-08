@@ -410,35 +410,71 @@
     const from = days[0].dateStr;
     const to = days[1].dateStr;
 
-        // Faculty: see EVERY pending/approved reservation of this room, with the
-    // student's name and year & section (through a database function).
+    // Faculty: see ONLY reservations of this room where this faculty is tagged,
+    // with the student's name and year & section.
     if (state.role === 'Faculty') {
-      const { data, error } = await client.rpc('get_room_timetable_for_faculty', {
-        p_room_id: room.id, p_from: from, p_to: to
-      });
-      if (error) throw error;
+      try {
+        const { data, error } = await client.rpc('get_room_timetable_for_faculty', {
+          p_room_id: room.id, p_from: from, p_to: to, p_faculty_id: state.user?.id
+        });
+        if (error) throw error;
 
-      state.reservations = (data || []).map(r => {
-        const startMinutes = sqlTimeToMinutes(r.start_time);
-        const endMinutes = sqlTimeToMinutes(r.end_time);
-        return {
-          id: r.reservation_id,
-          roomId: room.id,
-          date: r.reservation_date,
-          startMinutes,
-          endMinutes,
-          start: minutesToTime(startMinutes),
-          end: minutesToTime(endMinutes),
-          status: r.status,
-          subject: r.subject,
-          faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
-          requester: r.student_name || 'Student',
-          requesterSection: formatStudentSection(r),
-          mine: false,
-          detail: true
-        };
-      });
-      return;
+        state.reservations = (data || []).map(r => {
+          const startMinutes = sqlTimeToMinutes(r.start_time);
+          const endMinutes = sqlTimeToMinutes(r.end_time);
+          return {
+            id: r.reservation_id,
+            roomId: room.id,
+            date: r.reservation_date,
+            startMinutes,
+            endMinutes,
+            start: minutesToTime(startMinutes),
+            end: minutesToTime(endMinutes),
+            status: r.status,
+            subject: r.subject,
+            faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
+            requester: r.student_name || 'Student',
+            requesterSection: formatStudentSection(r),
+            mine: false,
+            detail: true
+          };
+        });
+        return;
+      } catch (err) {
+        console.warn('get_room_timetable_for_faculty failed, falling back to tagged query:', err);
+        const { data: visibleData, error: visibleErr } = await client
+          .from('room_reservations')
+          .select('reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status')
+          .eq('room_id', room.id)
+          .eq('faculty_id', state.user?.id)
+          .gte('reservation_date', from)
+          .lte('reservation_date', to)
+          .in('status', ['pending', 'approved']);
+
+        if (visibleErr) throw visibleErr;
+
+        state.reservations = (visibleData || []).map(r => {
+          const startMinutes = sqlTimeToMinutes(r.start_time);
+          const endMinutes = sqlTimeToMinutes(r.end_time);
+          return {
+            id: r.reservation_id,
+            roomId: r.room_id,
+            date: r.reservation_date,
+            startMinutes,
+            endMinutes,
+            start: minutesToTime(startMinutes),
+            end: minutesToTime(endMinutes),
+            status: r.status,
+            subject: r.subject,
+            faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
+            requester: 'Student',
+            requesterSection: '',
+            mine: false,
+            detail: true
+          };
+        });
+        return;
+      }
     }
 
     const [visible, taken] = await Promise.all([

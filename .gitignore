@@ -364,3 +364,31 @@ FodyWeavers.xsd
 
 # Supabase API connection
 config.js
+frontend/config.js
+
+# Backend dependencies & local environment
+vendor/
+backend/vendor/
+.env
+.env.*
+!.env.example
+*.env
+backend/.env
+backend/.env.*
+!backend/.env.example
+.phpunit.result.cache
+backend/.phpunit.result.cache
+
+# Security, Private Keys, Certificates, and Secrets
+*.pem
+*.key
+*.pkcs12
+*.pfx
+*.p12
+*.crt
+*.cert
+*.secret
+id_rsa
+id_rsa*
+id_ed25519
+id_ed25519*

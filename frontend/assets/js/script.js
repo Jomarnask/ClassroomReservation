@@ -139,6 +139,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      // Institutional Email Domain Enforcement
+      const lowerEmail = email.toLowerCase();
+      if (role === 'student' && !lowerEmail.endsWith('@iskolarngbayan.pup.edu.ph')) {
+        alert('Student accounts must use an official @iskolarngbayan.pup.edu.ph webmail address.');
+        return;
+      }
+      if ((role === 'faculty' || role === 'admin') && !lowerEmail.endsWith('@pup.edu.ph')) {
+        alert(`${role === 'admin' ? 'Admin' : 'Faculty'} accounts must use an official @pup.edu.ph webmail address.`);
+        return;
+      }
+
       // Parse year level and section into smallint digits
       const yearLevel = role === 'student' ? parseInt(rawYearLevel, 10) || null : null;
       const section = role === 'student' ? parseInt(rawSection, 10) || null : null;
