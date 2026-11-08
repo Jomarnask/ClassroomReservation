@@ -1,21 +1,15 @@
 /**
  * PUP Canlalay Campus CRS - Faculty Schedule Controller
- * Connected to Supabase (room_schedules, room_reservations, rooms, users,
- * get_my_tagged_reservations()).
+ * Login/session: Supabase Auth. Data: PHP API (GET /api/me, GET /api/faculty/schedule).
  */
 
 (() => {
   'use strict';
 
-  // ── Supabase Client Resolution ──────────────────────────────────────────
+  // ── Supabase Client Resolution (login/session only) ─────────────────────
   const client = (typeof window !== 'undefined' && window.supabaseClient)
     ? window.supabaseClient
-    : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient)
-        ? window.supabase.createClient(
-            (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : 'https://fyoxzdfxlosxlonxckqv.supabase.co'),
-            (typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined' ? SUPABASE_PUBLISHABLE_KEY : 'sb_publishable_hdwDHmIKSBnFijVSlqB4lA_pC4qwI4t')
-          )
-        : null);
+    : null;
 
   // ── Global State ────────────────────────────────────────────────────────
   const state = {
@@ -141,18 +135,15 @@
       if (!error && session && session.user) {
         sessionUser = session.user;
 
-        const { data: profile } = await client
-          .from('users')
-          .select('user_id, full_name, role, account_status')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+        // Profile now comes from the PHP API (GET /api/me)
+        const profile = await window.api.request('/api/me');
 
         if (profile && String(profile.account_status).toLowerCase() === 'active') {
           userProfile = profile;
         }
       }
     } catch (err) {
-      console.warn('Supabase session check error:', err);
+      console.warn('Session / profile check error:', err);
     }
 
     // No valid session or inactive account -> back to login
@@ -260,88 +251,74 @@
     }
   }
 
-  // ── Load Data From Supabase ─────────────────────────────────────────────
+  // ── Load Data From The PHP API ──────────────────────────────────────────
   async function loadSchedule() {
-    if (!client || !state.user) return;
+    if (!state.user) return;
+
+    if (!window.api || !window.api.schedule) {
+      showToast('API client is not loaded. Please refresh the page.');
+      return;
+    }
 
     state.loading = true;
     renderTable();
 
     try {
-      // 1) Fetch Rooms map
-      const roomMap = {};
-      const { data: rooms } = await client.from('rooms').select('room_id, room_number, room_name');
-      (rooms || []).forEach(r => { roomMap[r.room_id] = r; });
+      // One call returns the faculty's weekly classes AND the student
+      // reservations that tag this faculty (with student details).
+      const data = await window.api.schedule.mine();
 
-      // 2) Fetch Regular Class Schedules for this faculty
-      //    (if the room_schedules table does not exist yet, this is simply skipped)
-      let classItems = [];
-      const { data: classes, error: classErr } = await client
-        .from('room_schedules')
-        .select('schedule_id, room_id, day_of_week, start_time, end_time, subject_code, course_section')
-        .eq('faculty_id', state.user.id);
+      // 1) Regular class schedules assigned to this faculty
+      const classItems = (data.classes || []).map(c => {
+        const roomNumber = c.room_number || String(c.room_id);
+        return {
+          id: 'SCH-' + String(c.schedule_id).padStart(4, '0'),
+          dbId: c.schedule_id,
+          itemType: 'class',
+          roomId: roomNumber,
+          roomName: c.room_name || ('Room ' + roomNumber),
+          day: c.day_of_week,
+          dateStr: 'Weekly (' + c.day_of_week + ')',
+          dateLabel: 'Weekly (' + c.day_of_week + ')',
+          start: formatTime(c.start_time),
+          end: formatTime(c.end_time),
+          subject: c.subject_code || c.subject_title,
+          section: c.course_section || 'N/A',
+          requesterName: 'Administration',
+          requesterDetails: 'Regular Class Schedule',
+          status: 'active',
+          remarks: ''
+        };
+      });
 
-      if (!classErr && classes) {
-        classItems = classes.map(c => {
-          const room = roomMap[c.room_id] || {};
-          return {
-            id: 'SCH-' + String(c.schedule_id).padStart(4, '0'),
-            dbId: c.schedule_id,
-            itemType: 'class',
-            roomId: room.room_number || String(c.room_id),
-            roomName: room.room_name || ('Room ' + (room.room_number || c.room_id)),
-            day: c.day_of_week,
-            dateStr: 'Weekly (' + c.day_of_week + ')',
-            dateLabel: 'Weekly (' + c.day_of_week + ')',
-            start: formatTime(c.start_time),
-            end: formatTime(c.end_time),
-            subject: c.subject_code,
-            section: c.course_section || 'N/A',
-            requesterName: 'Administration',
-            requesterDetails: 'Regular Class Schedule',
-            status: 'active',
-            remarks: ''
-          };
-        });
-      }
-
-      // 3) Fetch Student Reservations that tag this faculty.
-      //    Done through a database function so student names can be read safely.
-      let reservationItems = [];
-      const { data: resData, error: resErr } = await client.rpc('get_my_tagged_reservations');
-
-      if (resErr) {
-        console.error('Could not load tagged reservations:', resErr);
-        showToast('Could not load tagged reservations. Please refresh.');
-      } else {
-        reservationItems = (resData || []).map(r => {
-          const room = roomMap[r.room_id] || {};
-          return {
-            id: formatRefId(r.reservation_id),
-            dbId: r.reservation_id,
-            itemType: 'reservation',
-            roomId: room.room_number || String(r.room_id),
-            roomName: room.room_name || ('Room ' + (room.room_number || r.room_id)),
-            day: '',
-            dateStr: r.reservation_date,
-            dateLabel: formatDateLabel(r.reservation_date),
-            start: formatTime(r.start_time),
-            end: formatTime(r.end_time),
-            subject: r.subject,
-            section: 'Student Request',
-            requesterName: r.student_name || 'Student',
-            requesterDetails: formatStudentSection(r),
-            status: String(r.status || '').toLowerCase(),
-            remarks: r.admin_remarks || ''
-          };
-        });
-      }
+      // 2) Student reservations that tag this faculty
+      const reservationItems = (data.reservations || []).map(r => {
+        const roomNumber = r.room_number || String(r.room_id);
+        return {
+          id: formatRefId(r.reservation_id),
+          dbId: r.reservation_id,
+          itemType: 'reservation',
+          roomId: roomNumber,
+          roomName: r.room_name || ('Room ' + roomNumber),
+          day: '',
+          dateStr: r.reservation_date,
+          dateLabel: formatDateLabel(r.reservation_date),
+          start: formatTime(r.start_time),
+          end: formatTime(r.end_time),
+          subject: r.subject,
+          section: 'Student Request',
+          requesterName: r.student_name || 'Student',
+          requesterDetails: formatStudentSection(r),
+          status: String(r.status || '').toLowerCase(),
+          remarks: r.admin_remarks || ''
+        };
+      });
 
       state.schedules = [...classItems, ...reservationItems];
     } catch (err) {
       console.error('Failed to load faculty schedule:', err);
       state.schedules = [];
-      showToast('Could not load schedule data. Please refresh.');
+      showToast(err.message || 'Could not load schedule data. Please refresh.');
     } finally {
       state.loading = false;
       renderStats();

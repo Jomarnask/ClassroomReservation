@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
+use App\Controllers\FacultyScheduleController;
 use App\Controllers\HealthController;
 use App\Controllers\UserController;
 use App\Controllers\ReservationController;
@@ -57,6 +58,9 @@ $router->patch('/api/reservations/{reservationId}/cancel', [ReservationControlle
 $router->get('/api/users', [UserManagementController::class, 'index'], [$authMiddleware]);
 
 $router->patch('/api/users/{userId}/status', [UserManagementController::class, 'updateStatus'], [$authMiddleware]);
+
+// 7. Faculty schedule API - active faculty only (Protected)
+$router->get('/api/faculty/schedule', [FacultyScheduleController::class, 'index'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request

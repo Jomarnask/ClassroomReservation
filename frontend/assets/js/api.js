@@ -80,6 +80,10 @@
         });
       },
     },
+    schedule: {
+      // Faculty only. Returns { classes: [...], reservations: [...] }
+      mine: function () { return request('/api/faculty/schedule'); },
+    },
     reservations: {
       // filters: { status, room_id, date_from, date_to, mine: true, limit }
       list: function (filters) { return request('/api/reservations' + toQuery(filters)); },
