@@ -124,8 +124,6 @@ Visibility rules in Browse Rooms: **students** see their own requests in detail 
 
 ### Not implemented yet
 
-- **Password reset.** The "Forgot PUP-CRS Password?" link on the login page is a placeholder.
-- **Adding rooms from the UI.** The API supports `POST /api/rooms`, but `room-management.html` has no add form (and no floor field).
 - **Email notifications.**
 - **Direct admin booking** depends on a database function, `admin_create_reservation`, that the dashboard calls but that is not defined in any script in `backend/database/`.
 
