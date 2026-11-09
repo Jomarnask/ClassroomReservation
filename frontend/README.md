@@ -140,9 +140,7 @@ Sign-in, the sign-in guard on each page, the profile page and some dropdowns sti
 
 ## Known issues and to-do
 
-- Password reset: the "Forgot PUP-CRS Password?" link on the login page is a placeholder.
 - Move Schedule Manager and Audit Logs from `localStorage` to the database and the API.
 - Add an "add room" form (and a floor field) to Room Management.
-- `dashboard.js`, `my-reservations.js`, `profile.js` and `schedule-manager.js` contain a hard-coded fallback Supabase project, used only if `config.js` fails. Remove it.
 - Split the large inline `<script>` blocks in some pages into separate files, and show a friendly error banner for failed requests instead of `console.error` only.
 - UI/UX: mobile layouts, dark mode, loading skeletons, empty states, pagination and keyboard accessibility.
