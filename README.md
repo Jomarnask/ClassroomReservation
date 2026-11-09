@@ -164,7 +164,6 @@ All endpoints except `/api/health` need `Authorization: Bearer <Supabase access 
 
 ## Known issues
 
-- `dashboard.js`, `my-reservations.js`, `profile.js` and `schedule-manager.js` contain a hard-coded fallback Supabase URL and key for a different project, used only if `config.js` fails to create the client.
 - The local `rooms-api.http` and `reservations-api.http` files hold a placeholder token line. Paste a real token only while testing and clear it before committing.
 
 ---
