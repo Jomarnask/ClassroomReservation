@@ -116,38 +116,59 @@ See [backend/README.md](backend/README.md) for detailed backend instructions, da
 
 ---
 
-## TODO / Roadmap
+## TODO
 
-### Phase 1: API Endpoint Migration (Transferring Business Logic to PHP)
-- [ ] **Classroom Directory Endpoints**:
-  - `GET /api/rooms`: List rooms and floors with search/filter.
-  - `GET /api/rooms/{id}/timetable`: Fetch 2-day room timetable with role-based filtering (students see busy slots, faculty see only tagged reservations with student details).
-- [ ] **Reservation API Endpoints**:
-  - `GET /api/reservations`: List reservations scoped to the caller's role.
-  - `POST /api/reservations`: Submit student reservation requests with overlap validation.
-  - `POST /api/reservations/{id}/cancel`: Student cancellation of own pending request.
-  - `POST /api/reservations/{id}/approve`: Administrator approval with auto-rejection of competing pendings.
-  - `POST /api/reservations/{id}/reject`: Administrator rejection with remarks.
-- [ ] **Direct Admin Booking Endpoint**:
-  - `POST /api/admin/reservations`: Allow administrators to directly reserve/block rooms with automatic approval and auto-cancellation of conflicting pending requests.
-- [ ] **Schedule Management Endpoints**:
-  - `GET /api/schedules`: Retrieve room schedules.
-  - `POST /api/schedules`: Add recurring class schedules.
-  - `DELETE /api/schedules/{id}`: Remove recurring schedules.
-- [ ] **User & Faculty Endpoints**:
-  - `GET /api/users`: Admin user list for approvals.
-  - `PATCH /api/users/{id}/status`: Admin update of account status (`active`, `rejected`, `inactive`).
-  - `GET /api/faculty`: Active faculty directory for student reservation dropdowns.
+> _Last updated: November 2026_
 
-### Phase 2: Notifications & Auditing
-- [ ] **Webmail Notifications**: Send automated email notifications via PUP webmail when a reservation request is approved, rejected, or cancelled.
-- [ ] **Audit Trail & System Logs (`logs.html`)**:
-  - Implement `GET /api/logs` endpoint.
-  - Record audit log entries on room status modifications, reservation approvals, and account privilege changes.
+### Phase 1 — API Endpoint Migration (Transferring Business Logic to PHP)
 
-### Phase 3: Automated Testing & Deployment CI
-- [ ] **PHPUnit Test Suite**: Add comprehensive unit tests for reservation overlap algorithms, half-open time boundary conditions, and role authorization.
-- [ ] **Continuous Integration**: Configure GitHub Actions to run tests, validate Composer dependencies, and check linting on pull requests.
+- [ ] **Classroom Directory Endpoints**
+  - [ ] `GET /api/rooms` — List rooms and floors with search/filter support.
+  - [ ] `GET /api/rooms/{id}/timetable` — Fetch 2-day room timetable with role-based filtering (students see busy slots; faculty see only tagged reservations with student details; admins see all).
+- [ ] **Reservation API Endpoints**
+  - [ ] `GET /api/reservations` — List reservations scoped to the caller's role.
+  - [ ] `POST /api/reservations` — Submit student reservation requests with overlap validation.
+  - [ ] `POST /api/reservations/{id}/cancel` — Student cancellation of own pending request.
+  - [ ] `POST /api/reservations/{id}/approve` — Administrator approval with auto-rejection of competing pending requests.
+  - [ ] `POST /api/reservations/{id}/reject` — Administrator rejection with optional remarks.
+- [ ] **Direct Admin Booking Endpoint**
+  - [ ] `POST /api/admin/reservations` — Allow administrators to directly reserve/block rooms with automatic approval and auto-cancellation of conflicting pending requests.
+- [ ] **Schedule Management Endpoints**
+  - [ ] `GET /api/schedules` — Retrieve recurring room schedules.
+  - [ ] `POST /api/schedules` — Add a new recurring class schedule block.
+  - [ ] `DELETE /api/schedules/{id}` — Remove an existing recurring schedule.
+- [ ] **User & Faculty Endpoints**
+  - [ ] `GET /api/users` — Admin user list for account approval queue.
+  - [ ] `PATCH /api/users/{id}/status` — Admin update of account status (`active`, `rejected`, `inactive`).
+  - [ ] `GET /api/faculty` — Active faculty directory for student reservation dropdowns.
+  - [ ] `PATCH /api/users/{id}/profile` — Allow users to update their own academic profile metadata.
+
+### Phase 2 — Notifications & Auditing
+
+- [ ] **Webmail Notifications** — Send automated email notifications via PUP webmail (`@pup.edu.ph`) when a reservation request is approved, rejected, or cancelled.
+- [ ] **Audit Trail & System Logs (`logs.html`)**
+  - [ ] Implement `GET /api/logs` endpoint with pagination and role-based filtering.
+  - [ ] Record audit log entries on: room status modifications, reservation approvals/rejections, and account privilege changes.
+- [ ] **Real-Time Status Updates** — Explore Supabase Realtime channels for live timetable refresh without full page reload.
+
+### Phase 3 — Automated Testing & Deployment CI
+
+- [ ] **PHPUnit Test Suite** — Add comprehensive unit tests for:
+  - Reservation overlap algorithms and half-open time boundary conditions.
+  - Role authorization checks (student, faculty, admin scoping).
+  - JWT token validation edge cases.
+- [ ] **Continuous Integration** — Configure GitHub Actions workflow to:
+  - Run PHPUnit test suite on every pull request.
+  - Validate Composer dependencies (`composer validate`).
+  - Enforce PHP code style (e.g., PHP CS Fixer or PHP_CodeSniffer).
+- [ ] **Frontend Build Pipeline** — Add a CI step to run `node build.js` and validate generated `config.js` structure.
+
+### Phase 4 — UI/UX Enhancements
+
+- [ ] **Mobile-Responsive Layouts** — Audit and improve all HTML pages for small-screen usability.
+- [ ] **Dark Mode Support** — Add a user-toggle theme preference persisted to `localStorage`.
+- [ ] **Pagination & Infinite Scroll** — Implement server-side pagination on `all-reservations.html` and `user-approvals.html` for large datasets.
+- [ ] **Loading Skeletons** — Replace blank loading states with skeleton screen placeholders across all data-fetching pages.
 
 ---
 

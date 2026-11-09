@@ -54,3 +54,54 @@ The `backend/database/` directory contains:
 - **Runtime**: `Docker`
 - **Dockerfile Path**: `Dockerfile`
 - Configure environment variables in the Render Dashboard matching `.env.example`.
+
+---
+
+## TODO
+
+> _Last updated: November 2026_
+
+### API Endpoints to Implement
+
+- [ ] **Rooms**
+  - [ ] `GET /api/rooms` — List all rooms with floor grouping, search, and availability filter.
+  - [ ] `GET /api/rooms/{id}/timetable` — 2-day timetable for a room with role-scoped reservation visibility.
+- [ ] **Reservations**
+  - [ ] `GET /api/reservations` — Fetch reservations filtered by the caller's role (student/faculty/admin).
+  - [ ] `POST /api/reservations` — Create a new student reservation with overlap validation.
+  - [ ] `POST /api/reservations/{id}/cancel` — Cancel own pending reservation (student).
+  - [ ] `POST /api/reservations/{id}/approve` — Approve a reservation and auto-reject conflicting pending requests (admin).
+  - [ ] `POST /api/reservations/{id}/reject` — Reject a reservation with an optional remarks field (admin).
+  - [ ] `POST /api/admin/reservations` — Directly book/block a room as admin (auto-approved, cancels conflicts).
+- [ ] **Schedules**
+  - [ ] `GET /api/schedules` — Retrieve recurring weekly class schedules.
+  - [ ] `POST /api/schedules` — Create a new recurring class schedule block.
+  - [ ] `DELETE /api/schedules/{id}` — Delete an existing recurring schedule.
+- [ ] **Users & Faculty**
+  - [ ] `GET /api/users` — Admin-only list of all registered accounts for the approval queue.
+  - [ ] `PATCH /api/users/{id}/status` — Update account status (`active`, `rejected`, `inactive`).
+  - [ ] `PATCH /api/users/{id}/profile` — Allow users to update their own academic profile metadata.
+  - [ ] `GET /api/faculty` — Public (authenticated) list of active faculty for reservation dropdowns.
+- [ ] **Logs**
+  - [ ] `GET /api/logs` — Paginated audit log retrieval for admin dashboard (`logs.html`).
+
+### Testing
+
+- [ ] **PHPUnit Test Suite**
+  - [ ] Unit tests for reservation overlap detection and half-open time boundary edge cases.
+  - [ ] Role-authorization tests ensuring RLS is enforced per endpoint.
+  - [ ] JWT token validation and expiry handling tests.
+
+### DevOps & CI
+
+- [ ] **GitHub Actions Workflow**
+  - [ ] Run `composer validate` and `composer install --no-dev` checks on PRs.
+  - [ ] Execute PHPUnit test suite on every push to `main` and all pull requests.
+  - [ ] Lint PHP code with PHP CS Fixer or PHP_CodeSniffer.
+- [ ] **Health Monitoring** — Add uptime and latency monitoring for the Render-hosted API (e.g., UptimeRobot or BetterStack).
+
+### Security Hardening
+
+- [ ] **Rate Limiting** — Implement per-IP or per-user request throttling on write endpoints.
+- [ ] **Input Sanitization Audit** — Review all controller inputs for injection vulnerabilities.
+- [ ] **Token Refresh Handling** — Gracefully handle expired Supabase JWT tokens with a `401` response and a clear error body.
