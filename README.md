@@ -1,185 +1,178 @@
 # PUP Canlalay Campus - Classroom & Facility Reservation System (PUP-CRS)
 
-This repository contains the Polytechnic University of the Philippines – Canlalay Campus Classroom Reservation System (CRS), structured as a monorepo with an independent static frontend and a PHP REST API backend.
+The Polytechnic University of the Philippines - Canlalay Campus Classroom Reservation System (CRS) lets students request classrooms and laboratories, lets faculty see the requests that tag them, and lets administrators approve requests and manage rooms and accounts.
+
+It is a monorepo with three parts:
+
+| Part | Technology | Hosting |
+|---|---|---|
+| `frontend/` | Static HTML, CSS and vanilla JavaScript | Vercel |
+| `backend/` | PHP 8.1+ REST API (plain PHP, PDO) | Render (Docker) |
+| Database and login | Supabase (PostgreSQL + Auth) | Supabase |
 
 ---
 
-## Repository Structure
+## How the pieces fit together
+
+```text
+Browser (frontend/)
+   |-- login, sign-up, profile, dashboard ------------> Supabase Auth / Postgres (direct)
+   |-- rooms, reservations, users, faculty schedule --> PHP API (backend/) --> Supabase Postgres
+```
+
+- The browser signs in with **Supabase Auth** and receives an access token (valid for 1 hour, refreshed automatically).
+- Pages that have been moved to the API send that token in an `Authorization: Bearer ...` header through `frontend/assets/js/api.js`.
+- The API verifies the token with Supabase, then runs every query inside a transaction with the user's JWT claims and the `authenticated` role. **Supabase Row Level Security (RLS) therefore still protects the data**, exactly as if the browser had queried it directly.
+- Some pages still talk to Supabase directly. They are listed under [Feature status](#feature-status).
+
+---
+
+## Repository structure
 
 ```text
 ClassroomReservation/
-├── frontend/               # Static Frontend (Hosted on Vercel)
-│   ├── assets/             # CSS, JS, Images
-│   ├── *.html              # HTML Pages
-│   ├── build.js            # Build script generating frontend config.js
-│   └── config-template.js  # Frontend configuration template
+├── frontend/                  # Static frontend (Vercel)
+│   ├── assets/
+│   │   ├── css/
+│   │   ├── images/
+│   │   └── js/                # Page scripts + api.js (PHP API client)
+│   ├── *.html                 # Pages
+│   ├── build.js               # Generates config.js from environment variables (used by Vercel)
+│   ├── config-template.js     # Template for a local config.js
+│   └── README.md
 │
-├── backend/                # REST API Backend (Hosted on Render via Docker)
-│   ├── public/             # API Entry Point (index.php)
-│   ├── src/                # Controllers, Services, Repositories, Auth, DB
-│   ├── database/           # PostgreSQL Schema, Triggers, RLS, & Role scripts
-│   ├── tests/              # PHPUnit & Endpoint verification tests
-│   ├── Dockerfile          # Production container specification
-│   ├── composer.json       # Backend PHP dependencies
-│   └── .env.example        # Environment variable template
+├── backend/                   # PHP REST API (Render, Docker)
+│   ├── public/                # Entry point: index.php (routes) + .htaccess
+│   ├── src/                   # Auth, Controllers, Services, Repositories, Database, Http
+│   ├── database/              # SQL scripts (schema, admin, faculty schedule, backend role)
+│   ├── tests/                 # PHPUnit test + foundation check script
+│   ├── Dockerfile
+│   ├── composer.json
+│   ├── .env.example
+│   └── README.md
 │
-├── docs/                   # Architectural & design guidelines
-│   └── design.md
-│
-├── .gitignore              # Ignores all secrets, private keys, .env, and generated configs
+├── docs/design.md             # Design system and branding guidelines
+├── rooms-api.http             # Optional REST Client requests for testing the Rooms API
+├── reservations-api.http      # Optional REST Client requests for testing the Reservations API
 └── README.md
 ```
 
+`frontend/config.js` and `backend/.env` are created locally, are listed in `.gitignore` and must never be committed.
+
 ---
 
-## Quick Start
+## Quick start (local)
 
-### 1. Frontend (Vercel or Local Static Server)
-```bash
-cd frontend
-# Copy config template if running locally
-copy config-template.js config.js # On Windows
-# Or generate using Node:
-node build.js
-```
-Run using any static web server (such as VS Code Live Server or `npx serve frontend`).
+You need a Supabase project, PHP 8.1+ with Composer, and VS Code with the Live Server extension (or any static server).
 
-### 2. Backend (Render or Local PHP)
+**1. Set up the database.** Run the SQL scripts in `backend/database/` in the Supabase SQL Editor. The order and purpose of each script are in [backend/README.md](backend/README.md#database-setup).
+
+**2. Start the API.**
+
 ```bash
 cd backend
 composer install
-copy .env.example .env
-# Edit backend/.env with your Supabase credentials
-composer start
-# Or manually:
+copy .env.example .env        # macOS/Linux: cp .env.example .env
+# Fill in SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, DB_HOST, DB_USER, DB_PASSWORD in .env
 php -S 127.0.0.1:8000 -t public public/index.php
 ```
 
-See [backend/README.md](backend/README.md) for detailed backend instructions, database instructions, and deployment settings.
+Check it at <http://localhost:8000/api/health>. Windows users: see the PHP extensions note in [backend/README.md](backend/README.md#windows-xampp-note).
+
+**3. Create the frontend config.**
+
+```bash
+cd frontend
+copy config-template.js config.js     # macOS/Linux: cp config-template.js config.js
+# Open config.js and replace the two placeholder values
+```
+
+`config-template.js` already creates the Supabase client and sets `API_BASE_URL` to `http://localhost:8000`. Alternatively, `node build.js` generates `config.js` from environment variables (see [frontend/README.md](frontend/README.md#local-setup)).
+
+**4. Open the site** with Live Server at `http://127.0.0.1:5500/frontend/login.html`. The origin must be one listed in `CORS_ALLOWED_ORIGINS` (`.env.example` lists `http://127.0.0.1:5500`, `http://localhost:5500` and `http://localhost:3000`; `127.0.0.1` and `localhost` count as different origins). Opening the HTML files directly from disk (`file://`) does not work.
+
+**5. Create an administrator.** Run `backend/database/create_initial_admin.sql` once, then change the default password.
 
 ---
 
-## Currently Working Functions & Features (Bug-Free & Verified)
+## Feature status
 
-### 1. Authentication & Session Management
-- **Registration & Sign Up (`signup.html`)**: Validated account creation using PUP webmail (`@pup.edu.ph`), password hashing via Supabase Auth, and automatic student/faculty profile creation in `public.users`.
-- **Sign In & Route Protection (`login.html`)**: Authenticated sign-in with active-account verification. Pending or deactivated accounts are cleanly notified.
-- **Role-Based Routing**: Dynamic role detection redirecting users seamlessly to student, faculty, or administrator dashboards.
-- **Account Recovery & Password Reset**: Password reset flow integrated with Supabase Auth webmail delivery.
-- **Academic Profile Management (`profile.html`)**: Viewing and editing academic metadata (Student Number, Program/Course, Year Level, Section).
+### Working
 
-### 2. Classroom Directory & Interactive Timetable (`browse-rooms.html`)
-- **Floor Directory & Search**: Real-time room cards grouped by floor levels with instant keyword search and availability badges.
-- **Two-Day Timetable Grid Overlay**: 30-minute interval visual schedule blocks for Today and Tomorrow.
-- **Weekly Class Schedules**: Overlaid class schedule indicators with subject title, section, and scheduled times.
-- **Role-Scoped Reservation Visibility**:
-  - **Students**: View their own submitted reservation cards with full details, while other students' bookings are masked as busy/occupied timeslots without exposing personal details.
-  - **Faculty**: Strictly scoped to only show reservations where that particular faculty member was tagged, displaying full applicant information (Student Name, Program/Course, Year Level, and Section).
-  - **Administrators**: Complete campus-wide timetable view with applicant and assigned faculty details.
-- **Conflict & Overlap Prevention**: Client and database constraint checks preventing requests from overlapping existing approved reservations.
-- **Student Cancellation**: Students can cancel their own pending reservation requests directly from the timetable or reservation modal.
+| Area | Page | What it does | Data goes through |
+|---|---|---|---|
+| Sign up | `signup.html` | Students register with an `@iskolarngbayan.pup.edu.ph` webmail, faculty and admins with an `@pup.edu.ph` webmail. A profile row is created automatically and the account waits for admin approval. | Supabase |
+| Sign in | `login.html` | Sign-in with account-status messages: awaiting approval, declined, or deactivated. | Supabase |
+| Profile | `profile.html` | View and edit Student Number, Program/Course, Year Level and Section. | Supabase |
+| Dashboard | `dashboard.html` | Role-based home page for students, faculty and administrators. | Supabase |
+| Browse rooms | `browse-rooms.html` | Floor directory with search, a Today/Tomorrow timetable in 30-minute steps, and class schedules overlaid from `room_schedules`. | PHP API, plus Supabase for the faculty dropdown and the faculty timetable view |
+| Request a room | `browse-rooms.html` | Students submit a request (subject, tagged faculty, date, time) and can cancel it. The API enforces the booking rules. | PHP API |
+| My requests | `my-reservations.html` | Tabs: All Requests, Pending, Approved, Rejected / Cancelled, with admin remarks and a cancel action. | PHP API |
+| Review requests | `all-reservations.html` | Admins see Pending, Approved, and Declined & Cancelled requests, approve or decline with remarks, and competing pending requests for the same slot are declined automatically. | PHP API |
+| Room management | `room-management.html` | Admins edit a room's number, name, type and active status. Inactive rooms cannot be reserved. | PHP API |
+| User approvals | `user-approvals.html` | Admins approve, reject, deactivate and reactivate accounts. | PHP API |
+| Faculty schedule | `schedule.html` | Faculty-only weekly view of their own class schedules and the student requests that tag them. | PHP API |
 
-### 3. Student Reservations Hub (`my-reservations.html`)
-- Categorized reservation tracking tabs: **Pending**, **Approved**, and **Past / Cancelled**.
-- Status badges with admin feedback remarks.
-- Cancellation action for pending requests.
+Visibility rules in Browse Rooms: **students** see their own requests in detail and other students' requests only as busy time slots; **faculty** see only the requests that tag them, with the applicant's details; **administrators** see everything.
 
-### 4. Admin Reservations & Review Center (`all-reservations.html`)
-- Campus-wide reservation request management categorized by status.
-- **Approval Workflow**: Approves pending student requests and automatically auto-rejects competing overlapping requests for the same room and time block.
-- **Rejection Workflow**: Rejects requests with custom administrator remarks.
+### Partly working
 
-### 5. Room Management (`room-management.html`)
-- Add new lecture rooms, laboratories, and halls.
-- Modify room numbers, names, floor assignments, and types.
-- Toggle active/inactive operational status (inactive rooms cannot be reserved).
+| Page | Current behavior |
+|---|---|
+| `schedule-manager.html` | The editor works, but it saves class schedules and sample data in the browser's `localStorage`. It does **not** read or write the `room_schedules` table, so schedules created here are not visible to anyone else. |
+| `logs.html` | Shows audit entries stored in the browser's `localStorage` by `all-reservations.html`. Nothing is written to the `audit_logs` table and the page has no role check. |
 
-### 6. Weekly Class Schedule Manager (`schedule-manager.html`)
-- Set up recurring weekly class schedules by room, day of the week, time interval, subject code, and student section.
-- Assign active faculty members to recurring schedule blocks.
+### Not implemented yet
 
-### 7. Personal Schedule Viewer (`schedule.html`)
-- Consolidated weekly calendar for Faculty and Students showing both assigned class schedules and approved student reservation blocks.
-
-### 8. User Approvals & Access Control (`user-approvals.html`)
-- Administrator review queue for newly registered student and faculty accounts.
-- Actions: **Approve**, **Reject**, **Deactivate**, and **Reactivate**.
-
-### 9. PHP REST API Foundation (`backend/`)
-- Pure PHP 8.2+ REST backend using PDO PostgreSQL with connection pooler support.
-- **Token Verification**: Validates Supabase JWT access tokens via `SupabaseAuthService`.
-- **User-Scoped Context**: Preserves Supabase PostgreSQL Row Level Security (RLS) by executing queries with transaction-local JWT claims.
-- **Verified Foundation Endpoints**:
-  - `GET /api/health`: Service health status.
-  - `GET /api/me`: Authenticated user profile lookup with RLS protection.
-  - `GET /api/admin/check`: Server-side active administrator privilege check.
+- **Password reset.** The "Forgot PUP-CRS Password?" link on the login page is a placeholder.
+- **Adding rooms from the UI.** The API supports `POST /api/rooms`, but `room-management.html` has no add form (and no floor field).
+- **Email notifications.**
+- **Direct admin booking** depends on a database function, `admin_create_reservation`, that the dashboard calls but that is not defined in any script in `backend/database/`.
 
 ---
 
-## TODO
+## API overview
 
-> _Last updated: November 2026_
+All endpoints except `/api/health` need `Authorization: Bearer <Supabase access token>`. Full details are in [backend/README.md](backend/README.md#api-reference).
 
-### Phase 1 — API Endpoint Migration (Transferring Business Logic to PHP)
-
-- [ ] **Classroom Directory Endpoints**
-  - [ ] `GET /api/rooms` — List rooms and floors with search/filter support.
-  - [ ] `GET /api/rooms/{id}/timetable` — Fetch 2-day room timetable with role-based filtering (students see busy slots; faculty see only tagged reservations with student details; admins see all).
-- [ ] **Reservation API Endpoints**
-  - [ ] `GET /api/reservations` — List reservations scoped to the caller's role.
-  - [ ] `POST /api/reservations` — Submit student reservation requests with overlap validation.
-  - [ ] `POST /api/reservations/{id}/cancel` — Student cancellation of own pending request.
-  - [ ] `POST /api/reservations/{id}/approve` — Administrator approval with auto-rejection of competing pending requests.
-  - [ ] `POST /api/reservations/{id}/reject` — Administrator rejection with optional remarks.
-- [ ] **Direct Admin Booking Endpoint**
-  - [ ] `POST /api/admin/reservations` — Allow administrators to directly reserve/block rooms with automatic approval and auto-cancellation of conflicting pending requests.
-- [ ] **Schedule Management Endpoints**
-  - [ ] `GET /api/schedules` — Retrieve recurring room schedules.
-  - [ ] `POST /api/schedules` — Add a new recurring class schedule block.
-  - [ ] `DELETE /api/schedules/{id}` — Remove an existing recurring schedule.
-- [ ] **User & Faculty Endpoints**
-  - [ ] `GET /api/users` — Admin user list for account approval queue.
-  - [ ] `PATCH /api/users/{id}/status` — Admin update of account status (`active`, `rejected`, `inactive`).
-  - [ ] `GET /api/faculty` — Active faculty directory for student reservation dropdowns.
-  - [ ] `PATCH /api/users/{id}/profile` — Allow users to update their own academic profile metadata.
-
-### Phase 2 — Notifications & Auditing
-
-- [ ] **Webmail Notifications** — Send automated email notifications via PUP webmail (`@pup.edu.ph`) when a reservation request is approved, rejected, or cancelled.
-- [ ] **Audit Trail & System Logs (`logs.html`)**
-  - [ ] Implement `GET /api/logs` endpoint with pagination and role-based filtering.
-  - [ ] Record audit log entries on: room status modifications, reservation approvals/rejections, and account privilege changes.
-- [ ] **Real-Time Status Updates** — Explore Supabase Realtime channels for live timetable refresh without full page reload.
-
-### Phase 3 — Automated Testing & Deployment CI
-
-- [ ] **PHPUnit Test Suite** — Add comprehensive unit tests for:
-  - Reservation overlap algorithms and half-open time boundary conditions.
-  - Role authorization checks (student, faculty, admin scoping).
-  - JWT token validation edge cases.
-- [ ] **Continuous Integration** — Configure GitHub Actions workflow to:
-  - Run PHPUnit test suite on every pull request.
-  - Validate Composer dependencies (`composer validate`).
-  - Enforce PHP code style (e.g., PHP CS Fixer or PHP_CodeSniffer).
-- [ ] **Frontend Build Pipeline** — Add a CI step to run `node build.js` and validate generated `config.js` structure.
-
-### Phase 4 — UI/UX Enhancements
-
-- [ ] **Mobile-Responsive Layouts** — Audit and improve all HTML pages for small-screen usability.
-- [ ] **Dark Mode Support** — Add a user-toggle theme preference persisted to `localStorage`.
-- [ ] **Pagination & Infinite Scroll** — Implement server-side pagination on `all-reservations.html` and `user-approvals.html` for large datasets.
-- [ ] **Loading Skeletons** — Replace blank loading states with skeleton screen placeholders across all data-fetching pages.
+| Area | Endpoints |
+|---|---|
+| Foundation | `GET /api/health`, `GET /api/me`, `GET /api/admin/check` |
+| Rooms | `GET /api/rooms`, `GET /api/rooms/{id}`, `POST /api/rooms` (admin), `PATCH /api/rooms/{id}` (admin), `GET /api/rooms/{id}/taken-slots` |
+| Reservations | `GET /api/reservations`, `GET /api/reservations/{id}`, `POST /api/reservations` (student), `PATCH /api/reservations/{id}/decision` (admin), `PATCH /api/reservations/{id}/cancel` |
+| Users | `GET /api/users` (admin), `PATCH /api/users/{id}/status` (admin) |
+| Faculty | `GET /api/faculty/schedule` (faculty) |
 
 ---
 
-## Security & Secrets Policy
+## Roadmap
 
-All sensitive files, private keys, environment files, and credentials are strictly excluded from source control:
+- [x] Rooms API and Room Management page
+- [x] Reservations API (create, list, approve/decline, cancel, taken slots) and the booking, My Requests and Review pages
+- [x] Users API and User Approvals page
+- [x] Faculty schedule API and Schedule page
+- [ ] Schedules API (`GET/POST/DELETE /api/schedules`) and moving Schedule Manager from `localStorage` to the `room_schedules` table
+- [ ] Direct admin booking: add the `admin_create_reservation` SQL function and an API endpoint
+- [ ] `GET /api/faculty` (active faculty directory) and `PATCH` for the user's own profile
+- [ ] Add-room form in Room Management; real password reset flow
+- [ ] Audit trail: write to `audit_logs` and add `GET /api/logs`, then wire `logs.html`
+- [ ] Email notifications for approved, declined and cancelled requests
+- [ ] More PHPUnit tests (booking rules, role checks, token handling) and a GitHub Actions workflow
+- [ ] UI/UX: mobile layouts, dark mode, loading skeletons, empty states, pagination, keyboard accessibility
 
-- **`.gitignore` Rules**:
-  - Environment files: `.env`, `*.env`, `.env.*`, `backend/.env` (safe template `!.env.example` committed).
-  - Private Keys & Certificates: `*.pem`, `*.key`, `*.pkcs12`, `*.pfx`, `*.p12`, `*.crt`, `*.cert`, `id_rsa*`, `id_ed25519*`, `*.secret`.
-  - Frontend generated config: `config.js`, `frontend/config.js`.
-  - Dependencies & caches: `vendor/`, `backend/vendor/`, `.phpunit.result.cache`.
-- **`backend/.dockerignore` Rules**:
-  - Ensures no `.env`, private keys, Git history, local caches, or test files are bundled into Docker container images deployed to Render.
+---
+
+## Known issues
+
+- `dashboard.js`, `my-reservations.js`, `profile.js` and `schedule-manager.js` contain a hard-coded fallback Supabase URL and key for a different project, used only if `config.js` fails to create the client.
+- The local `rooms-api.http` and `reservations-api.http` files hold a placeholder token line. Paste a real token only while testing and clear it before committing.
+
+---
+
+## Security and secrets policy
+
+- `.gitignore` excludes environment files (`.env`, `*.env`, `.env.*`, `backend/.env`, with `!.env.example` kept), private keys and certificates (`*.pem`, `*.key`, `*.pkcs12`, `*.pfx`, `*.p12`, `*.crt`, `*.cert`, `id_rsa*`, `id_ed25519*`, `*.secret`), the generated `config.js`, and dependencies and caches (`vendor/`, `.phpunit.result.cache`).
+- `backend/.dockerignore` keeps `.env`, keys, Git history, `vendor/` and `tests` out of the Render image.
+- Only the Supabase **publishable** key belongs in the frontend. The database password stays in `backend/.env` or the Render dashboard.
+- Never commit access tokens. They expire after an hour but identify a real account.
+- Change the default administrator password in `create_initial_admin.sql` before using it.

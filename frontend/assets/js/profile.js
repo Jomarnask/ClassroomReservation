@@ -8,13 +8,14 @@
   // ==========================================
   // 1. SUPABASE CLIENT RESOLUTION
   // ==========================================
+  // Use the shared client from config.js. If it is missing, build one from the
+  // SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY values in config.js. There is no
+  // hard-coded project: if neither exists, client stays null.
   const client = (typeof window !== 'undefined' && window.supabaseClient)
     ? window.supabaseClient
-    : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient)
-        ? window.supabase.createClient(
-            (typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : 'https://fyoxzdfxlosxlonxckqv.supabase.co'),
-            (typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined' ? SUPABASE_PUBLISHABLE_KEY : 'sb_publishable_hdwDHmIKSBnFijVSlqB4lA_pC4qwI4t')
-          )
+    : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient
+        && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
         : null);
 
   // Application State
