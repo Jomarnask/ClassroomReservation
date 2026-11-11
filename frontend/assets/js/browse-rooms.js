@@ -140,6 +140,11 @@
     return `${y}-${m}-${d}`;
   }
 
+  // Sunday is closed: schedules and reservations are Monday to Saturday only.
+  function isSundayDate(dateStr) {
+    return new Date(dateStr + 'T00:00:00').getDay() === 0;
+  }
+
   function getTodayAndTomorrowDates() {
     const dates = [];
     const now = new Date();
@@ -155,6 +160,7 @@
       dates.push({
         dateStr: `${y}-${m}-${day}`,
         dayName: dayName,
+        closed: dayIndex === 0, // Sunday: no schedules or reservations (Mon-Sat only)
         labelPrefix: labelPrefix,
         shortDate: `${labelPrefix} • ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
       });
@@ -800,9 +806,9 @@
     const headersContainer = document.getElementById('timetableDaysHeader');
     if (headersContainer) {
       headersContainer.innerHTML = activeDays.map((wd, idx) => `
-        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} bg-red-50/50">
-          <div class="font-extrabold text-xs uppercase tracking-wider text-[#880000]">${wd.labelPrefix} (${wd.dayName})</div>
-          <div class="text-[11px] text-gray-600 font-bold mt-0.5">${wd.shortDate.split('• ')[1]}</div>
+        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} ${wd.closed ? 'bg-gray-100' : 'bg-red-50/50'}">
+          <div class="font-extrabold text-xs uppercase tracking-wider ${wd.closed ? 'text-gray-400' : 'text-[#880000]'}">${wd.labelPrefix} (${wd.dayName})${wd.closed ? ' • Closed' : ''}</div>
+          <div class="text-[11px] ${wd.closed ? 'text-gray-400' : 'text-gray-600'} font-bold mt-0.5">${wd.shortDate.split('• ')[1]}</div>
         </div>
       `).join('');
     }
@@ -834,6 +840,17 @@
         linesHtml += `<div class="grid-hour-line" data-hour="${h}"></div>`;
       }
       colEl.innerHTML = linesHtml;
+
+      // Sunday is closed: gray out the whole column, no slots, nothing clickable
+      if (wd.closed) {
+        colEl.classList.add('closed-day');
+        colEl.insertAdjacentHTML('beforeend', `
+          <div style="position:absolute;inset:0;z-index:5;pointer-events:none;display:flex;justify-content:center;padding-top:28px;background:repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6 10px,#e5e7eb 10px,#e5e7eb 20px);">
+            <span style="height:fit-content;background:#fff;border:1px solid #d1d5db;color:#6b7280;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:6px 12px;border-radius:6px;">Closed – Sunday</span>
+          </div>`);
+        gridBody.appendChild(colEl);
+        return;
+      }
 
       // 1. Regular class schedules (BLUE) - empty until room_schedules exists
       const dayClasses = state.classSchedules.filter(c => {
@@ -1034,12 +1051,14 @@
     const roomFloorEl = document.getElementById('modalRoomFloor');
     if (roomFloorEl) roomFloorEl.textContent = `${floorMeta(r.floor).name} • ${roomTypeLabel(r.roomType)}`;
 
-    const dates = getTodayAndTomorrowDates();
+    // Only open days (Mon-Sat) can be picked: on Saturday that is today only,
+    // on Sunday it is tomorrow (Monday) only.
+    const bookable = getTodayAndTomorrowDates().filter(d => !d.closed);
     const dateInput = document.getElementById('resDate');
-    if (dateInput) {
-      dateInput.min = dates[0].dateStr; // Today
-      dateInput.max = dates[1].dateStr; // Tomorrow
-      dateInput.value = preferredDate || dates[0].dateStr;
+    if (dateInput && bookable.length) {
+      dateInput.min = bookable[0].dateStr;
+      dateInput.max = bookable[bookable.length - 1].dateStr;
+      dateInput.value = (preferredDate && !isSundayDate(preferredDate)) ? preferredDate : bookable[0].dateStr;
     }
 
     const startSel = document.getElementById('resStart');
@@ -1126,6 +1145,10 @@
     } else if (dateVal < todayStr) {
       type = 'bad';
       msg = 'Invalid Date: You cannot reserve room slots for past dates.';
+      isValid = false;
+    } else if (isSundayDate(dateVal)) {
+      type = 'bad';
+      msg = 'Sunday is closed. Reservations are only allowed from Monday to Saturday.';
       isValid = false;
     } else if (dateVal > tomorrowStr) {
       type = 'bad';

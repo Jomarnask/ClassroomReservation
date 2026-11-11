@@ -3,7 +3,7 @@
  *
  * Implements:
  * 1. Admin Auth Guard (restricts access to verified active Admin accounts).
- * 2. Visual Weekly Timetable per Room (Monday to Sunday, 7:00 AM to 9:00 PM):
+ * 2. Visual Weekly Timetable per Room (Monday to Saturday, 7:00 AM to 9:00 PM):
  *    - Blue: Scheduled Class (Admin assigned, blocks student reservations).
  *    - Red: Approved / Occupied student reservations.
  *    - Yellow: Pending student reservation requests.
@@ -149,7 +149,7 @@
 
   function getWeekDates(baseMonday) {
     const dates = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 6; i++) { // Monday to Saturday only (Sunday is closed)
       const d = new Date(baseMonday);
       d.setDate(baseMonday.getDate() + i);
       const y = d.getFullYear();
@@ -586,12 +586,12 @@
     const rangeLabel = document.getElementById('ttWeekRangeLabel');
     if (rangeLabel) {
       const startStr = weekDates[0].shortDate;
-      const endStr = weekDates[6].shortDate;
+      const endStr = weekDates[weekDates.length - 1].shortDate;
       const yr = state.currentMonday.getFullYear();
       rangeLabel.textContent = `${startStr} – ${endStr}, ${yr}`;
     }
 
-    // 1. Render Days Header Row (Mon - Sun)
+    // 1. Render Days Header Row (Mon - Sat)
     const daysHeader = document.getElementById('timetableDaysHeader');
     if (daysHeader) {
       const today = new Date();
@@ -808,7 +808,8 @@
     if (!tableBody || !state.selectedRoom) return;
 
     const roomIdStr = String(state.selectedRoom.number || state.selectedRoom.id);
-    const roomClasses = state.classSchedules.filter(c => String(c.roomId) === roomIdStr);
+    // Sunday is closed: any old Sunday class stays in the database but is not shown
+    const roomClasses = state.classSchedules.filter(c => String(c.roomId) === roomIdStr && String(c.day).toLowerCase() !== 'sunday');
 
     if (roomClasses.length === 0) {
       tableBody.innerHTML = `

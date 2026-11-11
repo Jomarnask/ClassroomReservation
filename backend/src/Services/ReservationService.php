@@ -306,6 +306,11 @@ class ReservationService
             throw new ApiException('You cannot reserve a room for a past date.', 422);
         }
 
+        // Sunday is closed: reservations are Monday to Saturday only.
+        if ((int) (new DateTimeImmutable($date))->format('N') === 7) {
+            throw new ApiException('Sunday is closed. Reservations are only allowed from Monday to Saturday.', 422);
+        }
+
         // Minimum lead time: the request must start at least MIN_LEAD_MINUTES
         // from now (compared by the minute, in the app timezone).
         $startAt = new DateTimeImmutable($date . ' ' . $start);

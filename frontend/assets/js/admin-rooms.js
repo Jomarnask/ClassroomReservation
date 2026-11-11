@@ -85,6 +85,11 @@ window.supabaseClient = client;
 
   function getTodayString() { return dateStr(new Date()); }
 
+  // Sunday is closed: schedules and reservations are Monday to Saturday only.
+  function isSundayDate(ds) {
+    return new Date(ds + 'T00:00:00').getDay() === 0;
+  }
+
   function getTodayAndTomorrowDates() {
     var out = [], now = new Date();
     for (var i = 0; i < 2; i++) {
@@ -95,6 +100,7 @@ window.supabaseClient = client;
         dateStr: dateStr(d),
         dayName: DAY_NAMES[idx === 0 ? 6 : idx - 1],
         labelPrefix: i === 0 ? 'Today' : 'Tomorrow',
+        closed: idx === 0, // Sunday: no schedules or reservations (Mon-Sat only)
         dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
       });
     }
@@ -556,9 +562,9 @@ window.supabaseClient = client;
     $('admTtRange').textContent = 'Schedule: Today • ' + days[0].dateLabel + ' & Tomorrow • ' + days[1].dateLabel;
 
     $('admTtDays').innerHTML = days.map(function (d, i) {
-      return '<div class="p-3 ' + (i === 0 ? 'border-r border-gray-200 ' : '') + 'bg-red-50/50">' +
-        '<div class="font-extrabold text-xs uppercase tracking-wider text-[#880000]">' + d.labelPrefix + ' (' + d.dayName + ')</div>' +
-        '<div class="text-[11px] text-gray-600 font-bold mt-0.5">' + d.dateLabel + '</div></div>';
+      return '<div class="p-3 ' + (i === 0 ? 'border-r border-gray-200 ' : '') + (d.closed ? 'bg-gray-100' : 'bg-red-50/50') + '">' +
+        '<div class="font-extrabold text-xs uppercase tracking-wider ' + (d.closed ? 'text-gray-400' : 'text-[#880000]') + '">' + d.labelPrefix + ' (' + d.dayName + ')' + (d.closed ? ' • Closed' : '') + '</div>' +
+        '<div class="text-[11px] ' + (d.closed ? 'text-gray-400' : 'text-gray-600') + ' font-bold mt-0.5">' + d.dateLabel + '</div></div>';
     }).join('');
 
     var axis = '';
@@ -574,6 +580,15 @@ window.supabaseClient = client;
       var lines = '';
       for (var h2 = 7; h2 < 21; h2++) lines += '<div class="adm-hour"></div>';
       col.innerHTML = lines;
+
+      // Sunday is closed: gray out the whole column, no slots, nothing clickable
+      if (d.closed) {
+        col.insertAdjacentHTML('beforeend',
+          '<div style="position:absolute;inset:0;z-index:5;pointer-events:none;display:flex;justify-content:center;padding-top:28px;background:repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6 10px,#e5e7eb 10px,#e5e7eb 20px);">' +
+          '<span style="height:fit-content;background:#fff;border:1px solid #d1d5db;color:#6b7280;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:6px 12px;border-radius:6px;">Closed – Sunday</span></div>');
+        grid.appendChild(col);
+        return;
+      }
 
       var events = state.reservations
         .filter(function (b) { return String(b.roomId) === String(r.id) && b.date === d.dateStr; })
@@ -615,11 +630,13 @@ window.supabaseClient = client;
       : (state.selectedRoom && state.selectedRoom.active ? state.selectedRoom : active[0]);
     roomSel.value = String(room.id);
 
-    var days = getTodayAndTomorrowDates();
+    // Only open days (Mon-Sat) can be picked: on Saturday that is today only,
+    // on Sunday it is tomorrow (Monday) only.
+    var bookable = getTodayAndTomorrowDates().filter(function (d) { return !d.closed; });
     var dateInput = $('admResDate');
-    dateInput.min = days[0].dateStr;
-    dateInput.max = days[1].dateStr;
-    dateInput.value = opts.date || days[0].dateStr;
+    dateInput.min = bookable[0].dateStr;
+    dateInput.max = bookable[bookable.length - 1].dateStr;
+    dateInput.value = (opts.date && !isSundayDate(opts.date)) ? opts.date : bookable[0].dateStr;
 
     var startSel = $('admResStart'), endSel = $('admResEnd');
     startSel.value = (opts.start && Array.prototype.some.call(startSel.options, function (o) { return o.value === opts.start; })) ? opts.start : '08:00 AM';
@@ -663,6 +680,7 @@ window.supabaseClient = client;
     if (!room || !room.active) { type = 'bad'; msg = 'Please choose an active room.'; valid = false; }
     else if (!dateVal) { type = 'bad'; msg = 'Reservation date is required.'; valid = false; }
     else if (dateVal < days[0].dateStr) { type = 'bad'; msg = 'You cannot reserve a past date.'; valid = false; }
+    else if (isSundayDate(dateVal)) { type = 'bad'; msg = 'Sunday is closed. Reservations are only allowed from Monday to Saturday.'; valid = false; }
     else if (dateVal > days[1].dateStr) { type = 'bad'; msg = 'Reservations are only allowed for today and tomorrow.'; valid = false; }
     else if (dateVal === days[0].dateStr && sMin < cur) { type = 'bad'; msg = 'The selected start time has already passed for today.'; valid = false; }
     else if (eMin <= sMin) { type = 'bad'; msg = 'End time must be later than start time.'; valid = false; }
