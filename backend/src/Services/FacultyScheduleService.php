@@ -26,6 +26,8 @@ class FacultyScheduleService
      */
     public function getSchedule(AuthenticatedUser $user): array
     {
+        $this->expireStalePending($user);
+
         return $this->run($user, function (PDO $pdo) use ($user) {
             $access = $this->repository->findUserAccess($pdo, $user->getId());
 
@@ -40,6 +42,21 @@ class FacultyScheduleService
                 'reservations' => $this->repository->findTaggedReservations($pdo),
             ];
         });
+    }
+
+    /**
+     * Cancels pending requests that are within 1 hour of their start time.
+     * Runs in its own transaction and never blocks the real request.
+     */
+    private function expireStalePending(AuthenticatedUser $user): void
+    {
+        try {
+            Database::runInUserContext($user, function (PDO $pdo) {
+                $this->repository->expireStalePending($pdo);
+            });
+        } catch (Throwable $e) {
+            error_log('Auto-cancel check failed: ' . $e->getMessage());
+        }
     }
 
     // ------------------------------------------------------------------

@@ -34,6 +34,11 @@
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+  // A new request must start at least this many minutes from now, so the admin
+  // has time to decide before the 1-hour auto-cancel cutoff. Keep in sync with
+  // MIN_LEAD_MINUTES in ReservationService.php.
+  const MIN_LEAD_MINUTES = 120;
+
   function goToLogin() {
     window.location.replace('login.html');
   }
@@ -918,17 +923,18 @@
   function renderAvailableSlot(container, startMin, endMin, dateStr) {
     const todayStr = getTodayString();
     const now = new Date();
-    const currentMins = now.getHours() * 60 + now.getMinutes();
+    // Earliest bookable minute today = now + the minimum lead time
+    const earliestMins = now.getHours() * 60 + now.getMinutes() + MIN_LEAD_MINUTES;
 
-    // Do not show slots that are completely in the past for today
-    if (dateStr === todayStr && endMin <= currentMins) {
+    // Do not show slots that end before the earliest bookable time today
+    if (dateStr === todayStr && endMin <= earliestMins) {
       return;
     }
 
-    // Clip slot start to the next 30-minute mark if it starts in the past today
+    // Clip slot start to the next 30-minute mark after the earliest bookable time
     let effectiveStartMin = startMin;
-    if (dateStr === todayStr && startMin < currentMins) {
-      effectiveStartMin = Math.ceil(currentMins / 30) * 30;
+    if (dateStr === todayStr && startMin < earliestMins) {
+      effectiveStartMin = Math.ceil(earliestMins / 30) * 30;
     }
 
     if (endMin - effectiveStartMin < 30) return;
@@ -1125,9 +1131,11 @@
       type = 'bad';
       msg = 'Reservations are only allowed for today and tomorrow.';
       isValid = false;
-    } else if (dateVal === todayStr && sMins < currentMins) {
+    } else if (dateVal === todayStr && sMins < currentMins + MIN_LEAD_MINUTES) {
+      const earliestSlot = Math.ceil((currentMins + MIN_LEAD_MINUTES) / 30) * 30;
       type = 'bad';
-      msg = 'Invalid Time: Selected start time has already passed for today.';
+      msg = `Invalid Time: Requests must start at least ${MIN_LEAD_MINUTES / 60} hours from now so the admin has time to review.`
+        + (earliestSlot < 21 * 60 ? ` Earliest start today: ${minutesToTime(earliestSlot)}.` : ' No more slots are available today.');
       isValid = false;
     } else if (eMins <= sMins) {
       type = 'bad';

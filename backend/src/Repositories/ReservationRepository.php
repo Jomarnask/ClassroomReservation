@@ -169,6 +169,15 @@ class ReservationRepository
         return json_decode((string) $stmt->fetchColumn(), true) ?: [];
     }
 
+    /**
+     * Calls public.expire_stale_pending_reservations(): cancels pending
+     * requests that reached 1 hour before their start time. Returns how many.
+     */
+    public function expireStalePending(PDO $pdo): int
+    {
+        return (int) $pdo->query('SELECT public.expire_stale_pending_reservations()')->fetchColumn();
+    }
+
     // ------------------------------------------------------------------
     // Lookups used by the booking rules
     // ------------------------------------------------------------------

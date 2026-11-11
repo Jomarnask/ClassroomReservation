@@ -10,6 +10,12 @@ use PDO;
  */
 class FacultyScheduleRepository
 {
+    /** Cancels pending requests that reached 1 hour before their start time. */
+    public function expireStalePending(PDO $pdo): int
+    {
+        return (int) $pdo->query('SELECT public.expire_stale_pending_reservations()')->fetchColumn();
+    }
+
     public function findUserAccess(PDO $pdo, string $userId): ?array
     {
         $stmt = $pdo->prepare("
