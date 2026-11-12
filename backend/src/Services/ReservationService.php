@@ -17,11 +17,6 @@ class ReservationService
     private const OPEN_MINUTES = 7 * 60;
     private const CLOSE_MINUTES = 21 * 60;
 
-    // A new request must start at least this many minutes from now, so the
-    // admin always has time to decide before the 1-hour auto-cancel cutoff
-    // (see public.expire_stale_pending_reservations()).
-    private const MIN_LEAD_MINUTES = 120;
-
     private const MAX_RANGE_DAYS = 92;
 
     private ReservationRepository $repository;
@@ -41,8 +36,6 @@ class ReservationService
      */
     public function list(AuthenticatedUser $user, array $filters = []): array
     {
-        $this->expireStalePending($user);
-
         return $this->run($user, function (PDO $pdo) use ($user, $filters) {
             $this->assertActiveAccount($pdo, $user);
 
@@ -57,8 +50,6 @@ class ReservationService
 
     public function get(AuthenticatedUser $user, int $reservationId): array
     {
-        $this->expireStalePending($user);
-
         return $this->run($user, function (PDO $pdo) use ($user, $reservationId) {
             $this->assertActiveAccount($pdo, $user);
 
@@ -77,8 +68,6 @@ class ReservationService
     {
         [$from, $to] = $this->validateRange($from, $to);
 
-        $this->expireStalePending($user);
-
         return $this->run($user, function (PDO $pdo) use ($user, $roomId, $from, $to) {
             $this->assertActiveAccount($pdo, $user);
 
@@ -93,8 +82,6 @@ class ReservationService
     public function create(AuthenticatedUser $user, array $input): array
     {
         $data = $this->validateCreate($input);
-
-        $this->expireStalePending($user);
 
         return $this->run($user, function (PDO $pdo) use ($user, $data) {
             $access = $this->repository->findUserAccess($pdo, $user->getId());
@@ -121,20 +108,57 @@ class ReservationService
 
             $this->assertNoConflicts($pdo, $user, $data);
 
-            $data['student_id'] = $user->getId();
+            // The database function blocks slots that belong to another class and
+            // auto-approves slots that belong to the student's own class.
+            $outcome = $this->repository->createStudentReservation($pdo, $data);
 
-            $newId = $this->repository->insert($pdo, $data);
-
-            return $this->repository->findById($pdo, $newId);
+            return $this->repository->findById($pdo, (int) $outcome['reservation_id']);
         });
+    }
+
+    /**
+     * What the booking timetable may offer today and tomorrow.
+     * Sunday is never bookable: on Saturday tomorrow (Sunday) is disabled,
+     * on Sunday today is disabled and bookings start from Monday.
+     */
+    public function bookingWindow(?DateTimeImmutable $now = null): array
+    {
+        $now = $now ?? new DateTimeImmutable('now');
+        $today = $now->setTime(0, 0);
+
+        $days = [];
+
+        foreach ([0 => 'Today', 1 => 'Tomorrow'] as $offset => $label) {
+            $date = $today->modify('+' . $offset . ' day');
+            $isSunday = (int) $date->format('N') === 7;
+
+            $days[] = [
+                'date' => $date->format('Y-m-d'),
+                'day_name' => $date->format('l'),
+                'label' => $label,
+                'bookable' => !$isSunday,
+                'reason' => $isSunday ? 'Sunday is closed. Reservations are Monday to Saturday only.' : null,
+            ];
+        }
+
+        $first = $today;
+
+        while ((int) $first->format('N') === 7) {
+            $first = $first->modify('+1 day');
+        }
+
+        return [
+            'today' => $today->format('Y-m-d'),
+            'first_bookable_date' => $first->format('Y-m-d'),
+            'operating_days' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+            'days' => $days,
+        ];
     }
 
     /** Admin approves or rejects a pending reservation. */
     public function decide(AuthenticatedUser $user, int $reservationId, array $input): array
     {
         $decision = $this->validateDecision($input);
-
-        $this->expireStalePending($user);
 
         return $this->run($user, function (PDO $pdo) use ($user, $reservationId, $decision) {
             $access = $this->repository->findUserAccess($pdo, $user->getId());
@@ -143,18 +167,6 @@ class ReservationService
                 || $access['role'] !== 'admin'
                 || $access['account_status'] !== 'active') {
                 throw new ApiException('Administrator access required.', 403);
-            }
-
-            // Too late: the request was already auto-cancelled (1 hour before start).
-            $existing = $this->repository->findById($pdo, $reservationId);
-
-            if ($existing
-                && $existing['status'] === 'cancelled'
-                && str_starts_with((string) ($existing['admin_remarks'] ?? ''), 'Automatically cancelled')) {
-                throw new ApiException(
-                    'This request was automatically cancelled because no decision was made at least 1 hour before the start time.',
-                    409
-                );
             }
 
             $result = $this->repository->decide(
@@ -174,8 +186,6 @@ class ReservationService
     /** The owner (or an admin) cancels a pending or approved reservation. */
     public function cancel(AuthenticatedUser $user, int $reservationId): array
     {
-        $this->expireStalePending($user);
-
         return $this->run($user, function (PDO $pdo) use ($user, $reservationId) {
             $this->assertActiveAccount($pdo, $user);
 
@@ -191,23 +201,8 @@ class ReservationService
 
     private function assertNoConflicts(PDO $pdo, AuthenticatedUser $user, array $data): void
     {
-        $day = (new DateTimeImmutable($data['reservation_date']))->format('l');
-
-        $class = $this->repository->findScheduleConflict(
-            $pdo,
-            $data['room_id'],
-            $day,
-            $data['start_time'],
-            $data['end_time']
-        );
-
-        if ($class) {
-            throw new ApiException(
-                'Class schedule conflict: the room is used for "' . $class['subject_title'] . '" from '
-                . $this->shortTime($class['start_time']) . ' to ' . $this->shortTime($class['end_time']) . '.',
-                409
-            );
-        }
+        // Class-schedule rules (other class = blocked, own class = auto-approved)
+        // are applied by public.create_student_reservation() in the database.
 
         $approved = $this->repository->findApprovedOverlap(
             $pdo,
@@ -285,6 +280,11 @@ class ReservationService
         }
 
         $date = $this->parseDate($input['reservation_date'] ?? null, 'reservation_date');
+
+        if ((int) (new DateTimeImmutable($date))->format('N') === 7) {
+            throw new ApiException('Reservations are available Monday to Saturday only.', 422);
+        }
+
         $start = $this->parseTime($input['start_time'] ?? null, 'start_time');
         $end = $this->parseTime($input['end_time'] ?? null, 'end_time');
 
@@ -306,32 +306,8 @@ class ReservationService
             throw new ApiException('You cannot reserve a room for a past date.', 422);
         }
 
-        // Sunday is closed: reservations are Monday to Saturday only.
-        if ((int) (new DateTimeImmutable($date))->format('N') === 7) {
-            throw new ApiException('Sunday is closed. Reservations are only allowed from Monday to Saturday.', 422);
-        }
-
-        // Minimum lead time: the request must start at least MIN_LEAD_MINUTES
-        // from now (compared by the minute, in the app timezone).
-        $startAt = new DateTimeImmutable($date . ' ' . $start);
-        $earliest = $now
-            ->setTime((int) $now->format('G'), (int) $now->format('i'))
-            ->modify('+' . self::MIN_LEAD_MINUTES . ' minutes');
-
-        if ($startAt < $earliest) {
-            $message = 'Requests must start at least ' . (self::MIN_LEAD_MINUTES / 60)
-                . ' hours from now so the admin has time to review.';
-
-            if ($earliest->format('Y-m-d') === $date) {
-                $slot = (int) (ceil(((int) $earliest->format('G') * 60 + (int) $earliest->format('i')) / 30) * 30);
-
-                if ($slot < self::CLOSE_MINUTES) {
-                    $message .= ' The earliest start for that date is '
-                        . $earliest->setTime(intdiv($slot, 60), $slot % 60)->format('g:i A') . '.';
-                }
-            }
-
-            throw new ApiException($message, 422);
+        if ($date === $today && $startMinutes <= ((int) $now->format('G')) * 60 + (int) $now->format('i')) {
+            throw new ApiException('Start time must be later than the current time.', 422);
         }
 
         return [
@@ -433,21 +409,6 @@ class ReservationService
             '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
             $value
         );
-    }
-
-    /**
-     * Cancels pending requests that are within 1 hour of their start time.
-     * Runs in its own transaction and never blocks the real request.
-     */
-    private function expireStalePending(AuthenticatedUser $user): void
-    {
-        try {
-            Database::runInUserContext($user, function (PDO $pdo) {
-                $this->repository->expireStalePending($pdo);
-            });
-        } catch (Throwable $e) {
-            error_log('Auto-cancel check failed: ' . $e->getMessage());
-        }
     }
 
     // ------------------------------------------------------------------

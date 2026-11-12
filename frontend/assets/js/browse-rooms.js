@@ -1,11 +1,10 @@
 /**
  * PUP Canlalay Campus CRS - Browse Rooms & Today/Tomorrow Timetable Controller
  *
- * Connected to Supabase & PHP API:
- * - Rooms:            public.rooms (via api.rooms.list)
- * - Class Schedules:  public.room_schedules (via api.schedules.list)
- * - Reservations:     public.room_reservations (via api.reservations)
- * - Busy slots:       rpc get_taken_slots (times + status only, no names/subjects)
+ * Connected to Supabase (run supabase_reservations.sql first):
+ * - Rooms:            public.rooms
+ * - Reservations:     public.room_reservations (RLS)
+ * - Busy slots:       rpc get_taken_slots   (times + status only, no names/subjects)
  * - Faculty dropdown: rpc list_active_faculty
  * - Cancel:           rpc cancel_reservation (student, own, pending only)
  *
@@ -15,8 +14,7 @@
  *   but a student can still request it. The admin approves only one; the rest
  *   are auto-rejected by the database.
  * - APPROVED slots are red / occupied and cannot be requested.
- * - Regular class schedules (blue) come from room_schedules; students can
- *   click their own section's class slot for automatic approval.
+ * - Regular class schedules (blue) will come from room_schedules later.
  */
 
 (() => {
@@ -35,11 +33,6 @@
   };
 
   const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-  // A new request must start at least this many minutes from now, so the admin
-  // has time to decide before the 1-hour auto-cancel cutoff. Keep in sync with
-  // MIN_LEAD_MINUTES in ReservationService.php.
-  const MIN_LEAD_MINUTES = 120;
 
   function goToLogin() {
     window.location.replace('login.html');
@@ -142,11 +135,6 @@
     return `${y}-${m}-${d}`;
   }
 
-  // Sunday is closed: schedules and reservations are Monday to Saturday only.
-  function isSundayDate(dateStr) {
-    return new Date(dateStr + 'T00:00:00').getDay() === 0;
-  }
-
   function getTodayAndTomorrowDates() {
     const dates = [];
     const now = new Date();
@@ -162,7 +150,7 @@
       dates.push({
         dateStr: `${y}-${m}-${day}`,
         dayName: dayName,
-        closed: dayIndex === 0, // Sunday: no schedules or reservations (Mon-Sat only)
+        closed: dayName === 'Sunday',   // no classes or reservations on Sunday
         labelPrefix: labelPrefix,
         shortDate: `${labelPrefix} • ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
       });
@@ -179,7 +167,7 @@
     rooms: [],
     byId: {},
     selectedRoom: null,
-    classSchedules: [],         // BLUE cards from room_schedules
+    classSchedules: [],         // BLUE cards: will come from room_schedules later
     reservations: [],           // reservations of the selected room (today & tomorrow)
     facultyMap: {},             // faculty user_id -> full name
     submitting: false,
@@ -414,9 +402,12 @@
     }
   }
 
-  // ── Recurring weekly classes of the room (BLUE cards) ───────────────────
-  // The API already limits faculty to the classes tagged to their own account
-  // and flags is_my_class for students belonging to the scheduled section.
+  // ── Load reservations for the selected room (today & tomorrow) ───────────
+  // Two sources:
+  //  1. room_reservations (RLS): full details of MY requests (admin: all; faculty: tagged)
+  //  2. get_taken_slots: other students' busy slots, TIMES + STATUS only
+  // Recurring weekly classes of the room (BLUE cards). The API already limits
+  // faculty to the classes tagged to their own account.
   async function loadClassSchedules(room) {
     try {
       const rows = await api.schedules.list({ room_id: room.id });
@@ -443,10 +434,6 @@
     }
   }
 
-  // ── Load reservations for the selected room (today & tomorrow) ───────────
-  // Two sources:
-  //  1. room_reservations (RLS): full details of MY requests (admin: all; faculty: tagged)
-  //  2. get_taken_slots: other students' busy slots, TIMES + STATUS only
   async function loadReservationsForRoom(room) {
     await loadClassSchedules(room);
 
@@ -713,7 +700,10 @@
     return card;
   }
 
-  // Prevents green/yellow scroll flickering by treating active items as blocking
+  // A reservation counts as BLOCKING (no green slot, cannot be requested) when:
+  // it is APPROVED, or it is MY OWN pending request. Other students' pending
+  // requests do NOT block: they show as yellow but the slot can still be requested.
+  // ── AFTER (Fixes green/yellow scroll flickering) ─────────────────────────
   function isBlocking(item) {
     if (item.isClassSchedule) return true;
     if (item.status === 'approved' || item.status === 'pending') return true;
@@ -729,7 +719,7 @@
 
     if (item.detail) {
       title = item.subject || 'Room Reservation';
-      meta = `
+            meta = `
         <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
         <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.mine ? 'You' : item.requester)}</div>
         ${item.requesterSection ? `<div class="text-gray-500">Year &amp; Section: ${esc(item.requesterSection)}</div>` : ''}`;
@@ -776,7 +766,7 @@
       if (canRequestThisSlot) {
         // yellow slot of another student: still requestable
         openReservationModal(item.start, item.end, item.date);
-      } else if (item.detail) {
+            } else if (item.detail) {
         const who = item.requesterSection ? ` • ${item.requester} (${item.requesterSection})` : '';
         showToast(`${item.subject} (${item.start} – ${item.end}) • ${badge}${who}`);
       } else {
@@ -836,9 +826,9 @@
     const headersContainer = document.getElementById('timetableDaysHeader');
     if (headersContainer) {
       headersContainer.innerHTML = activeDays.map((wd, idx) => `
-        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} ${wd.closed ? 'bg-gray-100' : 'bg-red-50/50'}">
-          <div class="font-extrabold text-xs uppercase tracking-wider ${wd.closed ? 'text-gray-400' : 'text-[#880000]'}">${wd.labelPrefix} (${wd.dayName})${wd.closed ? ' • Closed' : ''}</div>
-          <div class="text-[11px] ${wd.closed ? 'text-gray-400' : 'text-gray-600'} font-bold mt-0.5">${wd.shortDate.split('• ')[1]}</div>
+        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} ${wd.closed ? 'bg-gray-100 opacity-60' : 'bg-red-50/50'}">
+          <div class="font-extrabold text-xs uppercase tracking-wider ${wd.closed ? 'text-gray-500' : 'text-[#880000]'}">${wd.labelPrefix} (${wd.dayName})</div>
+          <div class="text-[11px] text-gray-600 font-bold mt-0.5">${wd.shortDate.split('• ')[1]}${wd.closed ? ' • Closed' : ''}</div>
         </div>
       `).join('');
     }
@@ -871,18 +861,17 @@
       }
       colEl.innerHTML = linesHtml;
 
-      // Sunday is closed: gray out the whole column with banner, no slots, nothing clickable
+      // Sunday: disabled and grayed out (no schedules, no reservations)
       if (wd.closed) {
-        colEl.classList.add('closed-day');
-        colEl.insertAdjacentHTML('beforeend', `
-          <div style="position:absolute;inset:0;z-index:5;pointer-events:none;display:flex;justify-content:center;padding-top:28px;background:repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6 10px,#e5e7eb 10px,#e5e7eb 20px);">
-            <span style="height:fit-content;background:#fff;border:1px solid #d1d5db;color:#6b7280;font-weight:800;font-size:11px;letter-spacing:.05em;text-transform:uppercase;padding:6px 12px;border-radius:6px;">Closed – Sunday</span>
-          </div>`);
+        colEl.style.background = '#f3f4f6';
+        colEl.style.opacity = '0.6';
+        colEl.style.cursor = 'not-allowed';
+        colEl.title = 'Closed on Sundays. Reservations are Monday to Saturday only.';
         gridBody.appendChild(colEl);
         return;
       }
 
-      // 1. Regular class schedules (BLUE) from room_schedules
+      // 1. Regular class schedules (BLUE) from the Schedule Manager
       const dayClasses = state.classSchedules.filter(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === wd.dayName.toLowerCase();
@@ -901,7 +890,9 @@
         return aStart - bStart;
       });
 
-      // Green "available" gaps are computed from BLOCKING items
+      // Green "available" gaps are computed from BLOCKING items only
+      // (class, approved, my own pending). Other students' pending requests
+      // do not block, so they are drawn on top of the green slot.
       if (r.active) {
         const blockers = allEvents.filter(isBlocking);
         let currentPointer = startBoundary;
@@ -933,7 +924,7 @@
         let card;
 
         if (item.isClassSchedule) {
-          // BLUE: regular class from room_schedules
+          // BLUE: regular class (will be filled from room_schedules later)
           card = cardFrame('class-schedule', top, height);
           card.innerHTML = `
             <div class="card-top-bar"></div>
@@ -969,22 +960,21 @@
     });
   }
 
-  // ── Render Green Available Slot Block (enforces MIN_LEAD_MINUTES today) ──
+  // ── Render Green Available Slot Block (hides past hours today) ───────────
   function renderAvailableSlot(container, startMin, endMin, dateStr) {
     const todayStr = getTodayString();
     const now = new Date();
-    // Earliest bookable minute today = now + the minimum lead time
-    const earliestMins = now.getHours() * 60 + now.getMinutes() + MIN_LEAD_MINUTES;
+    const currentMins = now.getHours() * 60 + now.getMinutes();
 
-    // Do not show slots that end before the earliest bookable time today
-    if (dateStr === todayStr && endMin <= earliestMins) {
+    // Do not show slots that are completely in the past for today
+    if (dateStr === todayStr && endMin <= currentMins) {
       return;
     }
 
-    // Clip slot start to the next 30-minute mark after the earliest bookable time
+    // Clip slot start to the next 30-minute mark if it starts in the past today
     let effectiveStartMin = startMin;
-    if (dateStr === todayStr && startMin < earliestMins) {
-      effectiveStartMin = Math.ceil(earliestMins / 30) * 30;
+    if (dateStr === todayStr && startMin < currentMins) {
+      effectiveStartMin = Math.ceil(currentMins / 30) * 30;
     }
 
     if (endMin - effectiveStartMin < 30) return;
@@ -1084,14 +1074,13 @@
     const roomFloorEl = document.getElementById('modalRoomFloor');
     if (roomFloorEl) roomFloorEl.textContent = `${floorMeta(r.floor).name} • ${roomTypeLabel(r.roomType)}`;
 
-    // Only open days (Mon-Sat) can be picked: on Saturday that is today only,
-    // on Sunday it is tomorrow (Monday) only.
-    const bookable = getTodayAndTomorrowDates().filter(d => !d.closed);
+    const dates = getTodayAndTomorrowDates();
     const dateInput = document.getElementById('resDate');
-    if (dateInput && bookable.length) {
-      dateInput.min = bookable[0].dateStr;
-      dateInput.max = bookable[bookable.length - 1].dateStr;
-      dateInput.value = (preferredDate && !isSundayDate(preferredDate)) ? preferredDate : bookable[0].dateStr;
+    if (dateInput) {
+      dateInput.min = dates[0].dateStr; // Today
+      dateInput.max = dates[1].dateStr; // Tomorrow
+      const firstOpen = dates.find(d => !d.closed);
+      dateInput.value = preferredDate || (firstOpen ? firstOpen.dateStr : dates[0].dateStr);
     }
 
     const startSel = document.getElementById('resStart');
@@ -1179,19 +1168,17 @@
       type = 'bad';
       msg = 'Invalid Date: You cannot reserve room slots for past dates.';
       isValid = false;
-    } else if (isSundayDate(dateVal)) {
-      type = 'bad';
-      msg = 'Sunday is closed. Reservations are only allowed from Monday to Saturday.';
-      isValid = false;
     } else if (dateVal > tomorrowStr) {
       type = 'bad';
       msg = 'Reservations are only allowed for today and tomorrow.';
       isValid = false;
-    } else if (dateVal === todayStr && sMins < currentMins + MIN_LEAD_MINUTES) {
-      const earliestSlot = Math.ceil((currentMins + MIN_LEAD_MINUTES) / 30) * 30;
+    } else if (new Date(dateVal + 'T00:00:00').getDay() === 0) {
       type = 'bad';
-      msg = `Invalid Time: Requests must start at least ${MIN_LEAD_MINUTES / 60} hours from now so the admin has time to review.`
-        + (earliestSlot < 21 * 60 ? ` Earliest start today: ${minutesToTime(earliestSlot)}.` : ' No more slots are available today.');
+      msg = 'Sunday is closed. Reservations are available Monday to Saturday only.';
+      isValid = false;
+    } else if (dateVal === todayStr && sMins < currentMins) {
+      type = 'bad';
+      msg = 'Invalid Time: Selected start time has already passed for today.';
       isValid = false;
     } else if (eMins <= sMins) {
       type = 'bad';
@@ -1202,8 +1189,8 @@
       const dayIndex = dObj.getDay();
       const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
 
-      // 1. Regular class (BLUE) from room_schedules
-      const overlappingClasses = state.classSchedules.filter(c => {
+      // 1. Regular class (BLUE) - empty until room_schedules exists
+      const classConflict = state.classSchedules.find(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
         if (!matchRoom || !matchDay) return false;
@@ -1211,9 +1198,6 @@
         const cEnd = c.endMinutes ?? timeToMinutes(c.end);
         return cStart < eMins && cEnd > sMins;
       });
-
-      const otherClass = overlappingClasses.find(c => !c.isMyClass);
-      const myClass = overlappingClasses.find(c => c.isMyClass);
 
       // 2. Reservations of this room on that date that overlap the chosen time
       const overlapping = state.reservations.filter(b =>
@@ -1227,10 +1211,40 @@
       const myPending = overlapping.find(b => b.status === 'pending' && b.mine);
       const othersPending = overlapping.filter(b => b.status === 'pending' && !b.mine);
 
+      // Every class overlapping the chosen time must be the student's own class
+      const otherClass = state.classSchedules.find(c => {
+        const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
+        const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
+        if (!matchRoom || !matchDay) return false;
+        const cStart = c.startMinutes ?? timeToMinutes(c.start);
+        const cEnd = c.endMinutes ?? timeToMinutes(c.end);
+        return cStart < eMins && cEnd > sMins && !c.isMyClass;
+      });
+
       if (otherClass) {
         type = 'bad';
         msg = `Class Schedule Conflict: this slot belongs to ${otherClass.section || 'another class'} ("${otherClass.subject}", ${otherClass.start} – ${otherClass.end}). Only that class can reserve it.`;
         isValid = false;
+      } else if (classConflict && !approved && !myPending) {
+        // Own class: approved automatically only when the whole time is inside the class time
+        const ownBlocks = state.classSchedules
+          .filter(c => {
+            const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
+            const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
+            return matchRoom && matchDay && c.isMyClass;
+          })
+          .map(c => ({ s: c.startMinutes ?? timeToMinutes(c.start), e: c.endMinutes ?? timeToMinutes(c.end) }))
+          .sort((a, b) => a.s - b.s);
+
+        let coveredUntil = sMins;
+        ownBlocks.forEach(b => { if (b.s <= coveredUntil) coveredUntil = Math.max(coveredUntil, b.e); });
+
+        if (coveredUntil >= eMins) {
+          msg = `This time is inside your class schedule ("${classConflict.subject}"). Your reservation will be approved automatically, no Admin approval needed.`;
+        } else {
+          type = 'warn';
+          msg = 'Part of this time is outside your class schedule, so the Admin must approve it. Choose a time inside your class to be approved automatically.';
+        }
       } else if (approved) {
         type = 'bad';
         msg = `This time overlaps an approved reservation (${approved.start} – ${approved.end}).`;
@@ -1239,8 +1253,6 @@
         type = 'bad';
         msg = `You already have a pending request for this time (${myPending.start} – ${myPending.end}).`;
         isValid = false;
-      } else if (myClass) {
-        msg = `This slot is your class schedule ("${myClass.subject}"). Your reservation will be approved automatically.`;
       } else if (othersPending.length > 0) {
         type = 'warn';
         msg = 'Other students already have pending requests for this time. You can still request it, but the Admin approves only one request.';
@@ -1259,7 +1271,7 @@
     return isValid;
   }
 
-  // ── Submit: create the reservation through the PHP API ──────────────────
+  // ── Submit: create the reservation through the PHP API (status starts as 'pending') ──
   async function handleReservationSubmit(e) {
     e.preventDefault();
     if (state.submitting) return;

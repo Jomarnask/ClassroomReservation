@@ -169,15 +169,6 @@ class ReservationRepository
         return json_decode((string) $stmt->fetchColumn(), true) ?: [];
     }
 
-    /**
-     * Calls public.expire_stale_pending_reservations(): cancels pending
-     * requests that reached 1 hour before their start time. Returns how many.
-     */
-    public function expireStalePending(PDO $pdo): int
-    {
-        return (int) $pdo->query('SELECT public.expire_stale_pending_reservations()')->fetchColumn();
-    }
-
     // ------------------------------------------------------------------
     // Lookups used by the booking rules
     // ------------------------------------------------------------------
@@ -225,30 +216,37 @@ class ReservationRepository
         return (bool) $stmt->fetchColumn();
     }
 
-    /** A weekly class schedule that overlaps the requested time, if any. */
-    public function findScheduleConflict(PDO $pdo, int $roomId, string $dayName, string $start, string $end): ?array
+    /**
+     * Calls public.create_student_reservation(), which applies the class rules:
+     *  - slot owned by another program / year level / section -> exception
+     *  - slot owned by the student's own class                -> inserted as 'approved'
+     *  - free slot                                            -> inserted as 'pending'
+     *
+     * @return array{reservation_id:int,status:string,auto_approved:bool,auto_rejected_competing_count:int}
+     */
+    public function createStudentReservation(PDO $pdo, array $data): array
     {
         $stmt = $pdo->prepare("
-            SELECT subject_title, start_time, end_time
-            FROM public.room_schedules
-            WHERE room_id = :room_id
-              AND LOWER(day_of_week) = LOWER(:day_name)
-              AND is_active = TRUE
-              AND start_time < CAST(:end_time AS time)
-              AND end_time > CAST(:start_time AS time)
-            ORDER BY start_time ASC
-            LIMIT 1
+            SELECT public.create_student_reservation(
+                :room_id,
+                CAST(:faculty_id AS uuid),
+                CAST(:subject AS varchar),
+                CAST(:reservation_date AS date),
+                CAST(:start_time AS time),
+                CAST(:end_time AS time)
+            ) AS result
         ");
+
         $stmt->execute([
-            'room_id' => $roomId,
-            'day_name' => $dayName,
-            'start_time' => $start,
-            'end_time' => $end,
+            'room_id' => $data['room_id'],
+            'faculty_id' => $data['faculty_id'],
+            'subject' => $data['subject'],
+            'reservation_date' => $data['reservation_date'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
         ]);
 
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        return $row ?: null;
+        return json_decode((string) $stmt->fetchColumn(), true) ?: [];
     }
 
     /**

@@ -101,11 +101,23 @@ class ReservationController
 
         $reservation = $this->service->create($user, $request->getBody());
 
+        $autoApproved = ($reservation['status'] ?? '') === 'approved';
+
         Response::success(
             $reservation,
-            'Reservation request submitted. It is now pending until the Admin decides.',
+            $autoApproved
+                ? 'Reservation approved automatically because the slot belongs to your class schedule.'
+                : 'Reservation request submitted. It is now pending until the Admin decides.',
             201
         );
+    }
+
+    /** GET /api/booking-window - which of today / tomorrow can be booked (Mon-Sat only) */
+    public function bookingWindow(Request $request): void
+    {
+        $this->user($request);
+
+        Response::success($this->service->bookingWindow(), 'Booking window retrieved successfully.');
     }
 
     /** PATCH /api/reservations/{reservationId}/decision  body: { "approve": true, "reason": "..." } */
