@@ -1,0 +1,64 @@
+@base = http://localhost:8000
+@token = eyJhbGciOiJFUzI1NiIsImtpZCI6IjY5YjdjN2FjLTk5MmEtNDFkZC04MWJmLTNmNTRjNTE0OWMwNiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3hwZ3J4Y3VvY2Jwc2Zjd3pxcHhmLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiIzZWZhZWQyMi1hMDk2LTQ3NmMtOTZhOS1mYmM3ZmQ4YTU1NDkiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzk0MzYyMjQ1LCJpYXQiOjE3OTQzNTg2NDUsImVtYWlsIjoiYWRtaW5AcHVwLmVkdS5waCIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWxfdmVyaWZpZWQiOnRydWV9LCJyb2xlIjoiYXV0aGVudGljYXRlZCIsImFhbCI6ImFhbDEiLCJhbXIiOlt7Im1ldGhvZCI6InBhc3N3b3JkIiwidGltZXN0YW1wIjoxNzk0MzU4NjQ1fV0sInNlc3Npb25faWQiOiJjMjhkOWY0NS00OWYzLTQzNzQtOGIyNC04OTFhZjNlODEzY2YiLCJpc19hbm9ueW1vdXMiOmZhbHNlfQ.P1FD1U3kkXHdD8EghaWLYnXpDoWuNfsUBgs68wnj_fui81sXpPATE32JCcxu3Rsqp_F-G4RQl7LNpNOAhQYMPw
+
+### List schedules of one room (admin/student: all, faculty: only their own classes)
+GET {{base}}/api/schedules?room_id=1
+Authorization: Bearer {{token}}
+
+### Filter by day / class
+GET {{base}}/api/schedules?day=Tuesday&program_course=BSIT&year_level=2&section=2
+Authorization: Bearer {{token}}
+
+### One schedule
+GET {{base}}/api/schedules/1
+Authorization: Bearer {{token}}
+
+### Create a recurring class (admin token). day_of_week is Monday-Saturday.
+POST {{base}}/api/schedules
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "room_id": 4,
+  "day_of_week": "Tuesday",
+  "start_time": "08:00",
+  "end_time": "13:00",
+  "subject_code": "ITEC 105",
+  "subject_title": "Information Management",
+  "program_course": "BSIT",
+  "year_level": 2,
+  "section": 2,
+  "faculty_id": "PASTE_FACULTY_USER_ID"
+}
+
+### Edit (admin token) - only the fields you send change
+PATCH {{base}}/api/schedules/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "start_time": "09:00",
+  "end_time": "12:00"
+}
+
+### Delete (admin token) - the class stops repeating every week
+DELETE {{base}}/api/schedules/1
+Authorization: Bearer {{token}}
+
+### Booking window: Sunday is closed (Saturday -> tomorrow disabled, Sunday -> today disabled)
+GET {{base}}/api/booking-window
+Authorization: Bearer {{token}}
+
+### Student reservation on a Sunday -> 422
+POST {{base}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "room_id": 4,
+  "faculty_id": "PASTE_FACULTY_USER_ID",
+  "subject": "Review session",
+  "reservation_date": "2026-11-15",
+  "start_time": "13:00",
+  "end_time": "15:00"
+}

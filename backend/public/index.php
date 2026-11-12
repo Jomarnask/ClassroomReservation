@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
 use App\Controllers\FacultyScheduleController;
+use App\Controllers\ScheduleController;
 use App\Controllers\HealthController;
 use App\Controllers\UserController;
 use App\Controllers\ReservationController;
@@ -54,6 +55,8 @@ $router->patch('/api/reservations/{reservationId}/decision', [ReservationControl
 
 $router->patch('/api/reservations/{reservationId}/cancel', [ReservationController::class, 'cancel'], [$authMiddleware]);
 
+$router->get('/api/booking-window', [ReservationController::class, 'bookingWindow'], [$authMiddleware]);
+
 // 6. User management API - admin only (Protected)
 $router->get('/api/users', [UserManagementController::class, 'index'], [$authMiddleware]);
 
@@ -61,6 +64,18 @@ $router->patch('/api/users/{userId}/status', [UserManagementController::class, '
 
 // 7. Faculty schedule API - active faculty only (Protected)
 $router->get('/api/faculty/schedule', [FacultyScheduleController::class, 'index'], [$authMiddleware]);
+
+// 8. Schedule Manager API - master timetable (Protected)
+//    Read: admin (all), student (all), faculty (own classes only). Write: admin only.
+$router->get('/api/schedules', [ScheduleController::class, 'index'], [$authMiddleware]);
+
+$router->post('/api/schedules', [ScheduleController::class, 'store'], [$authMiddleware]);
+
+$router->get('/api/schedules/{scheduleId}', [ScheduleController::class, 'show'], [$authMiddleware]);
+
+$router->patch('/api/schedules/{scheduleId}', [ScheduleController::class, 'update'], [$authMiddleware]);
+
+$router->delete('/api/schedules/{scheduleId}', [ScheduleController::class, 'destroy'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request
