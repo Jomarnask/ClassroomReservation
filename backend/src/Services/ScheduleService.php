@@ -89,12 +89,14 @@ class ScheduleService
 
     public function create(AuthenticatedUser $user, array $input): array
     {
+        $confirmed = $this->takeOverlapConfirmation($input);
         $data = $this->validate($input, null);
 
-        return $this->run($user, function (PDO $pdo) use ($user, $data) {
+        return $this->run($user, function (PDO $pdo) use ($user, $data, $confirmed) {
             $this->assertAdmin($pdo, $user);
             $this->assertReferences($pdo, $data);
             $this->assertNoOverlap($pdo, $data, null);
+            $this->assertReservationOverlapConfirmed($pdo, $data, $confirmed);
 
             $data['created_by'] = $user->getId();
 
@@ -107,7 +109,8 @@ class ScheduleService
     /** PATCH: only the fields that were sent change. */
     public function update(AuthenticatedUser $user, int $scheduleId, array $input): array
     {
-        return $this->run($user, function (PDO $pdo) use ($user, $scheduleId, $input) {
+        $confirmed = $this->takeOverlapConfirmation($input);
+        return $this->run($user, function (PDO $pdo) use ($user, $scheduleId, $input, $confirmed) {
             $this->assertAdmin($pdo, $user);
 
             $current = $this->repository->findById($pdo, $scheduleId);
@@ -120,6 +123,13 @@ class ScheduleService
 
             $this->assertReferences($pdo, $data);
             $this->assertNoOverlap($pdo, $data, $scheduleId);
+            // Only ask again when the room, day or time actually changed
+            $sameSlot = $data['room_id'] === (int) $current['room_id']
+                && strcasecmp($data['day_of_week'], (string) $current['day_of_week']) === 0
+                && $data['start_time'] === $current['start_time']
+                && $data['end_time'] === $current['end_time'];
+
+            $this->assertReservationOverlapConfirmed($pdo, $data, $confirmed || $sameSlot);
 
             if (!$this->repository->update($pdo, $scheduleId, $data)) {
                 throw new ApiException('Schedule not found.', 404);
@@ -199,6 +209,48 @@ class ScheduleService
             );
         }
     }
+
+    /** Pulls the admin's "yes, save it anyway" flag out of the request body. */
+private function takeOverlapConfirmation(array &$input): bool
+{
+    $confirmed = filter_var($input['confirm_reservation_overlap'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+    unset($input['confirm_reservation_overlap']);
+
+    return $confirmed;
+}
+
+/**
+ * An approved reservation already uses this room and time on some upcoming
+ * date. The admin may still schedule the class: the reservation stays as it
+ * is for that day. Without confirmation the save stops with a 409 that lists
+ * the reservations so the screen can ask.
+ */
+private function assertReservationOverlapConfirmed(PDO $pdo, array $data, bool $confirmed): void
+{
+    if ($confirmed) {
+        return;
+    }
+
+    $isoDay = (int) array_search($data['day_of_week'], self::DAYS, true) + 1;
+
+    $rows = $this->repository->findApprovedReservationOverlaps(
+        $pdo,
+        $data['room_id'],
+        $isoDay,
+        $data['start_time'],
+        $data['end_time'],
+        date('Y-m-d')
+    );
+
+    if (!empty($rows)) {
+        throw new ApiException(
+            'There is currently an approved reservation in this room at this time.',
+            409,
+            ['code' => 'RESERVATION_OVERLAP', 'reservations' => $rows]
+        );
+    }
+}
 
     private function matchesClass(array $schedule, array $student): bool
     {

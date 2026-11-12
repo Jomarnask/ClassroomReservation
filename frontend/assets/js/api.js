@@ -84,6 +84,24 @@
       // Faculty only. Returns { classes: [...], reservations: [...] }
       mine: function () { return request('/api/faculty/schedule'); },
     },
+    // Schedule Manager (master timetable of recurring weekly classes).
+    // Read: admin / student (all rooms), faculty (own classes only). Write: admin only.
+    schedules: {
+      // filters: { room_id, day, faculty_id, program_course, year_level, section }
+      list: function (filters) { return request('/api/schedules' + toQuery(filters)); },
+      get: function (id) { return request('/api/schedules/' + encodeURIComponent(id)); },
+      // data: { room_id, day_of_week (Monday-Saturday), start_time, end_time, subject_title,
+      //         subject_code?, program_course, year_level, section, faculty_id? }
+      create: function (data) { return request('/api/schedules', { method: 'POST', body: data }); },
+      update: function (id, data) {
+        return request('/api/schedules/' + encodeURIComponent(id), { method: 'PATCH', body: data });
+      },
+      remove: function (id) {
+        return request('/api/schedules/' + encodeURIComponent(id), { method: 'DELETE' });
+      },
+    },
+    // Which of today / tomorrow can be booked (Monday-Saturday only)
+    bookingWindow: function () { return request('/api/booking-window'); },
     reservations: {
       // filters: { status, room_id, date_from, date_to, mine: true, limit }
       list: function (filters) { return request('/api/reservations' + toQuery(filters)); },

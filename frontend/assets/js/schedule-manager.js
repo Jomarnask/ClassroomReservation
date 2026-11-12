@@ -1,123 +1,50 @@
 /**
  * PUP Canlalay Campus CRS - Academic Schedule Manager (Admin Only)
  *
- * Implements:
- * 1. Admin Auth Guard (restricts access to verified active Admin accounts).
- * 2. Visual Weekly Timetable per Room (Monday to Saturday, 7:00 AM to 9:00 PM):
- *    - Blue: Scheduled Class (Admin assigned, blocks student reservations).
- *    - Red: Approved / Occupied student reservations.
- *    - Yellow: Pending student reservation requests.
- *    - Green: Available slots (clickable to quickly schedule a class).
- * 3. Weekly Class Schedule CRUD:
- *    - Add, Edit, and Delete recurring classes (e.g. BSIT 2-2 in Room 202 every Tuesday 8am-1pm).
- *    - Conflict detection and validation against existing classes.
- * 4. Pending Student Reservation Approvals:
- *    - One-click Approve: turns Yellow request into Red (Occupied/Approved).
- *    - One-click Decline: removes pending request, returning the slot to Green (Available).
- * 5. Real-time multi-tab synchronization with browse-rooms.html via localStorage storage events.
+ * Every piece of data comes from the PHP API (window.api, see api.js):
+ *   - rooms ............ api.rooms.list()
+ *   - faculty .......... api.users.list({ role: 'faculty', status: 'active' })
+ *   - class schedules .. api.schedules.list / create / update / remove
+ *   - reservations ..... api.reservations.list / decide
+ *
+ * Timetable (Monday to Saturday, 7:00 AM to 9:00 PM):
+ *   Blue   = recurring weekly class (repeats every week until an admin deletes it)
+ *   Red    = approved reservation (a student's own-class booking is auto-approved)
+ *   Yellow = pending reservation waiting for the admin
+ *   Green  = available slot (click to schedule a class there)
+ *
+ * No localStorage and no demo data: nothing is shown that is not in the database.
  */
 
 (() => {
   'use strict';
 
-  // ── Supabase Client Resolution ──────────────────────────────────────────
-  // Use the shared client from config.js. If it is missing, build one from the
-  // SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY values in config.js. There is no
-  // hard-coded project: if neither exists, client stays null.
-  const client = (typeof window !== 'undefined' && window.supabaseClient)
-    ? window.supabaseClient
-    : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient
-        && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
-        : null);
+  const client = (typeof window !== 'undefined' && window.supabaseClient) ? window.supabaseClient : null;
 
-  // ── Constants & Helpers ─────────────────────────────────────────────────
-  const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  // ── Constants ───────────────────────────────────────────────────────────
+  const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; // Sunday is closed
   const START_MINUTES = 420; // 7:00 AM
-  const END_MINUTES = 1260;  // 9:00 PM (14 hours = 840 mins)
+  const END_MINUTES = 1260;  // 9:00 PM
 
-  const DEFAULT_ROOMS = [
-    // 1st Floor
-    { id: 101, number: '101', name: 'General Lecture Hall', floor: 1, roomType: 'lecture', active: true, capacity: 55, features: 'Air-conditioned, Projector, Whiteboard' },
-    { id: 102, number: '102', name: 'Lecture Room 102', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 103, number: '103', name: 'Lecture Room 103', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 104, number: '104', name: 'Lecture Room 104', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 105, number: '105', name: 'Lecture Room 105', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 106, number: '106', name: 'Lecture Room 106', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 107, number: '107', name: 'Lecture Room 107', floor: 1, roomType: 'lecture', active: true, capacity: 50, features: 'Projector, Whiteboard' },
-    { id: 113, number: '113', name: 'Lecture Room 113', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 114, number: '114', name: 'Lecture Room 114', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 115, number: '115', name: 'Lecture Room 115', floor: 1, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 117, number: '117', name: 'Lecture Room 117', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 121, number: '121', name: 'Lecture Room 121', floor: 1, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 198, number: 'Sports Dev Office', name: 'Sports Dev Office', floor: 1, roomType: 'office', active: true, capacity: 20, features: 'Athletics Equipment, Admin Desk' },
-    { id: 199, number: 'Prayers Room', name: 'Prayers Room', floor: 1, roomType: 'other', active: true, capacity: 25, features: 'Quiet Multi-Faith Prayer Area' },
-
-    // 2nd Floor
-    { id: 201, number: '201', name: 'Lecture Room 201', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 202, number: '202', name: 'Room 202 - Seminar Hall', floor: 2, roomType: 'lecture', active: true, capacity: 35, features: 'Round Table Setup, TV Display, WiFi' },
-    { id: 203, number: '203', name: 'Lecture Room 203', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 205, number: '205', name: 'Lecture Room 205', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 207, number: '207', name: 'Lecture Room 207', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 208, number: '208', name: 'Room 208 - Multimedia Room', floor: 2, roomType: 'laboratory', active: true, capacity: 50, features: 'Surround Audio, 4K Display, HDMI' },
-    { id: 209, number: '209', name: 'Lecture Room 209', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 211, number: '211', name: 'Lecture Room 211', floor: 2, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 221, number: '221', name: 'Lecture Room 221', floor: 2, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 299, number: 'Reading Room', name: 'Reading Room', floor: 2, roomType: 'other', active: true, capacity: 30, features: 'Study Carrels, Individual Lighting' },
-
-    // 3rd Floor
-    { id: 301, number: '301', name: 'Lab 301 - Advanced Networking Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 45, features: 'Cisco Racks, Dual Projectors, Linux Terminals' },
-    { id: 302, number: '302', name: 'Lecture Room 302', floor: 3, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 303, number: '303', name: 'Lab 303 - Hardware & IoT Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 30, features: 'Arduino Kits, Oscilloscopes, Soldering' },
-    { id: 304, number: '304', name: 'Lecture Room 304', floor: 3, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 305, number: '305', name: 'Lab 305 - Software Engineering Lab', floor: 3, roomType: 'laboratory', active: true, capacity: 40, features: 'Workstations, Gigabit LAN, Docker Hosts' },
-    { id: 306, number: '306', name: 'Lecture Room 306', floor: 3, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Air-conditioned' },
-    { id: 307, number: '307', name: 'Lecture Room 307', floor: 3, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 399, number: 'Library', name: 'Campus Library', floor: 3, roomType: 'other', active: true, capacity: 80, features: 'Reference Section, Digital Catalogs, Quiet Zone' },
-
-    // 4th Floor
-    { id: 401, number: '401', name: 'Lecture Room 401', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' },
-    { id: 402, number: '402', name: 'Room 402 - Lecture Hall', floor: 4, roomType: 'lecture', active: true, capacity: 60, features: 'Smart TV, Split AC, Whiteboard' },
-    { id: 403, number: '403', name: 'Lecture Room 403', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Ceiling Fans' },
-    { id: 404, number: '404', name: 'Room 404 - Research & Dev Room', floor: 4, roomType: 'laboratory', active: true, capacity: 20, features: 'Dual Monitor Stations, High-speed LAN' },
-    { id: 405, number: '405', name: 'Lecture Room 405', floor: 4, roomType: 'lecture', active: true, capacity: 40, features: 'Whiteboard, Ceiling Fans' },
-    { id: 406, number: '406', name: 'Lecture Room 406', floor: 4, roomType: 'lecture', active: true, capacity: 45, features: 'Whiteboard, Air-conditioned' }
+  // These MUST match the options students pick in signup.html, because a
+  // student is matched to a class by program + year level + section.
+  const PROGRAMS = [
+    'BS of Information Technology (BSIT)',
+    'BS of Computer Engineering (BSCpE)',
+    'BS of Industrial Engineering (BSIE)',
+    'Diploma in Information Technology (DIT)',
+    'Diploma in Computer Engineering Technology (DCpET)'
   ];
-
-  // Default initial class schedules (Blue)
-  const DEFAULT_CLASS_SCHEDULES = [
-    // Room 202 (The user's exact specification: BSIT 2-2 to Room 202 every Tuesday 8am-1pm)
-    { id: 'CLS-202-TUE', roomId: '202', section: 'BSIT 2-2', subject: 'Object-Oriented Programming', code: 'IT202', day: 'Tuesday', start: '08:00 AM', end: '01:00 PM', startMinutes: 480, endMinutes: 780, faculty: 'Engr. Roberto Cruz' },
-
-    // Lab 301
-    { id: 'CLS-301-TUE-1', roomId: '301', section: 'BSIT 3-1', subject: 'Multimedia', code: 'COMP 017', day: 'Tuesday', start: '07:30 AM', end: '10:30 AM', startMinutes: 450, endMinutes: 630, faculty: 'Aaron Atienza' },
-    { id: 'CLS-301-TUE-2', roomId: '301', section: 'BSCS 3-1', subject: 'Fundamentals of Research', code: 'COMP 015', day: 'Tuesday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'McJoben Reyes' },
-    { id: 'CLS-301-WED-1', roomId: '301', section: 'BSIT 2-1', subject: 'Web Development', code: 'COMP 016', day: 'Wednesday', start: '09:00 AM', end: '02:00 PM', startMinutes: 540, endMinutes: 840, faculty: 'Noel Antonio' },
-    { id: 'CLS-301-WED-2', roomId: '301', section: 'BSIT 2-2', subject: 'Database Administration', code: 'COMP 018', day: 'Wednesday', start: '03:00 PM', end: '08:00 PM', startMinutes: 900, endMinutes: 1200, faculty: 'McJoben Reyes' },
-    { id: 'CLS-301-SAT-1', roomId: '301', section: 'BSIT 3-2', subject: 'System Integration and Architecture 1', code: 'INTE 301', day: 'Saturday', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, faculty: 'Indaleen Quinsayas' },
-    { id: 'CLS-301-SAT-2', roomId: '301', section: 'BSIT 3-2', subject: 'Project Management', code: 'ELECT IT E-1', day: 'Saturday', start: '05:00 PM', end: '08:00 PM', startMinutes: 1020, endMinutes: 1200, faculty: 'Indaleen Quinsayas' },
-
-    // Room 402
-    { id: 'CLS-402-WED', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems and Technologies', code: 'IT305', day: 'Wednesday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
-    { id: 'CLS-402-FRI', roomId: '402', section: 'BSIT 3-2', subject: 'Web Systems Capstone Defense', code: 'IT305', day: 'Friday', start: '01:30 PM', end: '04:30 PM', startMinutes: 810, endMinutes: 990, faculty: 'Engr. Roberto Cruz' },
-
-    // Lab 305
-    { id: 'CLS-305-FRI', roomId: '305', section: 'BSIT 3-1', subject: 'Software Engineering Capstone', code: 'CS301', day: 'Friday', start: '08:00 AM', end: '11:00 AM', startMinutes: 480, endMinutes: 660, faculty: 'Prof. Ferdinand Silva' },
-
-    // Room 101
-    { id: 'CLS-101-MON', roomId: '101', section: 'BSIT 1-1', subject: 'Purposive Communication', code: 'GEED 006', day: 'Monday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' },
-    { id: 'CLS-101-WED', roomId: '101', section: 'BSIT 1-1', subject: 'Oral Communication in Context', code: 'GEED 006', day: 'Wednesday', start: '07:30 AM', end: '09:00 AM', startMinutes: 450, endMinutes: 540, faculty: 'Prof. Dante Santos' }
+  const YEAR_LEVELS = [
+    { value: 1, label: '1st Year' },
+    { value: 2, label: '2nd Year' },
+    { value: 3, label: '3rd Year' },
+    { value: 4, label: '4th Year' }
   ];
+  const SECTIONS = [1, 2];
 
-  // Default student reservations (Yellow = Pending, Red = Approved)
-  const DEFAULT_RESERVATIONS = [
-    { id: 'RES-9014', roomId: '301', day: 'Thursday', date: '', start: '10:00 AM', end: '01:00 PM', startMinutes: 600, endMinutes: 780, subject: 'Operating Systems Kernel Practical Exam', faculty: 'Dr. Alicia Reyes', requester: 'Danilo Santos (BSIT 3-1)', status: 'pending' },
-    { id: 'RES-9008', roomId: '301', day: 'Friday', date: '', start: '08:30 AM', end: '11:30 AM', startMinutes: 510, endMinutes: 690, subject: 'Cisco Routing Switch Mock Certification', faculty: 'Dr. Alicia Reyes', requester: 'Bea Alonzo (BSCS 3-2)', status: 'approved' },
-    { id: 'RES-9007', roomId: '402', day: 'Monday', date: '', start: '09:00 AM', end: '12:00 PM', startMinutes: 540, endMinutes: 720, subject: 'Database Systems Midterm Exam Make-up', faculty: 'Engr. Roberto Cruz', requester: 'Christian Diaz (BSCPE 4-1)', status: 'approved' },
-    { id: 'RES-9012', roomId: '305', day: 'Thursday', date: '', start: '08:00 AM', end: '10:00 AM', startMinutes: 480, endMinutes: 600, subject: 'Agile Software Testing Mock Sprint', faculty: 'Prof. Ferdinand Silva', requester: 'Samantha Ramos (BSIT 3-2)', status: 'pending' },
-    { id: 'RES-8702', roomId: '208', day: 'Friday', date: '', start: '01:00 PM', end: '04:00 PM', startMinutes: 780, endMinutes: 960, subject: 'Embedded Systems Hardware Defense', faculty: 'Prof. Maria Morales', requester: 'Christian Diaz', status: 'pending' }
-  ];
-
+  // ── Helpers ─────────────────────────────────────────────────────────────
+  // '08:00 AM' -> 480
   function timeToMinutes(timeStr) {
     if (!timeStr) return 0;
     const parts = timeStr.trim().split(' ');
@@ -129,15 +56,38 @@
     return hours * 60 + (minutes || 0);
   }
 
+  // 480 -> '08:00 AM'
   function minutesToTime(mins) {
     let hours = Math.floor(mins / 60);
     const minutes = mins % 60;
     const modifier = hours >= 12 ? 'PM' : 'AM';
     if (hours > 12) hours -= 12;
     if (hours === 0) hours = 12;
-    const hStr = hours < 10 ? '0' + hours : String(hours);
-    const mStr = minutes < 10 ? '0' + minutes : String(minutes);
-    return `${hStr}:${mStr} ${modifier}`;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${modifier}`;
+  }
+
+  // '08:00:00' (database TIME) -> 480
+  function sqlTimeToMinutes(value) {
+    const [h, m] = String(value || '0:0').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+
+  // '08:00 AM' -> '08:00' (what the API expects)
+  function toApiTime(label) {
+    const mins = timeToMinutes(label);
+    return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+  }
+
+  // 'BS of Information Technology (BSIT)' -> 'bsit' (same rule as the backend)
+  function programKey(program) {
+    const text = String(program || '').trim().toLowerCase();
+    const m = text.match(/\(([^)]+)\)\s*$/);
+    return m ? m[1].trim() : text;
+  }
+
+  function programShort(program) {
+    const m = String(program || '').match(/\(([^)]+)\)\s*$/);
+    return m ? m[1] : String(program || '');
   }
 
   function getMonday(d) {
@@ -147,21 +97,26 @@
     return new Date(date.setDate(diff));
   }
 
+  function dateToStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Monday to Saturday only (Sunday is closed)
   function getWeekDates(baseMonday) {
-    const dates = [];
-    for (let i = 0; i < 6; i++) { // Monday to Saturday only (Sunday is closed)
+    return DAY_NAMES.map((dayName, i) => {
       const d = new Date(baseMonday);
       d.setDate(baseMonday.getDate() + i);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      dates.push({
-        dateStr: `${y}-${m}-${day}`,
-        dayName: DAY_NAMES[i],
+      return {
+        dateStr: dateToStr(d),
+        dayName,
         shortDate: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      });
-    }
-    return dates;
+      };
+    });
+  }
+
+  function prettyDate(dateStr) {
+    const d = new Date(String(dateStr) + 'T00:00:00');
+    return isNaN(d) ? String(dateStr || '') : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }
 
   function esc(str) {
@@ -171,35 +126,26 @@
   }
 
   function initials(name) {
-    return (name || 'Admin')
-      .replace(/[^A-Za-z\s,]/g, '')
-      .split(/[\s,]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(w => w[0].toUpperCase())
-      .join('') || 'AD';
+    return (name || 'Admin').replace(/[^A-Za-z\s,]/g, '').split(/[\s,]+/).filter(Boolean)
+      .slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'AD';
   }
 
   function roomTypeLabel(v) {
-    const map = {
-      lecture: 'Lecture Room',
-      laboratory: 'Laboratory',
-      office: 'Office',
-      'stock room': 'Stock Room',
-      other: 'Other'
-    };
-    return map[v] || v || 'Lecture Room';
+    const map = { lecture: 'Lecture Room', laboratory: 'Laboratory', office: 'Office', 'stock room': 'Stock Room', other: 'Other' };
+    return map[String(v || '').toLowerCase()] || v || 'Lecture Room';
   }
 
   function floorMeta(n) {
     if (!n) return { name: 'Unassigned', sub: 'No floor set' };
     const s = ['th', 'st', 'nd', 'rd'];
     const v = n % 100;
-    const suffix = s[(v - 20) % 10] || s[v] || s[0];
-    return {
-      name: n + suffix + ' Floor',
-      sub: n === 1 ? 'Ground Level' : 'Level ' + n
-    };
+    return { name: n + (s[(v - 20) % 10] || s[v] || s[0]) + ' Floor', sub: n === 1 ? 'Ground Level' : 'Level ' + n };
+  }
+
+  function errorText(err) {
+    // 422 responses carry per-field messages in err.errors
+    const fields = err && err.errors && typeof err.errors === 'object' ? Object.values(err.errors) : [];
+    return fields.length ? `${err.message} ${fields[0]}` : (err && err.message) || 'Something went wrong.';
   }
 
   // ── Global State ────────────────────────────────────────────────────────
@@ -207,64 +153,65 @@
     user: null,
     profile: null,
     rooms: [],
+    faculty: [],
     selectedRoom: null,
     currentMonday: getMonday(new Date()),
-    classSchedules: [],
-    reservations: [],
+    schedules: [],      // every active class (all rooms)
+    reservations: [],   // pending + approved of the selected room in the shown week
+    pending: [],        // every pending request (all rooms)
+    saving: false,
     toastTimer: null
   };
 
-  // ── Data Persistence & Loading ──────────────────────────────────────────
-  function loadData() {
-    // 1. Weekly Class Schedules (Blue)
-    try {
-      const storedClasses = localStorage.getItem('crs_room_class_schedules');
-      if (storedClasses) {
-        state.classSchedules = JSON.parse(storedClasses);
-      } else {
-        state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
-        localStorage.setItem('crs_room_class_schedules', JSON.stringify(state.classSchedules));
-      }
-    } catch (e) {
-      state.classSchedules = [...DEFAULT_CLASS_SCHEDULES];
-    }
-
-    // 2. Custom Reservations (Yellow / Red)
-    try {
-      const storedRes = localStorage.getItem('crs_custom_reservations');
-      if (storedRes) {
-        state.reservations = JSON.parse(storedRes);
-      } else {
-        state.reservations = [...DEFAULT_RESERVATIONS];
-        localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
-      }
-    } catch (e) {
-      state.reservations = [...DEFAULT_RESERVATIONS];
-    }
+  // ── Normalisers (API row -> what the screen uses) ───────────────────────
+  function normSchedule(c) {
+    const startMinutes = sqlTimeToMinutes(c.start_time);
+    const endMinutes = sqlTimeToMinutes(c.end_time);
+    return {
+      id: c.schedule_id,
+      roomId: c.room_id,
+      day: c.day_of_week,
+      startMinutes,
+      endMinutes,
+      start: minutesToTime(startMinutes),
+      end: minutesToTime(endMinutes),
+      subject: c.subject_title || '',
+      code: c.subject_code || '',
+      programCourse: c.program_course || '',
+      year: c.year_level,
+      section: c.section,
+      label: c.course_section || [programShort(c.program_course), c.year_level != null ? `${c.year_level}-${c.section ?? '?'}` : ''].join(' ').trim() || 'Untagged class',
+      facultyId: c.faculty_id || '',
+      faculty: c.faculty_name || ''
+    };
   }
 
-  function saveClassSchedules() {
-    try {
-      localStorage.setItem('crs_room_class_schedules', JSON.stringify(state.classSchedules));
-    } catch (e) {
-      console.warn('Failed to save class schedules:', e);
-    }
+  function normReservation(r) {
+    const startMinutes = sqlTimeToMinutes(r.start_time);
+    const endMinutes = sqlTimeToMinutes(r.end_time);
+    const cls = r.year_level != null ? ` (${programShort(r.program_course)} ${r.year_level}-${r.section ?? '?'})` : '';
+    return {
+      id: r.reservation_id,
+      roomId: r.room_id,
+      roomLabel: r.room_number ? `Room ${r.room_number}` : (r.room_name || `Room ${r.room_id}`),
+      date: String(r.reservation_date || '').slice(0, 10),
+      startMinutes,
+      endMinutes,
+      start: minutesToTime(startMinutes),
+      end: minutesToTime(endMinutes),
+      subject: r.subject || '',
+      faculty: r.faculty_name || '',
+      requester: `${r.student_name || 'Student'}${cls}`,
+      status: r.status,
+      autoApproved: r.status === 'approved' && !r.admin_id
+    };
   }
 
-  function saveReservations() {
-    try {
-      localStorage.setItem('crs_custom_reservations', JSON.stringify(state.reservations));
-    } catch (e) {
-      console.warn('Failed to save reservations:', e);
-    }
-  }
-
-  // ── Toast System ────────────────────────────────────────────────────────
+  // ── Toast ───────────────────────────────────────────────────────────────
   function showToast(msg, isSuccess = true) {
     const toast = document.getElementById('smToast');
     const toastMsg = document.getElementById('smToastMsg');
     if (!toast || !toastMsg) return;
-
     if (state.toastTimer) clearTimeout(state.toastTimer);
 
     toastMsg.textContent = msg;
@@ -278,54 +225,31 @@
     }, 4500);
   }
 
-  // ── Auth Guard & Profile ────────────────────────────────────────────────
+  // ── Auth guard (admin only, checked by the API) ─────────────────────────
   async function guard() {
-    let sessionUser = null;
-    let userProfile = null;
-
-    if (client && client.auth) {
-      try {
-        const { data: { session }, error } = await client.auth.getSession();
-        if (!error && session && session.user) {
-          sessionUser = session.user;
-
-          const { data: profile } = await client
-            .from('users')
-            .select('user_id, full_name, role, account_status')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (profile && String(profile.account_status).toLowerCase() === 'active') {
-            userProfile = profile;
-          }
-        }
-      } catch (err) {
-        console.warn('Supabase session check error:', err);
-      }
-    }
-
-    if (!userProfile) {
-      const storedRole = localStorage.getItem('demoRole') || localStorage.getItem('user_role') || 'Admin';
-      const storedName = localStorage.getItem('user_name') || 'Admin';
-      userProfile = {
-        user_id: 'demo-admin-id',
-        full_name: storedName,
-        role: storedRole,
-        account_status: 'active'
-      };
-      sessionUser = { email: 'admin@pup.edu.ph' };
-    }
-
-    // Role verification: Admin only
-    const roleNormalized = String(userProfile.role).trim().toLowerCase();
-    if (roleNormalized !== 'admin') {
-      console.warn('Unauthorized access to Schedule Manager. Redirecting to browse-rooms.html...');
-      window.location.replace('browse-rooms.html');
+    if (!client || !window.api) {
+      window.location.replace('login.html');
       return false;
     }
 
-    state.user = sessionUser;
-    state.profile = userProfile;
+    let admin;
+    try {
+      // 401 -> api.js sends you to login; 403 -> not an active admin
+      admin = await api.request('/api/admin/check');
+    } catch (err) {
+      console.warn('Admin check failed:', err);
+      window.location.replace(err.status === 403 ? 'browse-rooms.html' : 'login.html');
+      return false;
+    }
+
+    let email = '';
+    try {
+      const { data: { session } } = await client.auth.getSession();
+      email = session?.user?.email || '';
+    } catch (_) { /* email is only cosmetic */ }
+
+    state.user = { id: admin.user_id, email };
+    state.profile = { full_name: admin.full_name, role: admin.role };
 
     initProfileUI();
     document.body.style.visibility = 'visible';
@@ -334,14 +258,12 @@
 
   function initProfileUI() {
     const name = state.profile?.full_name || 'Admin';
-    const email = state.user?.email || 'admin@pup.edu.ph';
+    const email = state.user?.email || '';
 
     const avatarEl = document.getElementById('adminAvatar');
     if (avatarEl) avatarEl.textContent = initials(name);
-
     const nameEl = document.getElementById('profileDropdownName');
     if (nameEl) nameEl.textContent = name;
-
     const emailEl = document.getElementById('profileDropdownEmail');
     if (emailEl) emailEl.textContent = email;
 
@@ -366,9 +288,7 @@
 
     if (mobileToggle) {
       mobileToggle.addEventListener('change', () => {
-        if (mobileToggle.checked && dropdown) {
-          dropdown.classList.add('hidden');
-        }
+        if (mobileToggle.checked && dropdown) dropdown.classList.add('hidden');
       });
     }
 
@@ -385,137 +305,145 @@
 
     if (signOutBtn) {
       signOutBtn.addEventListener('click', async () => {
-        if (client && client.auth) {
-          try { await client.auth.signOut(); } catch (e) {}
-        }
-        localStorage.removeItem('user_role');
-        localStorage.removeItem('pup_user');
-        localStorage.removeItem('demoRole');
+        try { await client.auth.signOut(); } catch (_) { /* go to login anyway */ }
         window.location.replace('login.html');
       });
     }
   }
 
-  // ── Load Rooms ──────────────────────────────────────────────────────────
+  // ── Data loading (all through the API) ──────────────────────────────────
   async function loadRooms() {
-    let loaded = [];
+    const data = await api.rooms.list();
 
-    if (client) {
-      try {
-        const { data, error } = await client
-          .from('rooms')
-          .select('room_id, room_number, room_name, floor, room_type, is_active')
-          .order('floor', { ascending: true })
-          .order('room_id', { ascending: true });
-
-        if (!error && data && data.length > 0) {
-          loaded = data.map(r => ({
-            id: r.room_id,
-            number: r.room_number || '',
-            name: r.room_name || '',
-            floor: r.floor ?? 1,
-            roomType: r.room_type || 'other',
-            active: r.is_active !== false,
-            capacity: 45,
-            features: 'Air-conditioned, Whiteboard'
-          }));
-        }
-      } catch (err) {
-        console.warn('Error fetching rooms from Supabase:', err);
-      }
-    }
-
-    if (!loaded.length) {
-      loaded = DEFAULT_ROOMS.map(r => ({ ...r }));
-    }
-
-    state.rooms = loaded;
-    populateFloorAndRoomSelectors();
+    state.rooms = (data || [])
+      .slice()
+      .sort((a, b) => ((a.floor ?? 0) - (b.floor ?? 0)) || (a.room_id - b.room_id))
+      .map(r => ({
+        id: r.room_id,
+        number: r.room_number || '',
+        name: r.room_name || '',
+        floor: r.floor ?? 0,
+        roomType: r.room_type || 'other',
+        active: r.is_active !== false
+      }));
   }
 
-  function populateFloorAndRoomSelectors() {
-    const floorFilter = document.getElementById('floorFilter');
-    const roomSelector = document.getElementById('roomSelector');
-    const schedRoom = document.getElementById('schedRoom');
+  async function loadFaculty() {
+    try {
+      const rows = await api.users.list({ role: 'faculty', status: 'active', limit: 1000 });
+      state.faculty = (rows || [])
+        .map(u => ({ id: u.user_id, name: u.full_name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
+      console.warn('Could not load faculty:', err);
+      state.faculty = [];
+      showToast('Could not load the faculty list: ' + errorText(err), false);
+    }
+    fillFacultySelect();
+  }
 
-    if (!roomSelector) return;
+  async function loadSchedules() {
+    const rows = await api.schedules.list();
+    state.schedules = (rows || []).map(normSchedule);
+  }
 
-    const selectedFloorVal = floorFilter ? floorFilter.value : '2';
+  async function loadPending() {
+    const rows = await api.reservations.list({ status: 'pending', limit: 500 });
+    state.pending = (rows || []).map(normReservation);
+  }
 
-    // Filter rooms for active roomSelector
-    const filteredRooms = selectedFloorVal === 'all'
-      ? state.rooms
-      : state.rooms.filter(r => String(r.floor) === String(selectedFloorVal));
-
-    roomSelector.innerHTML = '';
-    filteredRooms.forEach(r => {
-      const opt = document.createElement('option');
-      opt.value = String(r.number || r.id);
-      opt.textContent = `${r.number ? 'Room ' + r.number : ''} - ${r.name || 'Lecture Room'} (Flr ${r.floor})`;
-      roomSelector.appendChild(opt);
+  async function loadWeekReservations() {
+    if (!state.selectedRoom) { state.reservations = []; return; }
+    const week = getWeekDates(state.currentMonday);
+    const rows = await api.reservations.list({
+      room_id: state.selectedRoom.id,
+      status: 'pending',
+      date_from: week[0].dateStr,
+      date_to: week[week.length - 1].dateStr,
+      limit: 500
     });
-
-    // Populate modal schedRoom with all available rooms
-    if (schedRoom) {
-      schedRoom.innerHTML = '';
-      state.rooms.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = String(r.number || r.id);
-        opt.textContent = `${r.number ? 'Room ' + r.number : ''} - ${r.name || 'Room'} (Floor ${r.floor})`;
-        schedRoom.appendChild(opt);
-      });
-    }
-
-    // Default select Room 202 if available
-    const room202 = filteredRooms.find(r => String(r.number) === '202') || filteredRooms[0] || state.rooms[0];
-    if (room202) {
-      roomSelector.value = String(room202.number || room202.id);
-      selectRoom(room202);
-    }
+    state.reservations = (rows || []).map(normReservation);
   }
 
-  function selectRoom(room) {
-    if (!room) return;
-    state.selectedRoom = room;
-
-    // Update Room Header & Badges
-    const flr = floorMeta(room.floor);
-    const flrBadge = document.getElementById('ttFloorBadge');
-    if (flrBadge) flrBadge.textContent = flr.name;
-
-    const typeBadge = document.getElementById('ttTypeBadge');
-    if (typeBadge) typeBadge.textContent = roomTypeLabel(room.roomType);
-
-    const titleEl = document.getElementById('ttRoomTitle');
-    if (titleEl) {
-      const roomNum = room.number ? `Room ${room.number}` : `Room ${room.id}`;
-      titleEl.textContent = room.name ? `${roomNum} - ${room.name}` : roomNum;
+  async function refreshAll() {
+    try {
+      await Promise.all([loadSchedules(), loadPending(), loadWeekReservations()]);
+    } catch (err) {
+      console.error('Refresh failed:', err);
+      showToast('Could not load data: ' + errorText(err), false);
     }
+    renderAll();
+  }
 
-    const metaEl = document.getElementById('ttRoomMeta');
-    if (metaEl) {
-      metaEl.textContent = `${flr.sub} • Capacity: ${room.capacity || 40} Students • ${room.features || 'Standard Classroom Facilities'}`;
-    }
-
-    const statRoomInfo = document.getElementById('statRoomInfo');
-    if (statRoomInfo) {
-      statRoomInfo.textContent = room.number ? `Room ${room.number}` : room.name;
-    }
-
-    // Pre-select in modal room selector
-    const schedRoom = document.getElementById('schedRoom');
-    if (schedRoom) {
-      schedRoom.value = String(room.number || room.id);
-    }
-
-    // Re-render Timetable, Blue Class Table, Pending Table, and Stats
+  function renderAll() {
     renderWeeklyTimetable();
     renderClassSchedulesTable();
     renderPendingReservationsTable();
     updateStats();
   }
 
-  // ── Populate Start/End Time Options (30-min intervals) ──────────────────
+  // ── Selectors ───────────────────────────────────────────────────────────
+  function roomOptionLabel(r) {
+    return `${r.number ? 'Room ' + r.number : 'Room'} - ${r.name || 'Lecture Room'} (Flr ${r.floor})`;
+  }
+
+  function populateFloorAndRoomSelectors() {
+    const floorFilter = document.getElementById('floorFilter');
+    const roomSelector = document.getElementById('roomSelector');
+    const schedRoom = document.getElementById('schedRoom');
+    if (!roomSelector) return;
+
+    const floorVal = floorFilter ? floorFilter.value : 'all';
+    const filtered = floorVal === 'all' ? state.rooms : state.rooms.filter(r => String(r.floor) === String(floorVal));
+
+    roomSelector.innerHTML = '';
+    filtered.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = String(r.id);
+      opt.textContent = roomOptionLabel(r);
+      roomSelector.appendChild(opt);
+    });
+
+    if (schedRoom) {
+      schedRoom.innerHTML = '';
+      state.rooms.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = String(r.id);
+        opt.textContent = roomOptionLabel(r);
+        schedRoom.appendChild(opt);
+      });
+    }
+
+    const room = filtered.find(r => String(r.number) === '202') || filtered[0] || state.rooms[0];
+    if (room) {
+      roomSelector.value = String(room.id);
+      selectRoom(room);
+    } else {
+      state.selectedRoom = null;
+      renderAll();
+    }
+  }
+
+  function populateClassSelects() {
+    const program = document.getElementById('schedProgram');
+    if (program) program.innerHTML = PROGRAMS.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+    const year = document.getElementById('schedYear');
+    if (year) year.innerHTML = YEAR_LEVELS.map(y => `<option value="${y.value}">${y.label}</option>`).join('');
+
+    const section = document.getElementById('schedSection');
+    if (section) section.innerHTML = SECTIONS.map(s => `<option value="${s}">Section ${s}</option>`).join('');
+  }
+
+  function fillFacultySelect() {
+    const sel = document.getElementById('schedFaculty');
+    if (!sel) return;
+    const keep = sel.value;
+    sel.innerHTML = '<option value="">-- Unassigned --</option>' +
+      state.faculty.map(f => `<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('');
+    sel.value = keep;
+  }
+
   function populateTimeDropdowns() {
     const startSelect = document.getElementById('schedStart');
     const endSelect = document.getElementById('schedEnd');
@@ -524,252 +452,204 @@
     startSelect.innerHTML = '';
     endSelect.innerHTML = '';
 
-    // Start times: 7:00 AM to 8:30 PM (every 30 mins)
-    for (let m = 420; m <= 1230; m += 30) {
-      const t = minutesToTime(m);
+    for (let m = 420; m <= 1230; m += 30) { // 7:00 AM - 8:30 PM
       const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      if (t === '08:00 AM') opt.selected = true;
+      opt.value = opt.textContent = minutesToTime(m);
       startSelect.appendChild(opt);
     }
-
-    // End times: 7:30 AM to 9:00 PM (every 30 mins)
-    for (let m = 450; m <= 1260; m += 30) {
-      const t = minutesToTime(m);
+    for (let m = 450; m <= 1260; m += 30) { // 7:30 AM - 9:00 PM
       const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      if (t === '01:00 PM') opt.selected = true; // Default 8am to 1pm for BSIT 2-2 demo
+      opt.value = opt.textContent = minutesToTime(m);
       endSelect.appendChild(opt);
     }
+    startSelect.value = '08:00 AM';
+    endSelect.value = '01:00 PM';
   }
 
-  // ── Stats Summary Counter ───────────────────────────────────────────────
+  async function selectRoom(room) {
+    if (!room) return;
+    state.selectedRoom = room;
+
+    const flr = floorMeta(room.floor);
+    const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+    set('ttFloorBadge', flr.name);
+    set('ttTypeBadge', roomTypeLabel(room.roomType));
+    set('ttRoomTitle', room.number ? `Room ${room.number}${room.name ? ' - ' + room.name : ''}` : (room.name || `Room ${room.id}`));
+    set('ttRoomMeta', `${flr.sub} • ${roomTypeLabel(room.roomType)}${room.active ? '' : ' • Inactive'}`);
+    set('statRoomInfo', room.number ? `Room ${room.number}` : room.name);
+
+    const schedRoom = document.getElementById('schedRoom');
+    if (schedRoom) schedRoom.value = String(room.id);
+
+    try {
+      await loadWeekReservations();
+    } catch (err) {
+      state.reservations = [];
+      showToast('Could not load reservations: ' + errorText(err), false);
+    }
+    renderAll();
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────
   function updateStats() {
-    const roomIdStr = String(state.selectedRoom?.number || state.selectedRoom?.id || '');
+    const roomId = state.selectedRoom?.id;
 
-    // 1. Blue Classes Count for selected room
-    const classCount = state.classSchedules.filter(c => String(c.roomId) === roomIdStr).length;
+    const classCount = state.schedules.filter(c => c.roomId === roomId).length;
     const statClassCount = document.getElementById('statClassCount');
-    if (statClassCount) {
-      statClassCount.textContent = `${classCount} ${classCount === 1 ? 'Class' : 'Classes'}`;
-    }
+    if (statClassCount) statClassCount.textContent = `${classCount} ${classCount === 1 ? 'Class' : 'Classes'}`;
 
-    // 2. Pending Requests across all rooms
-    const pendingCount = state.reservations.filter(r => r.status === 'pending').length;
+    const pendingCount = state.pending.length;
     const statPendingCount = document.getElementById('statPendingCount');
-    if (statPendingCount) {
-      statPendingCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'Request' : 'Requests'}`;
-    }
+    if (statPendingCount) statPendingCount.textContent = `${pendingCount} ${pendingCount === 1 ? 'Request' : 'Requests'}`;
     const pendingTableCount = document.getElementById('pendingTableCount');
-    if (pendingTableCount) {
-      pendingTableCount.textContent = `${pendingCount} Pending`;
-    }
+    if (pendingTableCount) pendingTableCount.textContent = `${pendingCount} Pending`;
 
-    // 3. Approved Bookings Count for selected room
-    const approvedCount = state.reservations.filter(r => r.status === 'approved' && String(r.roomId) === roomIdStr).length;
-    const statApprovedCount = document.getElementById('statApprovedCount');
-    if (statApprovedCount) {
-      statApprovedCount.textContent = `${approvedCount} ${approvedCount === 1 ? 'Booking' : 'Bookings'}`;
-    }
+    
   }
 
-  // ── Render Weekly Timetable Grid ────────────────────────────────────────
-  function renderWeeklyTimetable() {
-    if (!state.selectedRoom) return;
+  // ── Weekly timetable ────────────────────────────────────────────────────
+  function overlaps(aStart, aEnd, bStart, bEnd) {
+    return aStart < bEnd && aEnd > bStart;
+  }
 
-    const roomIdStr = String(state.selectedRoom.number || state.selectedRoom.id);
+  function renderWeeklyTimetable() {
+    const daysHeader = document.getElementById('timetableDaysHeader');
+    const gridBody = document.getElementById('timetableGridBody');
     const weekDates = getWeekDates(state.currentMonday);
 
-    // Update Week Range Label (e.g. Oct 19 – Oct 25, 2026)
     const rangeLabel = document.getElementById('ttWeekRangeLabel');
     if (rangeLabel) {
-      const startStr = weekDates[0].shortDate;
-      const endStr = weekDates[weekDates.length - 1].shortDate;
-      const yr = state.currentMonday.getFullYear();
-      rangeLabel.textContent = `${startStr} – ${endStr}, ${yr}`;
+      rangeLabel.textContent = `${weekDates[0].shortDate} – ${weekDates[weekDates.length - 1].shortDate}, ${state.currentMonday.getFullYear()}`;
     }
 
-    // 1. Render Days Header Row (Mon - Sat)
-    const daysHeader = document.getElementById('timetableDaysHeader');
     if (daysHeader) {
-      const today = new Date();
-      const todayY = today.getFullYear();
-      const todayM = String(today.getMonth() + 1).padStart(2, '0');
-      const todayD = String(today.getDate()).padStart(2, '0');
-      const todayStr = `${todayY}-${todayM}-${todayD}`;
-
+      const todayStr = dateToStr(new Date());
       daysHeader.innerHTML = weekDates.map(w => {
         const isToday = w.dateStr === todayStr;
         return `
           <div class="py-2.5 px-2 border-r border-gray-200 last:border-r-0 ${isToday ? 'bg-amber-50/70 text-[#880000] font-bold' : 'text-gray-700 font-semibold'} text-xs">
             <span class="block">${w.dayName}</span>
             <span class="text-[11px] font-normal text-gray-500">${w.shortDate}</span>
-          </div>
-        `;
+          </div>`;
       }).join('');
     }
 
-    // 2. Render Left Time Axis (7:00 AM to 9:00 PM)
     const axisLabels = document.getElementById('timeAxisLabels');
     if (axisLabels) {
       axisLabels.innerHTML = '';
       for (let h = 7; h <= 21; h++) {
         const d = new Date();
         d.setHours(h, 0, 0, 0);
-        const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         const slotEl = document.createElement('div');
         slotEl.className = 'time-slot-label';
-        slotEl.textContent = timeStr;
+        slotEl.textContent = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         axisLabels.appendChild(slotEl);
       }
     }
 
-    // 3. Render 7 Day Columns in Main Grid
-    const gridBody = document.getElementById('timetableGridBody');
     if (!gridBody) return;
     gridBody.innerHTML = '';
+    if (!state.selectedRoom) return;
+
+    const roomId = state.selectedRoom.id;
 
     weekDates.forEach(dayInfo => {
       const dayCol = document.createElement('div');
       dayCol.className = 'day-column';
 
-      // 14 horizontal hour lines
       for (let i = 0; i < 14; i++) {
         const line = document.createElement('div');
         line.className = 'grid-hour-line';
         dayCol.appendChild(line);
       }
 
-      // Collect events for this day in this room:
-      // A. Blue Scheduled Classes
-      const dayClasses = state.classSchedules.filter(c =>
-        String(c.roomId) === roomIdStr &&
-        String(c.day).toLowerCase() === dayInfo.dayName.toLowerCase()
-      );
+      // Blue classes repeat every week
+      const dayClasses = state.schedules.filter(c =>
+        c.roomId === roomId && String(c.day).toLowerCase() === dayInfo.dayName.toLowerCase());
 
-      // B. Custom Reservations (Yellow / Red)
-      const dayReservations = state.reservations.filter(r => {
-        const matchRoom = String(r.roomId) === roomIdStr;
-        if (!matchRoom) return false;
-        if (r.date) return r.date === dayInfo.dateStr;
-        return String(r.day).toLowerCase() === dayInfo.dayName.toLowerCase();
-      });
+      // Red / yellow reservations of this exact date
+      const dayReservations = state.reservations.filter(r => r.roomId === roomId && r.date === dayInfo.dateStr);
 
-      // Merge busy intervals to compute Green available slots
-      const busyIntervals = [];
+      // Green gaps between everything that is taken
+      const busy = [
+        ...dayClasses.map(c => ({ start: c.startMinutes, end: c.endMinutes })),
+        ...dayReservations.map(r => ({ start: r.startMinutes, end: r.endMinutes }))
+      ].sort((a, b) => a.start - b.start);
 
-      dayClasses.forEach(c => {
-        busyIntervals.push({
-          type: 'class',
-          data: c,
-          start: c.startMinutes,
-          end: c.endMinutes
+      if (state.selectedRoom.active) {
+        let cur = START_MINUTES;
+        busy.forEach(b => {
+          if (b.start > cur) dayCol.appendChild(createAvailableSlotCard(dayInfo.dayName, cur, b.start));
+          cur = Math.max(cur, b.end);
         });
-      });
-
-      dayReservations.forEach(r => {
-        busyIntervals.push({
-          type: r.status === 'approved' ? 'occupied' : 'pending',
-          data: r,
-          start: r.startMinutes,
-          end: r.endMinutes
-        });
-      });
-
-      busyIntervals.sort((a, b) => a.start - b.start);
-
-      // Render Green Available slots in gaps between 7:00 AM (420m) and 9:00 PM (1260m)
-      let cur = START_MINUTES;
-      busyIntervals.forEach(interval => {
-        if (interval.start > cur) {
-          const availCard = createAvailableSlotCard(dayInfo.dayName, cur, interval.start);
-          dayCol.appendChild(availCard);
-        }
-        cur = Math.max(cur, interval.end);
-      });
-      if (cur < END_MINUTES) {
-        const availCard = createAvailableSlotCard(dayInfo.dayName, cur, END_MINUTES);
-        dayCol.appendChild(availCard);
+        if (cur < END_MINUTES) dayCol.appendChild(createAvailableSlotCard(dayInfo.dayName, cur, END_MINUTES));
       }
 
-      // Render Scheduled Class Cards (Blue)
+      // A reservation that sits on a class (the student's own class) is drawn beside it
       dayClasses.forEach(cls => {
-        const card = createClassScheduleCard(cls);
-        dayCol.appendChild(card);
+        const shared = dayReservations.some(r => overlaps(r.startMinutes, r.endMinutes, cls.startMinutes, cls.endMinutes));
+        dayCol.appendChild(createClassScheduleCard(cls, shared));
       });
 
-      // Render Custom Reservation Cards (Yellow / Red)
       dayReservations.forEach(res => {
-        const card = createReservationCard(res);
-        dayCol.appendChild(card);
+        const shared = dayClasses.some(c => overlaps(res.startMinutes, res.endMinutes, c.startMinutes, c.endMinutes));
+        dayCol.appendChild(createReservationCard(res, shared));
       });
 
       gridBody.appendChild(dayCol);
     });
   }
 
-  // ── Card Builders ────────────────────────────────────────────────────────
-  function createClassScheduleCard(cls) {
+  // ── Card builders ───────────────────────────────────────────────────────
+  function createClassScheduleCard(cls, sharedWithReservation) {
     const card = document.createElement('div');
     card.className = 'schedule-card class-schedule';
 
-    const topOffset = cls.startMinutes - START_MINUTES;
     const height = Math.max(cls.endMinutes - cls.startMinutes - 4, 34);
-
-    card.style.top = `${topOffset}px`;
+    card.style.top = `${cls.startMinutes - START_MINUTES}px`;
     card.style.height = `${height}px`;
-    card.title = `Click to Edit Class: ${cls.section} - ${cls.subject} (${cls.start} - ${cls.end})`;
+    if (sharedWithReservation) card.style.right = '50%';
+    card.title = `Click to edit: ${cls.label} - ${cls.subject} (${cls.start} - ${cls.end})`;
 
     card.innerHTML = `
       <div class="card-top-bar"></div>
-      <div class="card-title">${esc(cls.section)}: ${esc(cls.subject)}</div>
+      <div class="card-title">${esc(cls.label)}: ${esc(cls.subject)}</div>
       <div class="card-time">${esc(cls.start)} – ${esc(cls.end)}</div>
       ${height > 75 ? `<div class="card-meta">Prof. ${esc(cls.faculty || 'Unassigned')}</div>` : ''}
       ${height > 110 && cls.code ? `<div class="card-meta text-[9px] font-semibold text-blue-900">${esc(cls.code)}</div>` : ''}
     `;
 
-    // Click to edit
-    card.addEventListener('click', () => {
-      openScheduleModalForEdit(cls);
-    });
-
+    card.addEventListener('click', () => openScheduleModalForEdit(cls));
     return card;
   }
 
-  function createReservationCard(res) {
+  function createReservationCard(res, sharedWithClass) {
     const card = document.createElement('div');
     const isApproved = res.status === 'approved';
     card.className = `schedule-card ${isApproved ? 'occupied' : 'pending'}`;
 
-    const topOffset = res.startMinutes - START_MINUTES;
     const height = Math.max(res.endMinutes - res.startMinutes - 4, 34);
-
-    card.style.top = `${topOffset}px`;
+    card.style.top = `${res.startMinutes - START_MINUTES}px`;
     card.style.height = `${height}px`;
+    if (sharedWithClass) card.style.left = '50%';
 
-    const statusLabel = isApproved ? 'Approved / Occupied' : 'Pending Request (Yellow)';
-    card.title = `${statusLabel}: ${res.subject} (${res.start} - ${res.end})`;
+    const title = isApproved ? (res.autoApproved ? '🟥 Auto-approved (own class)' : '🟥 Approved Reservation') : '🟨 Pending Approval';
+    card.title = `${isApproved ? 'Approved' : 'Pending'}: ${res.subject} (${res.start} - ${res.end})`;
 
     card.innerHTML = `
       <div class="card-top-bar"></div>
-      <div class="card-title">${isApproved ? '🟥 Approved Reservation' : '🟨 Pending Approval'}</div>
+      <div class="card-title">${title}</div>
       <div class="card-time">${esc(res.start)} – ${esc(res.end)}</div>
       ${height > 65 ? `<div class="card-meta font-semibold">${esc(res.subject || 'Student Reservation')}</div>` : ''}
-      ${height > 95 ? `<div class="card-meta">By: ${esc(res.requester || 'Student')}</div>` : ''}
+      ${height > 95 ? `<div class="card-meta">By: ${esc(res.requester)}</div>` : ''}
       ${height > 120 && res.faculty ? `<div class="card-meta">Faculty: ${esc(res.faculty)}</div>` : ''}
     `;
 
-    // Click handler: if pending, scroll and highlight in the pending table
     card.addEventListener('click', () => {
-      if (!isApproved) {
-        highlightPendingRow(res.id);
-      } else {
-        showToast(`Occupied Reservation ${res.id}: ${res.subject} (${res.requester})`);
-      }
+      if (!isApproved) highlightPendingRow(res.id);
+      else showToast(`Reservation #${res.id}: ${res.subject} (${res.requester})`);
     });
-
     return card;
   }
 
@@ -777,39 +657,36 @@
     const card = document.createElement('div');
     card.className = 'schedule-card available';
 
-    const topOffset = startMin - START_MINUTES;
     const height = Math.max(endMin - startMin - 4, 26);
-
-    card.style.top = `${topOffset}px`;
+    card.style.top = `${startMin - START_MINUTES}px`;
     card.style.height = `${height}px`;
 
     const startStr = minutesToTime(startMin);
     const endStr = minutesToTime(endMin);
-    card.title = `Available Slot: ${startStr} – ${endStr}. Click to quickly schedule a class here!`;
+    card.title = `Available: ${startStr} – ${endStr}. Click to schedule a class here.`;
 
     card.innerHTML = `
       <div class="card-top-bar"></div>
       <div class="card-title text-emerald-800">Available</div>
       <div class="card-time text-emerald-700 font-semibold">${startStr} – ${endStr}</div>
-      ${height > 70 ? `<div class="card-meta text-emerald-700 text-[10px]">+ Click to Schedule</div>` : ''}
+      ${height > 70 ? '<div class="card-meta text-emerald-700 text-[10px]">+ Click to Schedule</div>' : ''}
     `;
 
-    // Click to add new schedule prefilled with this day and time
-    card.addEventListener('click', () => {
-      openScheduleModalForAdd(dayName, startStr, endStr);
-    });
-
+    card.addEventListener('click', () => openScheduleModalForAdd(dayName, startStr, endStr));
     return card;
   }
 
-  // ── Render Assigned Weekly Class Schedules Table (Blue) ─────────────────
+  // ── Assigned weekly classes table ───────────────────────────────────────
   function renderClassSchedulesTable() {
     const tableBody = document.getElementById('classSchedulesTable');
-    if (!tableBody || !state.selectedRoom) return;
+    if (!tableBody) return;
 
-    const roomIdStr = String(state.selectedRoom.number || state.selectedRoom.id);
-    // Sunday is closed: any old Sunday class stays in the database but is not shown
-    const roomClasses = state.classSchedules.filter(c => String(c.roomId) === roomIdStr && String(c.day).toLowerCase() !== 'sunday');
+    if (!state.selectedRoom) {
+      tableBody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-gray-400">Select a room to see its classes.</td></tr>';
+      return;
+    }
+
+    const roomClasses = state.schedules.filter(c => c.roomId === state.selectedRoom.id);
 
     if (roomClasses.length === 0) {
       tableBody.innerHTML = `
@@ -821,15 +698,13 @@
               + Assign First Class Schedule
             </button>
           </td>
-        </tr>
-      `;
+        </tr>`;
       const btn = document.getElementById('btnEmptyAddSchedule');
       if (btn) btn.addEventListener('click', () => openScheduleModalForAdd());
       return;
     }
 
-    // Sort by day of week then start time
-    const dayOrder = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7 };
+    const dayOrder = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
     roomClasses.sort((a, b) => (dayOrder[a.day] || 99) - (dayOrder[b.day] || 99) || a.startMinutes - b.startMinutes);
 
     tableBody.innerHTML = roomClasses.map(cls => `
@@ -837,121 +712,77 @@
         <td class="py-3 px-3">
           <span class="inline-flex items-center gap-1.5 font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
             <span class="w-2 h-2 rounded-full bg-blue-600"></span>
-            ${esc(cls.section)}
+            ${esc(cls.label)}
           </span>
         </td>
         <td class="py-3 px-3">
           <div class="font-bold text-gray-900">${esc(cls.subject)}</div>
           ${cls.code ? `<div class="text-[10px] text-gray-500 font-mono">${esc(cls.code)}</div>` : ''}
         </td>
-        <td class="py-3 px-3 font-semibold text-gray-800">
-          ${esc(cls.day)}
-        </td>
-        <td class="py-3 px-3 font-medium text-gray-700 whitespace-nowrap">
-          ${esc(cls.start)} – ${esc(cls.end)}
-        </td>
-        <td class="py-3 px-3 text-gray-800">
-          ${esc(cls.faculty || 'Unassigned')}
-        </td>
+        <td class="py-3 px-3 font-semibold text-gray-800">${esc(cls.day)}</td>
+        <td class="py-3 px-3 font-medium text-gray-700 whitespace-nowrap">${esc(cls.start)} – ${esc(cls.end)}</td>
+        <td class="py-3 px-3 text-gray-800">${esc(cls.faculty || 'Unassigned')}</td>
         <td class="py-3 px-3 text-right whitespace-nowrap">
-          <button type="button" class="btn-edit-sched text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded font-bold text-xs mr-1 transition" data-id="${cls.id}">
-            Edit
-          </button>
-          <button type="button" class="btn-del-sched text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded font-bold text-xs transition" data-id="${cls.id}">
-            Delete
-          </button>
+          <button type="button" class="btn-edit-sched text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded font-bold text-xs mr-1 transition" data-id="${cls.id}">Edit</button>
+          <button type="button" class="btn-del-sched text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded font-bold text-xs transition" data-id="${cls.id}">Delete</button>
         </td>
       </tr>
     `).join('');
 
-    // Wire Edit & Delete Buttons
     tableBody.querySelectorAll('.btn-edit-sched').forEach(btn => {
       btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        const item = state.classSchedules.find(c => String(c.id) === String(id));
+        const item = state.schedules.find(c => String(c.id) === btn.getAttribute('data-id'));
         if (item) openScheduleModalForEdit(item);
       });
     });
-
     tableBody.querySelectorAll('.btn-del-sched').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        confirmDeleteSchedule(id);
-      });
+      btn.addEventListener('click', () => confirmDeleteSchedule(btn.getAttribute('data-id')));
     });
   }
 
-  // ── Render Pending Student Reservations (Yellow -> Red Approval) ─────────
+  // ── Pending reservations table ──────────────────────────────────────────
   function renderPendingReservationsTable() {
     const tableBody = document.getElementById('pendingReservationsTable');
     if (!tableBody) return;
 
-    const pendingList = state.reservations.filter(r => r.status === 'pending');
-
-    if (pendingList.length === 0) {
+    if (state.pending.length === 0) {
       tableBody.innerHTML = `
         <tr>
           <td colspan="7" class="py-8 text-center text-emerald-600">
             <span class="text-2xl block mb-1">🎉</span>
             All student reservation requests have been reviewed! No pending approvals.
           </td>
-        </tr>
-      `;
+        </tr>`;
       return;
     }
 
-    tableBody.innerHTML = pendingList.map(res => {
-      const roomObj = state.rooms.find(r => String(r.id) === String(res.roomId) || String(r.number) === String(res.roomId));
-      const roomLabel = roomObj ? (roomObj.number ? `Room ${roomObj.number}` : roomObj.name) : `Room ${res.roomId}`;
+    tableBody.innerHTML = state.pending.map(res => `
+      <tr id="row-pending-${res.id}" class="hover:bg-amber-50/60 transition">
+        <td class="py-3 px-3 font-mono font-bold text-amber-900">#${esc(res.id)}</td>
+        <td class="py-3 px-3">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-800 border border-gray-200">${esc(res.roomLabel)}</span>
+        </td>
+        <td class="py-3 px-3 font-semibold text-gray-900">${esc(res.requester)}</td>
+        <td class="py-3 px-3 whitespace-nowrap">
+          <div class="font-bold text-gray-800">${esc(prettyDate(res.date))}</div>
+          <div class="text-[11px] text-gray-600">${esc(res.start)} – ${esc(res.end)}</div>
+        </td>
+        <td class="py-3 px-3 max-w-[200px]">
+          <p class="font-medium text-gray-900 truncate" title="${esc(res.subject)}">${esc(res.subject || 'Room Reservation')}</p>
+        </td>
+        <td class="py-3 px-3 text-gray-700 whitespace-nowrap">${esc(res.faculty || 'Unassigned')}</td>
+        <td class="py-3 px-3 text-right whitespace-nowrap">
+          <button type="button" class="btn-approve-res px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-[6px] text-xs shadow-sm transition mr-1.5" data-id="${res.id}">✔ Approve (Red)</button>
+          <button type="button" class="btn-decline-res px-2.5 py-1.5 text-red-600 hover:bg-red-50 border border-red-300 font-bold rounded-[6px] text-xs transition" data-id="${res.id}">✕ Decline</button>
+        </td>
+      </tr>
+    `).join('');
 
-      return `
-        <tr id="row-pending-${res.id}" class="hover:bg-amber-50/60 transition">
-          <td class="py-3 px-3 font-mono font-bold text-amber-900">
-            ${esc(res.id)}
-          </td>
-          <td class="py-3 px-3">
-            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-800 border border-gray-200">
-              ${esc(roomLabel)}
-            </span>
-          </td>
-          <td class="py-3 px-3 font-semibold text-gray-900">
-            ${esc(res.requester || 'Student')}
-          </td>
-          <td class="py-3 px-3 whitespace-nowrap">
-            <div class="font-bold text-gray-800">${esc(res.day || res.date)}</div>
-            <div class="text-[11px] text-gray-600">${esc(res.start)} – ${esc(res.end)}</div>
-          </td>
-          <td class="py-3 px-3 max-w-[200px]">
-            <p class="font-medium text-gray-900 truncate" title="${esc(res.subject)}">${esc(res.subject || 'Room Reservation')}</p>
-          </td>
-          <td class="py-3 px-3 text-gray-700 whitespace-nowrap">
-            ${esc(res.faculty || 'Unassigned')}
-          </td>
-          <td class="py-3 px-3 text-right whitespace-nowrap">
-            <button type="button" class="btn-approve-res px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-[6px] text-xs shadow-sm transition mr-1.5" data-id="${res.id}">
-              ✔ Approve (Red)
-            </button>
-            <button type="button" class="btn-decline-res px-2.5 py-1.5 text-red-600 hover:bg-red-50 border border-red-300 font-bold rounded-[6px] text-xs transition" data-id="${res.id}">
-              ✕ Decline
-            </button>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    // Wire Approve & Decline buttons
     tableBody.querySelectorAll('.btn-approve-res').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        handleApproveReservation(id);
-      });
+      btn.addEventListener('click', () => handleDecision(btn.getAttribute('data-id'), true));
     });
-
     tableBody.querySelectorAll('.btn-decline-res').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        handleDeclineReservation(id);
-      });
+      btn.addEventListener('click', () => handleDecision(btn.getAttribute('data-id'), false));
     });
   }
 
@@ -962,84 +793,71 @@
       row.classList.add('bg-amber-200/80');
       setTimeout(() => row.classList.remove('bg-amber-200/80'), 2500);
     } else {
-      showToast(`Reservation ${resId} is pending admin review in the table below.`);
+      showToast(`Reservation #${resId} is pending admin review in the table below.`);
     }
   }
 
-  // ── Admin Actions: Approve or Decline Student Requests ───────────────────
-  function handleApproveReservation(id) {
-    const res = state.reservations.find(r => String(r.id) === String(id));
+  // ── Approve / decline (PATCH /api/reservations/{id}/decision) ───────────
+  async function handleDecision(id, approve) {
+    const res = state.pending.find(r => String(r.id) === String(id));
     if (!res) return;
 
-    res.status = 'approved';
-    saveReservations();
+    let reason;
+    if (!approve) {
+      reason = window.prompt(`Decline reservation #${res.id} (${res.subject})?\nOptional reason for the student:`, '');
+      if (reason === null) return; // cancelled
+    }
 
-    // Broadcast across tabs (browse-rooms.html will update live)
-    window.dispatchEvent(new Event('storage'));
-
-    renderWeeklyTimetable();
-    renderPendingReservationsTable();
-    updateStats();
-
-    showToast(`✔ Reservation ${res.id} Approved! Time slot is now officially Occupied (Red).`, true);
-  }
-
-  function handleDeclineReservation(id) {
-    const res = state.reservations.find(r => String(r.id) === String(id));
-    if (!res) return;
-
-    if (!confirm(`Are you sure you want to decline reservation request ${res.id} (${res.subject})? The slot will return to Green (Available).`)) {
+    try {
+      await api.reservations.decide(res.id, approve, reason ? reason.trim() : undefined);
+    } catch (err) {
+      showToast(errorText(err), false);
+      await refreshAll(); // the request may already have been decided
       return;
     }
 
-    state.reservations = state.reservations.filter(r => String(r.id) !== String(id));
-    saveReservations();
-
-    window.dispatchEvent(new Event('storage'));
-
-    renderWeeklyTimetable();
-    renderPendingReservationsTable();
-    updateStats();
-
-    showToast(`Reservation ${id} declined. Time slot released back to Green (Available).`, true);
+    await refreshAll();
+    showToast(approve
+    ? `✔ Reservation #${res.id} approved.`
+    : `Reservation #${res.id} declined.`);
   }
 
-  // ── Add / Edit Class Schedule Modal ──────────────────────────────────────
+  // ── Add / edit class schedule modal ─────────────────────────────────────
+  function setValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  }
+
+  // Select the dropdown option that is the same program (BSIT == BS of Information Technology (BSIT))
+  function selectProgram(program) {
+    const sel = document.getElementById('schedProgram');
+    if (!sel) return;
+    const key = programKey(program);
+    const match = [...sel.options].find(o => programKey(o.value) === key);
+    if (match) { sel.value = match.value; return; }
+    if (program) { // old data with an unknown program: keep it selectable
+      const opt = document.createElement('option');
+      opt.value = program;
+      opt.textContent = program;
+      sel.appendChild(opt);
+      sel.value = program;
+    }
+  }
+
   function openScheduleModalForAdd(prefillDay = 'Tuesday', prefillStart = '08:00 AM', prefillEnd = '01:00 PM') {
     const modal = document.getElementById('scheduleModalOverlay');
-    const title = document.getElementById('scheduleModalTitle');
-    const editIdInput = document.getElementById('editScheduleId');
-    const deleteBtn = document.getElementById('btnDeleteSchedule');
     const form = document.getElementById('scheduleForm');
-
     if (!modal || !form) return;
 
-    title.textContent = 'Add Class Schedule (Blue)';
-    editIdInput.value = '';
-    deleteBtn.classList.add('hidden');
-
+    document.getElementById('scheduleModalTitle').textContent = 'Add Class Schedule (Blue)';
+    document.getElementById('btnDeleteSchedule').classList.add('hidden');
     form.reset();
+    setValue('editScheduleId', '');
 
-    // Default target room
-    const schedRoom = document.getElementById('schedRoom');
-    if (schedRoom && state.selectedRoom) {
-      schedRoom.value = String(state.selectedRoom.number || state.selectedRoom.id);
-    }
-
-    const schedDay = document.getElementById('schedDay');
-    if (schedDay && prefillDay) {
-      schedDay.value = prefillDay;
-    }
-
-    const schedStart = document.getElementById('schedStart');
-    if (schedStart && prefillStart) {
-      schedStart.value = prefillStart;
-    }
-
-    const schedEnd = document.getElementById('schedEnd');
-    if (schedEnd && prefillEnd) {
-      schedEnd.value = prefillEnd;
-    }
+    if (state.selectedRoom) setValue('schedRoom', String(state.selectedRoom.id));
+    setValue('schedDay', prefillDay);
+    setValue('schedStart', prefillStart);
+    setValue('schedEnd', prefillEnd);
 
     validateScheduleTime();
     modal.hidden = false;
@@ -1047,36 +865,22 @@
 
   function openScheduleModalForEdit(cls) {
     const modal = document.getElementById('scheduleModalOverlay');
-    const title = document.getElementById('scheduleModalTitle');
-    const editIdInput = document.getElementById('editScheduleId');
-    const deleteBtn = document.getElementById('btnDeleteSchedule');
-
     if (!modal || !cls) return;
 
-    title.textContent = `Edit Class Schedule: ${cls.section}`;
-    editIdInput.value = cls.id;
-    deleteBtn.classList.remove('hidden');
+    document.getElementById('scheduleModalTitle').textContent = `Edit Class Schedule: ${cls.label}`;
+    document.getElementById('btnDeleteSchedule').classList.remove('hidden');
 
-    const schedRoom = document.getElementById('schedRoom');
-    if (schedRoom) schedRoom.value = String(cls.roomId);
-
-    const schedSection = document.getElementById('schedSection');
-    if (schedSection) schedSection.value = cls.section || '';
-
-    const schedDay = document.getElementById('schedDay');
-    if (schedDay) schedDay.value = cls.day;
-
-    const schedStart = document.getElementById('schedStart');
-    if (schedStart) schedStart.value = cls.start;
-
-    const schedEnd = document.getElementById('schedEnd');
-    if (schedEnd) schedEnd.value = cls.end;
-
-    const schedSubject = document.getElementById('schedSubject');
-    if (schedSubject) schedSubject.value = cls.subject || '';
-
-    const schedFaculty = document.getElementById('schedFaculty');
-    if (schedFaculty && cls.faculty) schedFaculty.value = cls.faculty;
+    setValue('editScheduleId', String(cls.id));
+    setValue('schedRoom', String(cls.roomId));
+    selectProgram(cls.programCourse);
+    setValue('schedYear', cls.year != null ? String(cls.year) : '1');
+    setValue('schedSection', cls.section != null ? String(cls.section) : '1');
+    setValue('schedDay', cls.day);
+    setValue('schedStart', cls.start);
+    setValue('schedEnd', cls.end);
+    setValue('schedCode', cls.code);
+    setValue('schedSubject', cls.subject);
+    setValue('schedFaculty', cls.facultyId);
 
     validateScheduleTime();
     modal.hidden = false;
@@ -1087,14 +891,11 @@
     if (modal) modal.hidden = true;
   }
 
+  // Instant feedback only. The API and the database check everything again.
   function validateScheduleTime() {
     const alertBox = document.getElementById('schedAlertBox');
     const startSelect = document.getElementById('schedStart');
     const endSelect = document.getElementById('schedEnd');
-    const daySelect = document.getElementById('schedDay');
-    const roomSelect = document.getElementById('schedRoom');
-    const editIdInput = document.getElementById('editScheduleId');
-
     if (!alertBox || !startSelect || !endSelect) return true;
 
     const startM = timeToMinutes(startSelect.value);
@@ -1106,21 +907,20 @@
       return false;
     }
 
-    const roomId = roomSelect ? roomSelect.value : (state.selectedRoom?.number || '');
-    const day = daySelect ? daySelect.value : 'Monday';
-    const currentId = editIdInput ? editIdInput.value : '';
+    const roomId = Number(document.getElementById('schedRoom')?.value);
+    const day = document.getElementById('schedDay')?.value || 'Monday';
+    const currentId = document.getElementById('editScheduleId')?.value;
 
-    // Check conflict with other BLUE class schedules in this room
-    const conflict = state.classSchedules.find(c => {
+    const conflict = state.schedules.find(c => {
       if (currentId && String(c.id) === String(currentId)) return false;
-      if (String(c.roomId) !== String(roomId)) return false;
+      if (c.roomId !== roomId) return false;
       if (String(c.day).toLowerCase() !== String(day).toLowerCase()) return false;
-      return Math.max(startM, c.startMinutes) < Math.min(endM, c.endMinutes);
+      return overlaps(startM, endM, c.startMinutes, c.endMinutes);
     });
 
     if (conflict) {
       alertBox.className = 'alert error p-2.5 rounded-[6px] text-xs border border-amber-300 bg-amber-50 text-amber-800 font-medium';
-      alertBox.textContent = `⚠️ Schedule Conflict: ${conflict.section} (${conflict.subject}) already occupies this room on ${conflict.day} from ${conflict.start} to ${conflict.end}.`;
+      alertBox.textContent = `⚠️ Schedule Conflict: ${conflict.label} (${conflict.subject}) already uses this room on ${conflict.day} from ${conflict.start} to ${conflict.end}.`;
       return false;
     }
 
@@ -1129,8 +929,53 @@
     return true;
   }
 
-  function handleSaveSchedule(e) {
+  function setSaving(on) {
+    state.saving = on;
+    const btn = document.getElementById('btnSaveSchedule');
+    if (btn) {
+      btn.disabled = on;
+      btn.classList.toggle('opacity-60', on);
+      btn.textContent = on ? 'Saving…' : 'Save Class Schedule';
+    }
+  }
+
+  // Saves the class. If an approved reservation already uses that room and time,
+// the API answers 409 RESERVATION_OVERLAP and we ask the admin first.
+async function saveSchedule(editId, payload) {
+  const send = (body) => (editId ? api.schedules.update(editId, body) : api.schedules.create(body));
+
+  try {
+    return await send(payload);
+  } catch (err) {
+    if (err.status === 409 && err.errors && err.errors.code === 'RESERVATION_OVERLAP') {
+      const list = (err.errors.reservations || []).map(r =>
+        `• ${prettyDate(String(r.reservation_date).slice(0, 10))}, ` +
+        `${minutesToTime(sqlTimeToMinutes(r.start_time))} – ${minutesToTime(sqlTimeToMinutes(r.end_time))} ` +
+        `(${r.subject}, ${r.student_name})`
+      ).join('\n');
+
+      const ok = window.confirm(
+        `There is currently an approved reservation in this room at this time:\n\n${list}\n\n` +
+        'Are you sure you want to appoint this schedule?\n\n' +
+        'OK = the schedule is saved and the reservation continues for that day as it is.\n' +
+        'Cancel = the schedule is not saved.'
+      );
+
+      if (!ok) {
+        const cancelled = new Error('Schedule not saved.');
+        cancelled.cancelled = true;
+        throw cancelled;
+      }
+
+      return send({ ...payload, confirm_reservation_overlap: true });
+    }
+    throw err;
+  }
+}
+
+  async function handleSaveSchedule(e) {
     e.preventDefault();
+    if (state.saving) return;
 
     if (!validateScheduleTime()) {
       showToast('Please resolve the schedule conflict or invalid time interval.', false);
@@ -1138,160 +983,123 @@
     }
 
     const editId = document.getElementById('editScheduleId')?.value;
-    const roomId = document.getElementById('schedRoom')?.value;
-    const section = document.getElementById('schedSection')?.value.trim();
-    const day = document.getElementById('schedDay')?.value;
-    const start = document.getElementById('schedStart')?.value;
-    const end = document.getElementById('schedEnd')?.value;
     const subject = document.getElementById('schedSubject')?.value.trim();
-    const faculty = document.getElementById('schedFaculty')?.value;
 
-    if (!section || !subject) {
-      showToast('Section / Block and Subject Title are required.', false);
+    if (!subject) {
+      showToast('Subject Title is required.', false);
       return;
     }
 
-    const startMinutes = timeToMinutes(start);
-    const endMinutes = timeToMinutes(end);
+    const payload = {
+      room_id: Number(document.getElementById('schedRoom')?.value),
+      day_of_week: document.getElementById('schedDay')?.value,
+      start_time: toApiTime(document.getElementById('schedStart')?.value),
+      end_time: toApiTime(document.getElementById('schedEnd')?.value),
+      subject_title: subject,
+      subject_code: document.getElementById('schedCode')?.value.trim() || null,
+      program_course: document.getElementById('schedProgram')?.value,
+      year_level: Number(document.getElementById('schedYear')?.value),
+      section: Number(document.getElementById('schedSection')?.value),
+      faculty_id: document.getElementById('schedFaculty')?.value || null
+    };
 
-    if (editId) {
-      // Update existing
-      const idx = state.classSchedules.findIndex(c => String(c.id) === String(editId));
-      if (idx !== -1) {
-        state.classSchedules[idx] = {
-          ...state.classSchedules[idx],
-          roomId,
-          section,
-          day,
-          start,
-          end,
-          startMinutes,
-          endMinutes,
-          subject,
-          faculty
-        };
-        showToast(`✔ Class schedule ${section} updated successfully!`);
+    setSaving(true);
+    let saved;
+    try {
+      saved = await saveSchedule(editId, payload);
+    } catch (err) {
+      setSaving(false);
+      showToast(err.cancelled ? 'Schedule not saved.' : errorText(err), false);
+      return;
+    }
+    setSaving(false);
+
+    closeScheduleModal();
+    await loadSchedules();
+
+    // Saved into another room? Jump to it so the new class is visible.
+    if (state.selectedRoom?.id !== payload.room_id) {
+      const room = state.rooms.find(r => r.id === payload.room_id);
+      if (room) {
+        const floorFilter = document.getElementById('floorFilter');
+        if (floorFilter && floorFilter.value !== 'all' && String(room.floor) !== floorFilter.value) {
+          floorFilter.value = 'all';
+          populateFloorAndRoomSelectors();
+        }
+        const selector = document.getElementById('roomSelector');
+        if (selector) selector.value = String(room.id);
+        await selectRoom(room);
       }
     } else {
-      // Create new
-      const newId = `CLS-${roomId}-${day.slice(0, 3).toUpperCase()}-${Date.now().toString(36).slice(-4)}`;
-      state.classSchedules.push({
-        id: newId,
-        roomId,
-        section,
-        subject,
-        code: '',
-        day,
-        start,
-        end,
-        startMinutes,
-        endMinutes,
-        faculty
-      });
-      showToast(`✔ Class schedule ${section} assigned to Room ${roomId} successfully!`);
+      await loadWeekReservations().catch(() => {});
+      renderAll();
     }
 
-    saveClassSchedules();
-    window.dispatchEvent(new Event('storage'));
-
-    closeScheduleModal();
-
-    // If the room in the modal is different from the currently selected room, switch to it
-    if (String(state.selectedRoom?.number || state.selectedRoom?.id) !== String(roomId)) {
-      const matchRoom = state.rooms.find(r => String(r.number || r.id) === String(roomId));
-      if (matchRoom) {
-        const selector = document.getElementById('roomSelector');
-        if (selector) selector.value = String(roomId);
-        selectRoom(matchRoom);
-        return;
-      }
-    }
-
-    renderWeeklyTimetable();
-    renderClassSchedulesTable();
-    updateStats();
+    const label = saved && saved.course_section ? saved.course_section : 'Class';
+    showToast(editId ? `✔ Class schedule ${label} updated.` : `✔ Class schedule ${label} saved. It repeats every week until you delete it.`);
   }
 
-  function confirmDeleteSchedule(id) {
-    const item = state.classSchedules.find(c => String(c.id) === String(id));
+  async function confirmDeleteSchedule(id) {
+    const item = state.schedules.find(c => String(c.id) === String(id));
     if (!item) return;
 
-    if (!confirm(`Are you sure you want to remove weekly class schedule "${item.section} - ${item.subject}" on ${item.day}?`)) {
+    if (!window.confirm(`Delete the weekly class "${item.label} - ${item.subject}" on ${item.day}?\nIt will stop repeating every week.`)) {
       return;
     }
 
-    state.classSchedules = state.classSchedules.filter(c => String(c.id) !== String(id));
-    saveClassSchedules();
-    window.dispatchEvent(new Event('storage'));
-
-    closeScheduleModal();
-    renderWeeklyTimetable();
-    renderClassSchedulesTable();
-    updateStats();
-
-    showToast(`Class schedule ${item.section} removed. Slot returned to Available.`);
-  }
-
-  // ── Event Listeners ─────────────────────────────────────────────────────
-  function wireEvents() {
-    // Floor filter dropdown
-    const floorFilter = document.getElementById('floorFilter');
-    if (floorFilter) {
-      floorFilter.addEventListener('change', () => {
-        populateFloorAndRoomSelectors();
-      });
+    try {
+      await api.schedules.remove(item.id);
+    } catch (err) {
+      showToast(errorText(err), false);
+      return;
     }
 
-    // Room selector dropdown
+    closeScheduleModal();
+    await refreshAll();
+    showToast(`Class schedule ${item.label} deleted. The slot is Available again.`);
+  }
+
+  // ── Event listeners ─────────────────────────────────────────────────────
+  function wireEvents() {
+    const floorFilter = document.getElementById('floorFilter');
+    if (floorFilter) floorFilter.addEventListener('change', populateFloorAndRoomSelectors);
+
     const roomSelector = document.getElementById('roomSelector');
     if (roomSelector) {
       roomSelector.addEventListener('change', () => {
-        const selectedVal = roomSelector.value;
-        const room = state.rooms.find(r => String(r.number || r.id) === selectedVal);
+        const room = state.rooms.find(r => String(r.id) === roomSelector.value);
         if (room) selectRoom(room);
       });
     }
 
-    // Week Switchers
+    async function changeWeek(nextMonday) {
+      state.currentMonday = nextMonday;
+      try { await loadWeekReservations(); } catch (err) { showToast(errorText(err), false); }
+      renderWeeklyTimetable();
+      updateStats();
+    }
+
     const prevBtn = document.getElementById('ttBtnPrevWeek');
-    if (prevBtn) {
-      prevBtn.addEventListener('click', () => {
-        state.currentMonday.setDate(state.currentMonday.getDate() - 7);
-        renderWeeklyTimetable();
-      });
-    }
-
+    if (prevBtn) prevBtn.addEventListener('click', () => {
+      const d = new Date(state.currentMonday); d.setDate(d.getDate() - 7); changeWeek(d);
+    });
     const nextBtn = document.getElementById('ttBtnNextWeek');
-    if (nextBtn) {
-      nextBtn.addEventListener('click', () => {
-        state.currentMonday.setDate(state.currentMonday.getDate() + 7);
-        renderWeeklyTimetable();
-      });
-    }
-
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      const d = new Date(state.currentMonday); d.setDate(d.getDate() + 7); changeWeek(d);
+    });
     const thisWeekBtn = document.getElementById('ttBtnThisWeek');
-    if (thisWeekBtn) {
-      thisWeekBtn.addEventListener('click', () => {
-        state.currentMonday = getMonday(new Date());
-        renderWeeklyTimetable();
-      });
-    }
+    if (thisWeekBtn) thisWeekBtn.addEventListener('click', () => changeWeek(getMonday(new Date())));
 
-    // Open Add Schedule Modal Buttons
     const btnOpenAdd = document.getElementById('btnOpenAddSchedule');
     if (btnOpenAdd) btnOpenAdd.addEventListener('click', () => openScheduleModalForAdd());
-
     const btnTableAdd = document.getElementById('btnTableAddSchedule');
     if (btnTableAdd) btnTableAdd.addEventListener('click', () => openScheduleModalForAdd());
 
-    // Modal close & cancel
     const btnCloseModal = document.getElementById('btnCloseScheduleModal');
     if (btnCloseModal) btnCloseModal.addEventListener('click', closeScheduleModal);
-
     const btnCancel = document.getElementById('btnCancelSchedule');
     if (btnCancel) btnCancel.addEventListener('click', closeScheduleModal);
 
-    // Modal delete button
     const btnDelete = document.getElementById('btnDeleteSchedule');
     if (btnDelete) {
       btnDelete.addEventListener('click', () => {
@@ -1300,21 +1108,14 @@
       });
     }
 
-    // Schedule form validation on inputs
-    const schedStart = document.getElementById('schedStart');
-    const schedEnd = document.getElementById('schedEnd');
-    const schedDay = document.getElementById('schedDay');
-    const schedRoom = document.getElementById('schedRoom');
-
-    [schedStart, schedEnd, schedDay, schedRoom].forEach(el => {
+    ['schedStart', 'schedEnd', 'schedDay', 'schedRoom'].forEach(id => {
+      const el = document.getElementById(id);
       if (el) el.addEventListener('change', validateScheduleTime);
     });
 
-    // Schedule form submit
     const schedForm = document.getElementById('scheduleForm');
     if (schedForm) schedForm.addEventListener('submit', handleSaveSchedule);
 
-    // Toast Close
     const btnCloseToast = document.getElementById('btnCloseSmToast');
     if (btnCloseToast) {
       btnCloseToast.addEventListener('click', () => {
@@ -1326,31 +1127,29 @@
       });
     }
 
-    // Real-time synchronization across browser tabs
-    window.addEventListener('storage', (e) => {
-      if (!e.key || e.key === 'crs_room_class_schedules' || e.key === 'crs_custom_reservations') {
-        loadData();
-        renderWeeklyTimetable();
-        renderClassSchedulesTable();
-        renderPendingReservationsTable();
-        updateStats();
-      }
+    // Come back to the tab: pick up new requests and changes made elsewhere
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && state.selectedRoom) refreshAll();
     });
   }
 
-  // ── Global Boot ─────────────────────────────────────────────────────────
+  // ── Boot ────────────────────────────────────────────────────────────────
   async function init() {
     try {
-      loadData();
       populateTimeDropdowns();
+      populateClassSelects();
+
       const isAllowed = await guard();
       if (!isAllowed) return;
 
-      await loadRooms();
       wireEvents();
+
+      await Promise.all([loadRooms(), loadFaculty(), loadSchedules(), loadPending()]);
+      populateFloorAndRoomSelectors(); // selects a room, then loads that week's reservations
     } catch (err) {
       console.error('Schedule manager initialization error:', err);
       document.body.style.visibility = 'visible';
+      showToast('Could not load the Schedule Manager: ' + errorText(err), false);
     }
   }
 

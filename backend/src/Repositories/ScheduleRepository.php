@@ -242,6 +242,48 @@ class ScheduleRepository
         return $row ?: null;
     }
 
+    /**
+ * Approved reservations from $today onwards that fall on the given weekday
+ * (1 = Monday ... 6 = Saturday) and overlap the given time in the room.
+ */
+    public function findApprovedReservationOverlaps(
+        PDO $pdo,
+        int $roomId,
+        int $isoDay,
+        string $start,
+        string $end,
+        string $today
+    ): array {
+        $stmt = $pdo->prepare("
+            SELECT
+                r.reservation_id,
+                r.reservation_date,
+                r.start_time,
+                r.end_time,
+                r.subject,
+                COALESCE(u.full_name, 'Student') AS student_name
+            FROM public.room_reservations r
+            LEFT JOIN public.users u ON u.user_id = r.student_id
+            WHERE r.room_id = :room_id
+            AND r.status = 'approved'
+            AND r.reservation_date >= CAST(:today AS date)
+            AND EXTRACT(ISODOW FROM r.reservation_date) = CAST(:iso_day AS integer)
+            AND r.start_time < CAST(:end_time AS time)
+            AND r.end_time > CAST(:start_time AS time)
+            ORDER BY r.reservation_date ASC, r.start_time ASC
+            LIMIT 20
+        ");
+        $stmt->execute([
+            'room_id' => $roomId,
+            'today' => $today,
+            'iso_day' => $isoDay,
+            'start_time' => $start,
+            'end_time' => $end,
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function roomExists(PDO $pdo, int $roomId): bool
     {
         $stmt = $pdo->prepare('SELECT 1 FROM public.rooms WHERE room_id = :id LIMIT 1');

@@ -1,10 +1,11 @@
 /**
  * PUP Canlalay Campus CRS - Browse Rooms & Today/Tomorrow Timetable Controller
  *
- * Connected to Supabase (run supabase_reservations.sql first):
- * - Rooms:            public.rooms
- * - Reservations:     public.room_reservations (RLS)
- * - Busy slots:       rpc get_taken_slots   (times + status only, no names/subjects)
+ * Connected to Supabase & PHP API:
+ * - Rooms:            public.rooms (via api.rooms.list)
+ * - Class Schedules:  public.room_schedules (via api.schedules.list)
+ * - Reservations:     public.room_reservations (via api.reservations)
+ * - Busy slots:       rpc get_taken_slots (times + status only, no names/subjects)
  * - Faculty dropdown: rpc list_active_faculty
  * - Cancel:           rpc cancel_reservation (student, own, pending only)
  *
@@ -14,7 +15,8 @@
  *   but a student can still request it. The admin approves only one; the rest
  *   are auto-rejected by the database.
  * - APPROVED slots are red / occupied and cannot be requested.
- * - Regular class schedules (blue) will come from room_schedules later.
+ * - Regular class schedules (blue) come from room_schedules; students can
+ *   click their own section's class slot for automatic approval.
  */
 
 (() => {
@@ -177,7 +179,7 @@
     rooms: [],
     byId: {},
     selectedRoom: null,
-    classSchedules: [],         // BLUE cards: will come from room_schedules later
+    classSchedules: [],         // BLUE cards from room_schedules
     reservations: [],           // reservations of the selected room (today & tomorrow)
     facultyMap: {},             // faculty user_id -> full name
     submitting: false,
@@ -412,11 +414,42 @@
     }
   }
 
+  // ── Recurring weekly classes of the room (BLUE cards) ───────────────────
+  // The API already limits faculty to the classes tagged to their own account
+  // and flags is_my_class for students belonging to the scheduled section.
+  async function loadClassSchedules(room) {
+    try {
+      const rows = await api.schedules.list({ room_id: room.id });
+      state.classSchedules = (rows || []).map(c => {
+        const startMinutes = sqlTimeToMinutes(c.start_time);
+        const endMinutes = sqlTimeToMinutes(c.end_time);
+        return {
+          roomId: c.room_id,
+          day: c.day_of_week,
+          startMinutes,
+          endMinutes,
+          start: minutesToTime(startMinutes),
+          end: minutesToTime(endMinutes),
+          subject: c.subject_title,
+          code: c.subject_code || '',
+          section: c.course_section || '',
+          faculty: c.faculty_name || state.facultyMap[c.faculty_id] || '',
+          isMyClass: c.is_my_class === true
+        };
+      });
+    } catch (err) {
+      console.warn('Could not load class schedules:', err);
+      state.classSchedules = [];
+    }
+  }
+
   // ── Load reservations for the selected room (today & tomorrow) ───────────
   // Two sources:
   //  1. room_reservations (RLS): full details of MY requests (admin: all; faculty: tagged)
   //  2. get_taken_slots: other students' busy slots, TIMES + STATUS only
   async function loadReservationsForRoom(room) {
+    await loadClassSchedules(room);
+
     const days = getTodayAndTomorrowDates();
     const from = days[0].dateStr;
     const to = days[1].dateStr;
@@ -680,10 +713,7 @@
     return card;
   }
 
-  // A reservation counts as BLOCKING (no green slot, cannot be requested) when:
-  // it is APPROVED, or it is MY OWN pending request. Other students' pending
-  // requests do NOT block: they show as yellow but the slot can still be requested.
-  // ── AFTER (Fixes green/yellow scroll flickering) ─────────────────────────
+  // Prevents green/yellow scroll flickering by treating active items as blocking
   function isBlocking(item) {
     if (item.isClassSchedule) return true;
     if (item.status === 'approved' || item.status === 'pending') return true;
@@ -699,7 +729,7 @@
 
     if (item.detail) {
       title = item.subject || 'Room Reservation';
-            meta = `
+      meta = `
         <div>Faculty: ${esc(item.faculty || 'Unassigned')}</div>
         <div class="text-gray-500 mt-0.5">Applicant: ${esc(item.mine ? 'You' : item.requester)}</div>
         ${item.requesterSection ? `<div class="text-gray-500">Year &amp; Section: ${esc(item.requesterSection)}</div>` : ''}`;
@@ -746,7 +776,7 @@
       if (canRequestThisSlot) {
         // yellow slot of another student: still requestable
         openReservationModal(item.start, item.end, item.date);
-            } else if (item.detail) {
+      } else if (item.detail) {
         const who = item.requesterSection ? ` • ${item.requester} (${item.requesterSection})` : '';
         showToast(`${item.subject} (${item.start} – ${item.end}) • ${badge}${who}`);
       } else {
@@ -841,7 +871,7 @@
       }
       colEl.innerHTML = linesHtml;
 
-      // Sunday is closed: gray out the whole column, no slots, nothing clickable
+      // Sunday is closed: gray out the whole column with banner, no slots, nothing clickable
       if (wd.closed) {
         colEl.classList.add('closed-day');
         colEl.insertAdjacentHTML('beforeend', `
@@ -852,7 +882,7 @@
         return;
       }
 
-      // 1. Regular class schedules (BLUE) - empty until room_schedules exists
+      // 1. Regular class schedules (BLUE) from room_schedules
       const dayClasses = state.classSchedules.filter(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === wd.dayName.toLowerCase();
@@ -871,9 +901,7 @@
         return aStart - bStart;
       });
 
-      // Green "available" gaps are computed from BLOCKING items only
-      // (class, approved, my own pending). Other students' pending requests
-      // do not block, so they are drawn on top of the green slot.
+      // Green "available" gaps are computed from BLOCKING items
       if (r.active) {
         const blockers = allEvents.filter(isBlocking);
         let currentPointer = startBoundary;
@@ -905,7 +933,7 @@
         let card;
 
         if (item.isClassSchedule) {
-          // BLUE: regular class (will be filled from room_schedules later)
+          // BLUE: regular class from room_schedules
           card = cardFrame('class-schedule', top, height);
           card.innerHTML = `
             <div class="card-top-bar"></div>
@@ -923,6 +951,11 @@
           `;
           card.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (item.isMyClass && state.canReserve) {
+              // Your own class: the reservation is approved automatically.
+              openReservationModal(item.start, item.end, wd.dateStr);
+              return;
+            }
             showToast(`[Scheduled Class] ${item.section}: ${item.subject} (${item.start} – ${item.end})`);
           });
         } else {
@@ -936,7 +969,7 @@
     });
   }
 
-  // ── Render Green Available Slot Block (hides past hours today) ───────────
+  // ── Render Green Available Slot Block (enforces MIN_LEAD_MINUTES today) ──
   function renderAvailableSlot(container, startMin, endMin, dateStr) {
     const todayStr = getTodayString();
     const now = new Date();
@@ -1169,8 +1202,8 @@
       const dayIndex = dObj.getDay();
       const dayName = DAY_NAMES[dayIndex === 0 ? 6 : dayIndex - 1];
 
-      // 1. Regular class (BLUE) - empty until room_schedules exists
-      const classConflict = state.classSchedules.find(c => {
+      // 1. Regular class (BLUE) from room_schedules
+      const overlappingClasses = state.classSchedules.filter(c => {
         const matchRoom = String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number);
         const matchDay = c.day && c.day.toLowerCase() === dayName.toLowerCase();
         if (!matchRoom || !matchDay) return false;
@@ -1178,6 +1211,9 @@
         const cEnd = c.endMinutes ?? timeToMinutes(c.end);
         return cStart < eMins && cEnd > sMins;
       });
+
+      const otherClass = overlappingClasses.find(c => !c.isMyClass);
+      const myClass = overlappingClasses.find(c => c.isMyClass);
 
       // 2. Reservations of this room on that date that overlap the chosen time
       const overlapping = state.reservations.filter(b =>
@@ -1191,9 +1227,9 @@
       const myPending = overlapping.find(b => b.status === 'pending' && b.mine);
       const othersPending = overlapping.filter(b => b.status === 'pending' && !b.mine);
 
-      if (classConflict) {
+      if (otherClass) {
         type = 'bad';
-        msg = `Class Schedule Conflict: Room is reserved for scheduled class "${classConflict.subject}" from ${classConflict.start} to ${classConflict.end}.`;
+        msg = `Class Schedule Conflict: this slot belongs to ${otherClass.section || 'another class'} ("${otherClass.subject}", ${otherClass.start} – ${otherClass.end}). Only that class can reserve it.`;
         isValid = false;
       } else if (approved) {
         type = 'bad';
@@ -1203,6 +1239,8 @@
         type = 'bad';
         msg = `You already have a pending request for this time (${myPending.start} – ${myPending.end}).`;
         isValid = false;
+      } else if (myClass) {
+        msg = `This slot is your class schedule ("${myClass.subject}"). Your reservation will be approved automatically.`;
       } else if (othersPending.length > 0) {
         type = 'warn';
         msg = 'Other students already have pending requests for this time. You can still request it, but the Admin approves only one request.';
@@ -1221,7 +1259,7 @@
     return isValid;
   }
 
-  // ── Submit: create the reservation through the PHP API (status starts as 'pending') ──
+  // ── Submit: create the reservation through the PHP API ──────────────────
   async function handleReservationSubmit(e) {
     e.preventDefault();
     if (state.submitting) return;
@@ -1249,8 +1287,9 @@
     validateReservationForm();
 
     let error = null;
+    let created = null;
     try {
-      await api.reservations.create({
+      created = await api.reservations.create({
         room_id: r.id,
         faculty_id: facultyVal,
         subject: subjectVal.slice(0, 150),
@@ -1274,7 +1313,9 @@
     await refreshReservations();
     renderWeeklyTimetable();
     closeReservationModal();
-    showToast('Reservation request submitted! It is now Pending until the Admin decides.');
+    showToast(created && created.status === 'approved'
+      ? 'Reservation approved automatically: the slot belongs to your class schedule.'
+      : 'Reservation request submitted! It is now Pending until the Admin decides.');
   }
 
   // ── Cancel my own pending request ───────────────────────────────────────
