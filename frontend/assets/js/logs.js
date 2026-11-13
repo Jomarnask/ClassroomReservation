@@ -20,6 +20,7 @@
   const EVENT_LABELS = {
     RESERVATION_APPROVED: 'Reservation Approved',
     RESERVATION_AUTO_APPROVED: 'Auto-Approved Reservation',
+    RESERVATION_ADMIN_BOOKED: 'Admin Booking',
     RESERVATION_DECLINED: 'Reservation Declined',
     RESERVATION_CANCELLED: 'Reservation Cancelled',
     USER_APPROVED: 'User Approved',

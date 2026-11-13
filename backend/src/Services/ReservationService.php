@@ -119,6 +119,73 @@ class ReservationService
         });
     }
 
+    /** Active faculty members (for the "tag a faculty" dropdown). */
+    public function activeFaculty(AuthenticatedUser $user): array
+    {
+        return $this->run($user, function (PDO $pdo) use ($user) {
+            $this->assertActiveAccount($pdo, $user);
+
+            return $this->repository->findActiveFaculty($pdo);
+        });
+    }
+
+    /**
+     * Admin books a room directly: approved at once (no approval step).
+     * Pending student requests that overlap it are rejected automatically.
+     * The 2-hour lead time does not apply to admins, but the past is still blocked.
+     */
+    public function createAsAdmin(AuthenticatedUser $user, array $input): array
+    {
+        $data = $this->validateCreate($input, true);
+
+        return $this->run($user, function (PDO $pdo) use ($user, $data) {
+            $access = $this->repository->findUserAccess($pdo, $user->getId());
+
+            if (!$access
+                || $access['role'] !== 'admin'
+                || $access['account_status'] !== 'active') {
+                throw new ApiException('Administrator access required.', 403);
+            }
+
+            $room = $this->repository->findRoomState($pdo, $data['room_id']);
+
+            if (!$room) {
+                throw new ApiException('Room not found.', 404);
+            }
+
+            if (!$room['is_active']) {
+                throw new ApiException('This room is not available for reservations.', 409);
+            }
+
+            if (!$this->repository->isActiveFaculty($pdo, $data['faculty_id'])) {
+                throw new ApiException('The selected faculty member is not available.', 422);
+            }
+
+            $approved = $this->repository->findApprovedOverlap(
+                $pdo,
+                $data['room_id'],
+                $data['reservation_date'],
+                $data['start_time'],
+                $data['end_time']
+            );
+
+            if ($approved) {
+                throw new ApiException(
+                    'This time overlaps an approved reservation ('
+                    . $this->shortTime($approved['start_time']) . ' - ' . $this->shortTime($approved['end_time']) . ').',
+                    409
+                );
+            }
+
+            $outcome = $this->repository->createAdminReservation($pdo, $data);
+
+            return [
+                'reservation' => $this->repository->findById($pdo, (int) $outcome['reservation_id']),
+                'auto_rejected_competing_count' => (int) ($outcome['auto_rejected_competing_count'] ?? 0),
+            ];
+        });
+    }
+
     /**
      * What the booking timetable may offer today and tomorrow.
      * Sunday is never bookable: on Saturday tomorrow (Sunday) is disabled,
@@ -254,7 +321,7 @@ class ReservationService
     // Input validation
     // ------------------------------------------------------------------
 
-    private function validateCreate(array $input): array
+    private function validateCreate(array $input, bool $asAdmin = false): array
     {
         $allowed = ['room_id', 'faculty_id', 'subject', 'reservation_date', 'start_time', 'end_time'];
 
@@ -310,16 +377,24 @@ class ReservationService
             throw new ApiException('You cannot reserve a room for a past date.', 422);
         }
 
-        // Lead time: the start must be at least 2 hours from now
-        $earliest = $now->modify('+' . self::MIN_LEAD_MINUTES . ' minutes');
         $startsAt = new DateTimeImmutable($date . ' ' . $start);
 
-        if ($startsAt < $earliest) {
-            throw new ApiException(
-                'Reservations must be requested at least 2 hours before the start time. '
-                . 'The earliest start right now is ' . $earliest->format('M j, g:i A') . '.',
-                422
-            );
+        if ($asAdmin) {
+            // Admins may book right away: only the past is blocked
+            if ($startsAt < $now) {
+                throw new ApiException('The start time has already passed. Choose a time from now on.', 422);
+            }
+        } else {
+            // Lead time: the start must be at least 2 hours from now
+            $earliest = $now->modify('+' . self::MIN_LEAD_MINUTES . ' minutes');
+
+            if ($startsAt < $earliest) {
+                throw new ApiException(
+                    'Reservations must be requested at least 2 hours before the start time. '
+                    . 'The earliest start right now is ' . $earliest->format('M j, g:i A') . '.',
+                    422
+                );
+            }
         }
 
         return [

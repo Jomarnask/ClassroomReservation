@@ -63,6 +63,10 @@ $router->patch('/api/reservations/{reservationId}/cancel', [ReservationControlle
 
 $router->get('/api/booking-window', [ReservationController::class, 'bookingWindow'], [$authMiddleware]);
 
+// 5b. Admin books a room directly (approved at once) and the faculty dropdown (Protected)
+$router->post('/api/admin/reservations', [ReservationController::class, 'storeAdmin'], [$authMiddleware]);
+$router->get('/api/faculty', [ReservationController::class, 'faculty'], [$authMiddleware]);
+
 // 6. User management API - admin only (Protected)
 $router->get('/api/users', [UserManagementController::class, 'index'], [$authMiddleware]);
 

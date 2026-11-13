@@ -8,9 +8,10 @@
  * - Loads only on dashboard.html (one <script> tag, after dashboard.js).
  * - Does nothing for Student / Faculty (the admin-only #active-bookings section
  *   never exists for them), and does not modify dashboard.js.
- * - Admin booking goes through the database function admin_create_reservation()
- *   (see supabase_admin_booking.sql), which re-checks that the caller is an
- *   active admin. The browser checks below are only for instant feedback.
+ * - Everything goes through the PHP API (window.api, see api.js): rooms, faculty,
+ *   reservations and the booking itself (POST /api/admin/reservations, which calls
+ *   admin_create_reservation() from database/admin_booking.sql and re-checks that
+ *   the caller is an active admin). The browser checks below are only for instant feedback.
  * - Student requests stay "pending" (yellow) and are still approved/declined
  *   on all-reservations.html.
  */
@@ -306,31 +307,22 @@ window.supabaseClient = client;
   }
 
   async function loadRooms() {
-    var res = await client.from('rooms')
-      .select('room_id, room_number, room_name, floor, room_type, is_active')
-      .order('floor', { ascending: true })
-      .order('room_id', { ascending: true });
-    if (res.error) throw res.error;
-    state.rooms = (res.data || []).map(function (r) {
+    var rows = await window.api.rooms.list();   // already ordered by floor, then room
+    state.rooms = (rows || []).map(function (r) {
       return { id: r.room_id, number: r.room_number || '', name: r.room_name || '', floor: r.floor == null ? 0 : r.floor, roomType: r.room_type || 'other', active: r.is_active !== false };
     });
   }
 
   async function loadFaculty() {
-    var res = await client.rpc('list_active_faculty');
-    if (res.error) { console.error('Faculty list failed:', res.error); toast('Could not load the faculty list: ' + res.error.message); return; }
-    state.faculty = res.data || [];
+    try {
+      state.faculty = (await window.api.faculty.list()) || [];
+    } catch (err) {
+      console.error('Faculty list failed:', err);
+      toast('Could not load the faculty list: ' + (err.message || err));
+      return;
+    }
     state.facultyMap = {};
     state.faculty.forEach(function (u) { state.facultyMap[u.user_id] = u.full_name; });
-  }
-
-  async function ensureNames(ids) {
-    var missing = ids.filter(function (id) { return id && !state.names[id]; });
-    missing = missing.filter(function (v, i, a) { return a.indexOf(v) === i; });
-    if (!missing.length) return;
-    var res = await client.from('users').select('user_id, full_name').in('user_id', missing);
-    if (res.error) { console.warn('Name lookup failed:', res.error); return; }
-    (res.data || []).forEach(function (u) { state.names[u.user_id] = u.full_name; });
   }
 
   // Reservations of one room for today & tomorrow (pending + approved)
@@ -339,26 +331,22 @@ window.supabaseClient = client;
     var from = days[0].dateStr, to = days[1].dateStr;
 
     var results = await Promise.all([
-      client.from('room_reservations')
-        .select('reservation_id, room_id, student_id, faculty_id, subject, reservation_date, start_time, end_time, status')
-        .eq('room_id', room.id).gte('reservation_date', from).lte('reservation_date', to)
-        .in('status', ['pending', 'approved']),
-      client.rpc('get_taken_slots', { p_room_id: room.id, p_from: from, p_to: to })
+      window.api.reservations.list({ room_id: room.id, date_from: from, date_to: to, limit: 500 }),
+      window.api.rooms.takenSlots(room.id, from, to).catch(function (err) { console.warn('Taken slots failed:', err); return []; })
     ]);
-    var visible = results[0], taken = results[1];
-    if (visible.error) throw visible.error;
-    if (taken.error) console.warn('get_taken_slots failed:', taken.error);
 
-    await ensureNames((visible.data || []).map(function (r) { return r.student_id; }));
+    // The API returns every status; the timetable shows pending + approved only
+    var visible = (results[0] || []).filter(function (r) { return r.status === 'pending' || r.status === 'approved'; });
+    var taken = results[1] || [];
 
-    var detailed = (visible.data || []).map(function (r) {
+    var detailed = visible.map(function (r) {
       var s = sqlTimeToMinutes(r.start_time), e = sqlTimeToMinutes(r.end_time);
       return {
         id: r.reservation_id, roomId: r.room_id, date: r.reservation_date,
         startMinutes: s, endMinutes: e, start: minutesToTime(s), end: minutesToTime(e),
         status: r.status, subject: r.subject,
-        faculty: state.facultyMap[r.faculty_id] || 'Tagged faculty',
-        requester: state.names[r.student_id] || 'Student',
+        faculty: r.faculty_name || state.facultyMap[r.faculty_id] || 'Tagged faculty',
+        requester: r.student_name || 'Student',
         adminBooking: !!(state.user && r.student_id === state.user.id),
         detail: true
       };
@@ -367,8 +355,8 @@ window.supabaseClient = client;
     var known = {};
     detailed.forEach(function (r) { known[r.id] = true; });
 
-    // Safety net: slots the admin's RLS view did not return (times + status only)
-    var timesOnly = ((taken.data) || []).filter(function (t) { return !known[t.reservation_id]; }).map(function (t) {
+    // Safety net: slots the list above did not return (times + status only)
+    var timesOnly = taken.filter(function (t) { return !known[t.reservation_id]; }).map(function (t) {
       var s = sqlTimeToMinutes(t.start_time), e = sqlTimeToMinutes(t.end_time);
       return { id: t.reservation_id, roomId: room.id, date: t.reservation_date, startMinutes: s, endMinutes: e, start: minutesToTime(s), end: minutesToTime(e), status: t.status, detail: false };
     });
@@ -702,27 +690,6 @@ window.supabaseClient = client;
     return valid;
   }
 
-  function addAuditLog(room, p) {
-    // Same browser store that logs.html reads (see all-reservations.html)
-    try {
-      var logs = JSON.parse(localStorage.getItem('crs_audit_logs') || '[]');
-      if (!Array.isArray(logs)) logs = [];
-      logs.unshift({
-        id: Date.now() + '-admin-booking-' + room.id,
-        ts: new Date().toISOString(),
-        type: 'APPROVAL', chipClass: 'approval',
-        user: state.adminName + ' (Admin)',
-        room: displayName(room),
-        slot: p.date + ' • ' + p.start + ' - ' + p.end,
-        ref: '',
-        action: 'Admin booked ' + displayName(room) + ' on ' + p.date + ', ' + p.start + ' - ' + p.end + ' (auto-approved). Purpose: ' + p.subject + '.',
-        ip: 'Web Client',
-        status: 'APPROVED'
-      });
-      localStorage.setItem('crs_audit_logs', JSON.stringify(logs));
-    } catch (e) { /* logging must never block a booking */ }
-  }
-
   async function submitBooking(e) {
     e.preventDefault();
     if (state.submitting) return;
@@ -741,35 +708,34 @@ window.supabaseClient = client;
     state.submitting = true;
     validateBooking();
 
-    var res = await client.rpc('admin_create_reservation', {
-      p_room_id: room.id,
-      p_faculty_id: p.faculty,
-      p_subject: p.subject.slice(0, 150),
-      p_date: p.date,
-      p_start: toSqlTime(p.start),
-      p_end: toSqlTime(p.end)
-    });
-
-    state.submitting = false;
-
-    if (res.error) {
-      console.error('Admin booking failed:', res.error);
-      var msg = res.error.message || 'Could not create the reservation.';
-      if (/could not find the function|PGRST202/i.test(msg + ' ' + (res.error.code || ''))) {
-        msg = 'The admin booking function is not installed yet. Run supabase_admin_booking.sql in the Supabase SQL editor.';
-      }
-      toast(msg);
+    var outcome = null;
+    try {
+      outcome = await window.api.admin.createReservation({
+        room_id: room.id,
+        faculty_id: p.faculty,
+        subject: p.subject.slice(0, 150),
+        reservation_date: p.date,
+        start_time: toSqlTime(p.start),
+        end_time: toSqlTime(p.end)
+      });
+    } catch (err) {
+      state.submitting = false;
+      console.error('Admin booking failed:', err);
+      toast(err.message || 'Could not create the reservation.');
       validateBooking();
       return;
     }
 
-    addAuditLog(room, p);
+    state.submitting = false;
+
     closeBooking();
     if (state.selectedRoom && String(state.selectedRoom.id) === String(room.id) && !$('admTtOverlay').hidden) {
       await refreshTimetableData();
       renderTimetable();
     }
-    toast('Reserved and approved: ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.');
+    var rejected = outcome && outcome.auto_rejected_competing_count ? outcome.auto_rejected_competing_count : 0;
+    toast('Reserved and approved: ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.' +
+      (rejected ? ' ' + rejected + ' overlapping pending request(s) were declined automatically.' : ''));
   }
 
   // ── Mount into the admin dashboard ───────────────────────────────────────
@@ -782,8 +748,7 @@ window.supabaseClient = client;
       if (!sess.data || !sess.data.session) return;
       state.user = sess.data.session.user;
 
-      var me = await client.from('users').select('full_name').eq('user_id', state.user.id).maybeSingle();
-      if (me.data && me.data.full_name) state.adminName = me.data.full_name;
+      if (!window.api) throw new Error('The API client (api.js) is not loaded.');
 
       ensureOverlays();
       await Promise.all([loadRooms(), loadFaculty()]);

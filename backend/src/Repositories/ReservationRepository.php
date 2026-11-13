@@ -226,6 +226,48 @@ class ReservationRepository
     }
 
     /**
+     * Calls public.admin_create_reservation(): the booking is approved at once and
+     * pending requests that overlap it are rejected automatically.
+     *
+     * @return array{reservation_id:int,status:string,auto_rejected_competing_count:int}
+     */
+    public function createAdminReservation(PDO $pdo, array $data): array
+    {
+        $stmt = $pdo->prepare("
+            SELECT public.admin_create_reservation(
+                :room_id,
+                CAST(:faculty_id AS uuid),
+                CAST(:subject AS varchar),
+                CAST(:reservation_date AS date),
+                CAST(:start_time AS time),
+                CAST(:end_time AS time)
+            ) AS result
+        ");
+
+        $stmt->execute([
+            'room_id' => $data['room_id'],
+            'faculty_id' => $data['faculty_id'],
+            'subject' => $data['subject'],
+            'reservation_date' => $data['reservation_date'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
+        ]);
+
+        return json_decode((string) $stmt->fetchColumn(), true) ?: [];
+    }
+
+    /**
+     * Active faculty for the "tag a faculty" dropdown. Uses a database function
+     * because only admins may read other people's rows in public.users.
+     */
+    public function findActiveFaculty(PDO $pdo): array
+    {
+        $stmt = $pdo->query('SELECT user_id, full_name FROM public.list_active_faculty()');
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Calls public.create_student_reservation(), which applies the class rules:
      *  - slot owned by another program / year level / section -> exception
      *  - slot owned by the student's own class                -> inserted as 'approved'

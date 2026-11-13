@@ -104,6 +104,14 @@
     // { today, rooms, pending_users, pending_reservations, today_bookings, room_status, activity }
     admin: {
       dashboard: function () { return request('/api/admin/dashboard'); },
+      // Admin books a room: approved at once.
+      // data: { room_id, faculty_id, subject, reservation_date, start_time, end_time }
+      // -> { reservation, auto_rejected_competing_count }
+      createReservation: function (data) { return request('/api/admin/reservations', { method: 'POST', body: data }); },
+    },
+    // Active faculty members (any signed-in active user) -> [{ user_id, full_name }]
+    faculty: {
+      list: function () { return request('/api/faculty'); },
     },
     // Which of today / tomorrow can be booked (Monday-Saturday only)
     bookingWindow: function () { return request('/api/booking-window'); },

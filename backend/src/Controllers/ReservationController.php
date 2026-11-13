@@ -112,6 +112,31 @@ class ReservationController
         );
     }
 
+    /** POST /api/admin/reservations (active admins only): booked and approved at once */
+    public function storeAdmin(Request $request): void
+    {
+        $user = $this->user($request);
+
+        $outcome = $this->service->createAsAdmin($user, $request->getBody());
+        $rejected = (int) ($outcome['auto_rejected_competing_count'] ?? 0);
+
+        Response::success(
+            $outcome,
+            'Reservation created and approved.'
+                . ($rejected > 0 ? ' ' . $rejected . ' overlapping pending request(s) were declined automatically.' : ''),
+            201
+        );
+    }
+
+    /** GET /api/faculty - active faculty members for the "tag a faculty" dropdown */
+    public function faculty(Request $request): void
+    {
+        Response::success(
+            $this->service->activeFaculty($this->user($request)),
+            'Active faculty retrieved successfully.'
+        );
+    }
+
     /** GET /api/booking-window - which of today / tomorrow can be booked (Mon-Sat only) */
     public function bookingWindow(Request $request): void
     {
