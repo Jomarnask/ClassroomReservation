@@ -281,7 +281,13 @@
 
       if (myRequest !== state.requestId) return; // a newer request replaced this one
 
-      state.items = reset ? data.items : state.items.concat(data.items);
+      if (reset) {
+        state.items = data.items;
+      } else {
+        // New events can arrive while paging, which shifts the pages: skip repeats
+        const seen = new Set(state.items.map(x => x.log_id));
+        state.items = state.items.concat(data.items.filter(x => !seen.has(x.log_id)));
+      }
       state.matched = data.matched;
       state.total = data.total;
     } catch (err) {
@@ -353,7 +359,7 @@
 
     // Coming back to the tab: show events that happened meanwhile
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && !state.loading) load(true);
+      if (document.visibilityState === 'visible' && !state.loading && state.items.length <= PAGE_SIZE) load(true);
     });
   }
 
