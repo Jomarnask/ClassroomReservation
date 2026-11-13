@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
+use App\Controllers\AdminDashboardController;
 use App\Controllers\AuditLogController;
 use App\Controllers\FacultyScheduleController;
 use App\Controllers\ScheduleController;
@@ -34,6 +35,9 @@ $router->get('/api/me', [UserController::class, 'me'], [$authMiddleware]);
 
 // 3. Admin verification check (Protected)
 $router->get('/api/admin/check', [AdminController::class, 'check'], [$authMiddleware]);
+
+// 3b. Admin dashboard numbers, room status and today's activity (Protected, admin only)
+$router->get('/api/admin/dashboard', [AdminDashboardController::class, 'index'], [$authMiddleware]);
 
 // 4. Rooms API (Protected)
 $router->get('/api/rooms', [RoomController::class, 'index'], [$authMiddleware]);

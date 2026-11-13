@@ -100,6 +100,11 @@
         return request('/api/schedules/' + encodeURIComponent(id), { method: 'DELETE' });
       },
     },
+    // Admin only. Everything the admin dashboard shows, in one call:
+    // { today, rooms, pending_users, pending_reservations, today_bookings, room_status, activity }
+    admin: {
+      dashboard: function () { return request('/api/admin/dashboard'); },
+    },
     // Which of today / tomorrow can be booked (Monday-Saturday only)
     bookingWindow: function () { return request('/api/booking-window'); },
     // Admin only, read-only. filters: { category: 'RESERVATION' | 'USER_APPROVAL' | 'ROOM' | 'SCHEDULE',

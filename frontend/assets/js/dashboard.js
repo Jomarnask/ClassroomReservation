@@ -63,19 +63,8 @@
       { id: 'REQ-4093', requester: 'Samantha Ramos', studentNo: '2022-03102-MN-0', course: 'BS Information Technology', subject: 'Agile Software Testing Mock Sprint', room: 'Lab 305', date: 'Tomorrow', time: '8:00 AM - 10:00 AM', reason: 'Needs local Docker instances pre-configured.' },
       { id: 'REQ-4094', requester: 'Christian Diaz', studentNo: '2021-08192-MN-0', course: 'BS Computer Engineering', subject: 'Embedded Systems Hardware Defense', room: 'Room 208', date: 'Friday', time: '1:00 PM - 4:00 PM', reason: 'Final prototype demonstration.' },
     ],
-    adminActiveBookings: [
-      { room: 'Lab 301', occupant: 'Dr. Alicia Reyes (CS314)', floor: '3rd Floor', start: '10:00 AM', end: '1:00 PM', capacity: '42/45' },
-      { room: 'Room 402', occupant: 'Engr. Roberto Cruz (IT305)', floor: '4th Floor', start: '1:30 PM', end: '4:30 PM', capacity: '54/60' },
-      { room: 'Room 208', occupant: 'Prof. Maria Morales (IT Elec)', floor: '2nd Floor', start: '8:00 AM', end: '11:00 AM', capacity: '48/50' },
-      { room: 'Room 101', occupant: 'Prof. Dante Santos (GEED)', floor: '1st Floor', start: '7:30 AM', end: '9:00 AM', capacity: '35/55' },
-    ],
-    adminHistoryToday: [
-      { ref: '#RES-9014', room: 'Lab 301', requester: 'Danilo Santos', role: 'Student', time: '10:00 AM - 1:00 PM', purpose: 'OS Lab Practical Session', endorsedBy: 'Dr. A. Reyes', status: 'Approved' },
-      { ref: '#RES-9013', room: 'Room 402', requester: 'Engr. Roberto Cruz', role: 'Faculty', time: '1:30 PM - 4:30 PM', purpose: 'Web Dev Lecture & Presentation', endorsedBy: 'Self', status: 'Approved' },
-      { ref: '#RES-9012', room: 'Lab 305', requester: 'Samantha Ramos', role: 'Student', time: '8:00 AM - 10:00 AM', purpose: 'Software Testing Workshop', endorsedBy: 'Prof. F. Silva', status: 'Pending' },
-      { ref: '#RES-9011', room: 'Room 202', requester: 'John Paul Perez', role: 'Student', time: '11:00 AM - 1:00 PM', purpose: 'Math Org General Assembly', endorsedBy: 'Dr. G. Mendoza', status: 'Rejected' },
-      { ref: '#RES-9010', room: 'Room 101', requester: 'Prof. Dante Santos', role: 'Faculty', time: '7:30 AM - 9:00 AM', purpose: 'Purposive Comm Discussion', endorsedBy: 'Dept Chair', status: 'Completed' },
-    ]
+    adminDashboard: null,   // last answer of GET /api/admin/dashboard
+    adminActivity: [],      // today's activity rows (used by the Slip button)
   };
 
   // Escape text coming from the database before putting it in innerHTML
@@ -279,8 +268,9 @@
       renderFacultyView(root, user);
     } else if (role === 'Admin') {
       renderAdminView(root, user);
-      loadPendingApprovalsCount(); // real number from the database
-      loadRoomCounts();            // real room totals from the database
+      if (State.adminDashboard) paintAdmin(State.adminDashboard); // show the last data at once
+      loadAdminDashboard();        // real numbers from GET /api/admin/dashboard
+      startAdminAutoRefresh();
     }
 
     if (window.lucide && window.lucide.createIcons) {
@@ -288,48 +278,241 @@
     }
   }
 
-  // Real count of accounts waiting for approval (admins only; RLS allows admins to read all users)
-  async function loadPendingApprovalsCount() {
-    const countEl = document.getElementById('pendingApprovalsCount');
-    const labelEl = document.getElementById('pendingApprovalsLabel');
-    if (!countEl || !client) return;
+  // ==========================================
+  // ADMIN DASHBOARD DATA  (GET /api/admin/dashboard)
+  // ==========================================
+  let adminTimer = null;
+  let adminRequestId = 0;
+  let adminVisibilityWired = false;
 
-    const { count, error } = await client
-      .from('users')
-      .select('user_id', { count: 'exact', head: true })
-      .eq('account_status', 'pending');
+  const MANILA = 'Asia/Manila';
 
-    if (error) {
-      console.error('Pending count failed:', error);
-      countEl.textContent = '-';
-      if (labelEl) labelEl.textContent = 'Unavailable';
-      return;
-    }
-
-    countEl.textContent = count ?? 0;
-    if (labelEl) labelEl.textContent = count > 0 ? 'Requires Review' : 'All clear';
+  // '13:30:00' -> '1:30 PM'
+  function fmtTime(t) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+    if (!m) return '';
+    const h = parseInt(m[1], 10);
+    return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM');
   }
 
-  // Real room totals: all rooms, and how many are Active (is_active = true)
-  async function loadRoomCounts() {
-    const totalEl = document.getElementById('totalRoomsCount');
-    const activeEl = document.getElementById('activeRoomsLabel');
-    if (!totalEl || !client) return;
+  function fmtRange(start, end) {
+    return fmtTime(start) + ' - ' + fmtTime(end);
+  }
 
-    const [totalRes, activeRes] = await Promise.all([
-      client.from('rooms').select('room_id', { count: 'exact', head: true }),
-      client.from('rooms').select('room_id', { count: 'exact', head: true }).eq('is_active', true),
-    ]);
+  // '2026-11-14' -> Today / Tomorrow / Yesterday / Nov 14
+  function dayLabel(dateStr, today) {
+    if (!dateStr) return '';
+    if (dateStr === today) return 'Today';
+    const diff = Math.round((new Date(dateStr + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    if (diff === 1) return 'Tomorrow';
+    if (diff === -1) return 'Yesterday';
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  }
 
-    if (totalRes.error || activeRes.error) {
-      console.error('Room counts failed:', totalRes.error || activeRes.error);
-      totalEl.textContent = '-';
-      if (activeEl) activeEl.textContent = 'Unavailable';
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function statusBadge(a) {
+    let label = 'Declined';
+    let cls = 'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]';
+    let slipClass = 'text-rose-600';
+
+    if (a.status === 'approved') {
+      label = 'Approved'; cls = 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]'; slipClass = 'text-emerald-600';
+    } else if (a.status === 'pending') {
+      label = 'Pending'; cls = 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'; slipClass = 'text-amber-600';
+    } else if (a.status === 'cancelled') {
+      label = a.auto_cancelled ? 'Auto-cancelled' : 'Cancelled';
+      cls = 'bg-gray-100 text-gray-600 border-gray-200'; slipClass = 'text-gray-500';
+    }
+
+    return { label, cls, slipClass };
+  }
+
+  function paintAdminPending(data) {
+    const box = document.getElementById('adminPendingList');
+    if (!box) return;
+
+    const items = data.pending_reservations.items;
+    if (!items.length) {
+      box.innerHTML = '<p class="text-xs text-gray-500 py-2">No reservation requests are waiting for a decision.</p>';
       return;
     }
 
-    totalEl.textContent = totalRes.count ?? 0;
-    if (activeEl) activeEl.textContent = (activeRes.count ?? 0) + ' Active';
+    box.innerHTML = items.map(p => `
+      <div class="p-3 bg-white border border-gray-200 rounded-[3px] flex items-center justify-between gap-3 hover:border-[#880000] transition">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-xs text-[#880000] font-mono">${esc(p.ref)}</span>
+            <span class="text-xs font-semibold text-gray-800">${esc(p.room)}</span>
+          </div>
+          <p class="text-[11px] text-gray-500 truncate">${esc(p.requester || 'Unknown')} &bull; ${esc(p.subject)}${p.faculty ? ' &bull; ' + esc(p.faculty) : ''}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-[11px] font-bold text-gray-800">${esc(dayLabel(p.reservation_date, data.today))}</p>
+          <p class="text-[11px] text-gray-500">${esc(fmtRange(p.start_time, p.end_time))}</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Live Sessions (top 3): rooms in use right now (approved reservation or weekly class)
+  function paintAdminRooms(data) {
+    const live = document.getElementById('adminLiveList');
+    if (!live) return;
+
+    const inUse = data.room_status.filter(r => r.status === 'in_use' && r.current);
+    if (!inUse.length) {
+      live.innerHTML = '<p class="text-xs text-gray-500 py-2">No rooms are in use right now.</p>';
+      return;
+    }
+
+    live.innerHTML = inUse.slice(0, 3).map(r => {
+      const c = r.current;
+      const occupant = (c.faculty || c.who || 'Unknown') + (c.title ? ' (' + c.title + ')' : '');
+
+      return `
+        <div class="p-3 bg-white border border-gray-200 rounded-[3px] flex items-center justify-between hover:border-[#880000] transition shadow-2xs">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-xs text-[#880000] font-mono">${esc('Room ' + r.room_number)}</span>
+              <span class="text-xs font-semibold text-gray-800">${esc(occupant)}</span>
+            </div>
+            <p class="text-[11px] text-gray-500">Floor ${esc(r.floor)} &bull; ${esc(fmtRange(c.start_time, c.end_time))}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ${c.type === 'class' ? 'Class' : 'Reservation'}
+            </span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function paintAdminActivity(data) {
+    const body = document.getElementById('historyTableBody');
+    if (!body) return;
+
+    State.adminActivity = data.activity.map(a => {
+      const badge = statusBadge(a);
+      return {
+        id: a.ref,
+        ref: a.ref,
+        room: a.room,
+        subject: a.subject,
+        time: dayLabel(a.reservation_date, data.today) + ' \u2022 ' + fmtRange(a.start_time, a.end_time),
+        statusLabel: badge.label.toUpperCase(),
+        statusClass: badge.slipClass,
+      };
+    });
+
+    if (!data.activity.length) {
+      body.innerHTML = '<tr><td colspan="8" class="py-6 px-4 text-center text-gray-500">No reservation activity yet today.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = data.activity.map(a => {
+      const badge = statusBadge(a);
+      const role = String(a.requester_role || 'student');
+      const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+      const roleCls = role === 'faculty'
+        ? 'bg-purple-50 text-purple-700 border border-purple-200'
+        : role === 'admin'
+          ? 'bg-gray-100 text-gray-700 border border-gray-300'
+          : 'bg-blue-50 text-blue-700 border border-blue-200';
+
+      return `
+        <tr class="hover:bg-gray-50 transition">
+          <td class="py-3 px-4 font-bold text-[#880000] font-mono">${esc(a.ref)}</td>
+          <td class="py-3 px-4 font-semibold text-gray-900">${esc(a.room)}</td>
+          <td class="py-3 px-4">
+            <p class="font-bold text-gray-800">${esc(a.requester || 'Unknown')}</p>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-[3px] ${roleCls}">${esc(roleLabel)}</span>
+          </td>
+          <td class="py-3 px-4">
+            <span class="block font-semibold">${esc(dayLabel(a.reservation_date, data.today))}</span>
+            <span class="text-gray-500">${esc(fmtRange(a.start_time, a.end_time))}</span>
+          </td>
+          <td class="py-3 px-4 text-gray-600">${esc(a.subject)}</td>
+          <td class="py-3 px-4 text-gray-500 font-medium">${a.faculty ? esc(a.faculty) : '<span class="text-gray-400">&mdash;</span>'}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${badge.cls}">${badge.label}</span>
+          </td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button type="button" onclick="window.viewDigitalPass('${esc(a.ref)}')" class="text-[#337ab7] hover:underline font-semibold">Slip</button>
+            <span class="text-gray-300">&bull;</span>
+            <a href="logs.html" class="text-gray-600 hover:text-[#880000] hover:underline font-semibold">Log &rarr;</a>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function paintAdmin(data) {
+    State.adminDashboard = data;
+
+    setText('adminPendingReqCount', data.pending_reservations.count);
+    setText('adminPendingReqLabel', data.pending_reservations.count > 0 ? 'Needs a decision' : 'All clear');
+    setText('adminTodayCount', data.today_bookings.approved);
+    setText('adminTodayLabel', data.today_bookings.pending + ' pending');
+    setText('totalRoomsCount', data.rooms.total);
+    setText('activeRoomsLabel', data.rooms.active + ' Active');
+    setText('pendingApprovalsCount', data.pending_users);
+    setText('pendingApprovalsLabel', data.pending_users > 0 ? 'Requires Review' : 'All clear');
+
+    paintAdminPending(data);
+    paintAdminRooms(data);
+    paintAdminActivity(data);
+
+    const when = new Date(data.generated_at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: MANILA });
+    setText('adminUpdatedAt', 'Updated ' + when);
+  }
+
+  async function loadAdminDashboard() {
+    const myRequest = ++adminRequestId;
+    const errEl = document.getElementById('adminDashError');
+
+    try {
+      if (!window.api || !window.api.admin) throw new Error('The API client (api.js) is not loaded.');
+
+      const data = await window.api.admin.dashboard();
+      if (myRequest !== adminRequestId) return; // a newer request replaced this one
+
+      paintAdmin(data);
+      if (errEl) errEl.classList.add('hidden');
+    } catch (err) {
+      if (myRequest !== adminRequestId) return;
+      console.error('Admin dashboard failed:', err);
+
+      if (errEl) {
+        errEl.textContent = err.status === 403
+          ? 'Administrator access is required to see this dashboard.'
+          : 'Could not load the dashboard: ' + (err.message || 'Unknown error');
+        errEl.classList.remove('hidden');
+      }
+
+      // Nothing loaded yet: replace the "..." placeholders so they do not look stuck
+      if (!State.adminDashboard) {
+        ['adminPendingReqCount', 'adminTodayCount', 'totalRoomsCount', 'pendingApprovalsCount'].forEach(id => setText(id, '-'));
+        ['adminPendingReqLabel', 'adminTodayLabel', 'activeRoomsLabel', 'pendingApprovalsLabel'].forEach(id => setText(id, 'Unavailable'));
+      }
+    }
+  }
+
+  // Refresh every minute while the tab is open, and again when you come back to it
+  function startAdminAutoRefresh() {
+    clearInterval(adminTimer);
+    adminTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadAdminDashboard();
+    }, 60000);
+
+    if (!adminVisibilityWired) {
+      adminVisibilityWired = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && State.detectedRole === 'Admin') loadAdminDashboard();
+      });
+    }
   }
 
   // ==========================================
@@ -581,13 +764,14 @@
   function renderAdminView(container, user) {
     const adminName = esc(State.profile?.full_name || 'Administrator');
 
+    // The page is drawn at once with "..." placeholders; loadAdminDashboard() fills in real data.
     container.innerHTML = `
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
           <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE MASTER CONSOLE &bull; CCIS</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${adminName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">CCIS Facilities Administrator &bull; Super Admin Console</p>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">CCIS Facilities Administrator &bull; Super Admin Console &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
         </div>
         <div class="flex items-center gap-2">
           <a href="room-management.html" class="btn-pup-secondary text-xs flex items-center gap-1.5">
@@ -600,12 +784,39 @@
         </div>
       </div>
 
+      <div id="adminDashError" class="hidden text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-[3px] px-4 py-3"></div>
+
       <!-- TOP METRICS -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div id="pending-requests" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Requests</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="adminPendingReqCount" class="text-3xl font-extrabold text-amber-600">&hellip;</span>
+              <span id="adminPendingReqLabel" class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Loading</span>
+            </div>
+            <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline mt-2">
+              <span>Review Reservations</span>
+              <span class="text-sm font-extrabold">&rarr;</span>
+            </a>
+          </div>
+        </div>
 
         <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
-            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Rooms,</p>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Today's Bookings</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="adminTodayCount" class="text-3xl font-extrabold text-[#111111]">&hellip;</span>
+              <span id="adminTodayLabel" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">Loading</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Approved for today</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Rooms</p>
             <div class="flex items-baseline gap-2 mt-1">
               <span id="totalRoomsCount" class="text-3xl font-extrabold text-[#111111]">&hellip;</span>
               <span id="activeRoomsLabel" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">Loading</span>
@@ -615,14 +826,11 @@
               <span class="text-sm font-bold">&rarr;</span>
             </a>
           </div>
-          <div class="w-12 h-12 bg-red-50 text-[#880000] rounded-[3px] flex items-center justify-center font-bold text-lg">
-            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-          </div>
         </div>
 
         <div id="pending-approvals" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
           <div>
-            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Approvals</p>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Accounts</p>
             <div class="flex items-baseline gap-2 mt-1">
               <span id="pendingApprovalsCount" class="text-3xl font-extrabold text-amber-600">&hellip;</span>
               <span id="pendingApprovalsLabel" class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Loading</span>
@@ -632,11 +840,25 @@
               <span class="text-sm font-extrabold">&rarr;</span>
             </a>
           </div>
-          <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-[3px] flex items-center justify-center font-bold text-lg">
-            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
-          </div>
         </div>
 
+      </div>
+
+      <!-- SECTION: NEEDS YOUR DECISION -->
+      <div id="needs-decision" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Needs Your Decision</h3>
+            <p class="text-xs text-gray-500">Pending requests that start soonest. Undecided requests are cancelled automatically 1 hour before they start.</p>
+          </div>
+          <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+            <span>View All Reservations</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+        <div id="adminPendingList" class="space-y-2.5">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+        </div>
       </div>
 
       <!-- SECTION: ACTIVE BOOKINGS -->
@@ -657,22 +879,11 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-          <div class="lg:col-span-5 bg-slate-50 border border-emerald-300 rounded-[4px] p-4 flex flex-col items-center">
-            <div class="text-xs font-bold text-gray-700 w-full mb-2 flex justify-between">
-              <span>Campus Slot Matrix</span>
-              <span class="text-emerald-700 font-bold">Live Synchronized</span>
-            </div>
-
-            <div class="grid grid-cols-10 gap-1.5 p-2 bg-white border border-emerald-200 rounded-[3px] shadow-xs w-full max-w-xs">
-              ${Array.from({ length: 100 }).map((_, idx) => {
-                const isOccupied = (idx % 7 === 0);
-                const isPending = (idx % 11 === 0 && !isOccupied);
-                const isMaint = (idx === 14 || idx === 83);
-                const color = isOccupied ? 'bg-rose-500' : isPending ? 'bg-amber-400' : isMaint ? 'bg-gray-300' : 'bg-emerald-400';
-                return `<div class="schedule-grid-cell ${color} cursor-pointer" title="Slot #${idx + 1}" onclick="window.showToast('Matrix Slot #${idx + 1} Selected', 'info')"></div>`;
-              }).join('')}
-            </div>
-            <p class="text-[10px] text-gray-400 mt-2 text-center">Interactive 10x10 visual grid matrix across 4 campus floors</p>
+          <!-- admin-rooms.js replaces this column with the Room Directory (it looks for the
+               .schedule-grid-cell inside a lg:col-span-5 column, so keep both) -->
+          <div class="lg:col-span-5 bg-slate-50 border border-gray-200 rounded-[4px] p-4">
+            <div class="schedule-grid-cell hidden"></div>
+            <p class="text-xs text-gray-500">Loading room directory&hellip;</p>
           </div>
 
           <div class="lg:col-span-7 space-y-2.5">
@@ -682,33 +893,20 @@
                 <span>View Full List</span> &rarr;
               </a>
             </div>
-            ${State.adminActiveBookings.slice(0, 3).map(b => `
-              <div class="p-3 bg-white border border-gray-200 rounded-[3px] flex items-center justify-between hover:border-[#880000] transition shadow-2xs">
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-xs text-[#880000] font-mono">${b.room}</span>
-                    <span class="text-xs font-semibold text-gray-800">${b.occupant}</span>
-                  </div>
-                  <p class="text-[11px] text-gray-500">${b.floor} &bull; ${b.start} - ${b.end}</p>
-                </div>
-                <div class="text-right">
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    ${b.capacity} Students
-                  </span>
-                </div>
-              </div>
-            `).join('')}
+            <div id="adminLiveList" class="space-y-2.5">
+              <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+            </div>
           </div>
 
         </div>
       </div>
 
-      <!-- SECTION: RESERVATION HISTORY (TODAY) -->
+      <!-- SECTION: RESERVATION ACTIVITY (TODAY) -->
       <div id="reservation-history" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
           <div>
-            <h3 class="text-lg font-bold text-[#111111]">Reservation History (Today)</h3>
-            <p class="text-xs text-gray-500">Recent reservation events and clearance transactions (Showing 3 most recent)</p>
+            <h3 class="text-lg font-bold text-[#111111]">Reservation Activity (Today)</h3>
+            <p class="text-xs text-gray-500">Requests made or decided today (latest 10)</p>
           </div>
           <div class="flex items-center gap-2">
             <a href="logs.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
@@ -727,40 +925,13 @@
                 <th class="py-3 px-4">Requester &amp; Role</th>
                 <th class="py-3 px-4">Time Slot</th>
                 <th class="py-3 px-4">Purpose / Course</th>
-                <th class="py-3 px-4">Endorsed By</th>
+                <th class="py-3 px-4">Tagged Faculty</th>
                 <th class="py-3 px-4">Status</th>
                 <th class="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody id="historyTableBody" class="divide-y divide-gray-100 text-gray-700">
-              ${State.adminHistoryToday.slice(0, 3).map(row => `
-                <tr class="hover:bg-gray-50 transition">
-                  <td class="py-3 px-4 font-bold text-[#880000] font-mono">${row.ref}</td>
-                  <td class="py-3 px-4 font-semibold text-gray-900">${row.room}</td>
-                  <td class="py-3 px-4">
-                    <p class="font-bold text-gray-800">${row.requester}</p>
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-[3px] ${row.role === 'Faculty' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}">${row.role}</span>
-                  </td>
-                  <td class="py-3 px-4">${row.time}</td>
-                  <td class="py-3 px-4 text-gray-600">${row.purpose}</td>
-                  <td class="py-3 px-4 text-gray-500 font-medium">${row.endorsedBy}</td>
-                  <td class="py-3 px-4">
-                    <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${
-                      row.status === 'Approved' ? 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]' :
-                      row.status === 'Pending' ? 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]' :
-                      row.status === 'Completed' ? 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' :
-                      'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]'
-                    }">
-                      ${row.status}
-                    </span>
-                  </td>
-                  <td class="py-3 px-4 text-right space-x-1">
-                    <button type="button" onclick="window.viewDigitalPass('${row.ref}')" class="text-[#337ab7] hover:underline font-semibold">Slip</button>
-                    <span class="text-gray-300">&bull;</span>
-                    <a href="logs.html" class="text-gray-600 hover:text-[#880000] hover:underline font-semibold">Log &rarr;</a>
-                  </td>
-                </tr>
-              `).join('')}
+              <tr><td colspan="8" class="py-6 px-4 text-center text-gray-500">Loading&hellip;</td></tr>
             </tbody>
           </table>
         </div>
@@ -923,7 +1094,7 @@
     if (!modal || !content) return;
 
     const res = State.studentReservations.find(r => r.id === resId) ||
-                State.adminHistoryToday.find(r => r.ref === resId) ||
+                State.adminActivity.find(r => r.ref === resId) ||
                 { id: resId, room: 'Lab 301', subject: 'Classroom Activity', faculty: 'Dr. Alicia Reyes', time: '10:00 AM - 1:00 PM' };
 
     content.innerHTML = `
@@ -939,7 +1110,7 @@
       </div>
       <div class="border-2 border-dashed border-gray-300 p-2 text-center rounded text-xs font-mono">
         ||| | ||||| || |||||| | ||||| ||| |||| |
-        <p class="text-[10px] text-emerald-600 font-bold mt-1">STATUS: VERIFIED PASS</p>
+        <p class="text-[10px] ${res.statusClass || 'text-emerald-600'} font-bold mt-1">STATUS: ${esc(res.statusLabel || 'VERIFIED PASS')}</p>
       </div>
     `;
 
