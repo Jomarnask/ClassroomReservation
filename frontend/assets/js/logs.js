@@ -46,6 +46,8 @@
     DECLINED: 'text-rose-600',
     REJECTED: 'text-rose-600',
     CANCELLED: 'text-amber-600',
+    'AUTO-CANCELLED': 'text-amber-600',
+    'AUTO-DECLINED': 'text-rose-600',
     DEACTIVATED: 'text-amber-600',
     ERROR: 'text-rose-600'   // the log line could not be written normally (see its summary)
   };
@@ -91,12 +93,15 @@
     return days < 7 ? `${days}d ago` : '';
   }
 
+  // Always show Philippine time, whatever timezone this computer is set to
+  const TZ = 'Asia/Manila';
+
   function dateText(date) {
-    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: TZ });
   }
 
   function timeText(date) {
-    return date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: TZ });
   }
 
   function nameText(l) {
@@ -305,7 +310,7 @@
     const rows = state.items.map(l => {
       const d = new Date(l.created_at);
       return [
-        d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
+        d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short', timeZone: TZ }),
         eventLabel(l.action_type),
         `${l.user_name || 'System'} (${l.user_role || 'system'})`,
         l.room_name || '',

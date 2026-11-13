@@ -127,6 +127,9 @@
     return `${h}:${m}:00`;
   }
 
+  // A request must start at least 2 hours from now (the server enforces this too)
+  const MIN_LEAD_MINUTES = 120;
+
   function getTodayString() {
     const now = new Date();
     const y = now.getFullYear();
@@ -966,15 +969,18 @@
     const now = new Date();
     const currentMins = now.getHours() * 60 + now.getMinutes();
 
-    // Do not show slots that are completely in the past for today
-    if (dateStr === todayStr && endMin <= currentMins) {
+    // Earliest start allowed today: now + 2 hours
+    const earliestMins = currentMins + MIN_LEAD_MINUTES;
+
+    // Do not show slots that end before the earliest allowed start today
+    if (dateStr === todayStr && endMin <= earliestMins) {
       return;
     }
 
-    // Clip slot start to the next 30-minute mark if it starts in the past today
+    // Clip slot start to the next 30-minute mark after the earliest allowed start
     let effectiveStartMin = startMin;
-    if (dateStr === todayStr && startMin < currentMins) {
-      effectiveStartMin = Math.ceil(currentMins / 30) * 30;
+    if (dateStr === todayStr && startMin < earliestMins) {
+      effectiveStartMin = Math.ceil(earliestMins / 30) * 30;
     }
 
     if (endMin - effectiveStartMin < 30) return;
@@ -1176,9 +1182,12 @@
       type = 'bad';
       msg = 'Sunday is closed. Reservations are available Monday to Saturday only.';
       isValid = false;
-    } else if (dateVal === todayStr && sMins < currentMins) {
+    } else if (dateVal === todayStr && sMins < currentMins + MIN_LEAD_MINUTES) {
       type = 'bad';
-      msg = 'Invalid Time: Selected start time has already passed for today.';
+      const earliest = currentMins + MIN_LEAD_MINUTES;
+      msg = earliest >= 21 * 60
+        ? 'Too late for today: reservations must be requested at least 2 hours before the start time.'
+        : 'Too soon: reservations must be requested at least 2 hours before the start time. Earliest start today is ' + minutesToTime(earliest) + '.';
       isValid = false;
     } else if (eMins <= sMins) {
       type = 'bad';

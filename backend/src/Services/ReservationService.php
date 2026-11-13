@@ -19,6 +19,9 @@ class ReservationService
 
     private const MAX_RANGE_DAYS = 92;
 
+    // A new request must start at least this many minutes from now (2 hours).
+    private const MIN_LEAD_MINUTES = 120;
+
     private ReservationRepository $repository;
 
     public function __construct(?ReservationRepository $repository = null)
@@ -299,15 +302,24 @@ class ReservationService
             throw new ApiException('Reservations are only allowed between 07:00 and 21:00.', 422);
         }
 
+        // "Now" in Philippine time (bootstrap.php sets the timezone), cut to the minute
         $now = new DateTimeImmutable('now');
-        $today = $now->format('Y-m-d');
+        $now = $now->setTime((int) $now->format('G'), (int) $now->format('i'), 0);
 
-        if ($date < $today) {
+        if ($date < $now->format('Y-m-d')) {
             throw new ApiException('You cannot reserve a room for a past date.', 422);
         }
 
-        if ($date === $today && $startMinutes <= ((int) $now->format('G')) * 60 + (int) $now->format('i')) {
-            throw new ApiException('Start time must be later than the current time.', 422);
+        // Lead time: the start must be at least 2 hours from now
+        $earliest = $now->modify('+' . self::MIN_LEAD_MINUTES . ' minutes');
+        $startsAt = new DateTimeImmutable($date . ' ' . $start);
+
+        if ($startsAt < $earliest) {
+            throw new ApiException(
+                'Reservations must be requested at least 2 hours before the start time. '
+                . 'The earliest start right now is ' . $earliest->format('M j, g:i A') . '.',
+                422
+            );
         }
 
         return [
@@ -418,9 +430,37 @@ class ReservationService
     private function run(AuthenticatedUser $user, callable $callback): mixed
     {
         try {
-            return Database::runInUserContext($user, $callback);
+            return Database::runInUserContext($user, function (PDO $pdo) use ($callback) {
+                // Pending requests that reached 1 hour before their start time are
+                // cancelled first, so every action below sees up-to-date statuses
+                // (an admin can no longer approve a request that is already overdue).
+                $this->expireStalePending($pdo);
+
+                return $callback($pdo);
+            });
         } catch (PDOException $e) {
             throw $this->translate($e);
+        }
+    }
+
+    /**
+     * Runs the auto-cancel. If it ever fails, the error is logged and the person's
+     * own action still goes ahead (the savepoint keeps the transaction usable).
+     */
+    private function expireStalePending(PDO $pdo): void
+    {
+        try {
+            $pdo->exec('SAVEPOINT crs_expire_pending');
+            $this->repository->expireStalePending($pdo);
+            $pdo->exec('RELEASE SAVEPOINT crs_expire_pending');
+        } catch (Throwable $e) {
+            error_log('[Auto-cancel] ' . $e->getMessage());
+
+            try {
+                $pdo->exec('ROLLBACK TO SAVEPOINT crs_expire_pending');
+            } catch (Throwable $ignored) {
+                // nothing more we can do; the caller's own query will report real problems
+            }
         }
     }
 
