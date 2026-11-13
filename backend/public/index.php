@@ -6,6 +6,7 @@ require_once dirname(__DIR__) . '/src/bootstrap.php';
 
 use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
+use App\Controllers\AuditLogController;
 use App\Controllers\FacultyScheduleController;
 use App\Controllers\ScheduleController;
 use App\Controllers\HealthController;
@@ -84,6 +85,9 @@ $router->get('/api/notifications', [NotificationController::class, 'index'], [$a
 $router->patch('/api/notifications/read-all', [NotificationController::class, 'markAllRead'], [$authMiddleware]);
 
 $router->patch('/api/notifications/{notificationId}/read', [NotificationController::class, 'markRead'], [$authMiddleware]);
+
+// 10. System audit trail - admin only, read-only (Protected)
+$router->get('/api/audit-logs', [AuditLogController::class, 'index'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request

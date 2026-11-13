@@ -102,6 +102,11 @@
     },
     // Which of today / tomorrow can be booked (Monday-Saturday only)
     bookingWindow: function () { return request('/api/booking-window'); },
+    // Admin only, read-only. filters: { category: 'RESERVATION' | 'USER_APPROVAL' | 'ROOM' | 'SCHEDULE',
+    // search, limit, offset } -> { items: [...], matched: n, total: n }
+    auditLogs: {
+      list: function (filters) { return request('/api/audit-logs' + toQuery(filters)); },
+    },
     // Notification bell. The database creates the notifications; each user only sees their own.
     notifications: {
       // -> { items: [...], unread_count: n }

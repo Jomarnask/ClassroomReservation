@@ -32,6 +32,10 @@
   <!-- Shared & Feature CSS -->
   <link rel="stylesheet" href="assets/css/style.css" />
   <link rel="stylesheet" href="assets/css/logs.css" />
+<style>
+  /* AUTH GUARD: the page stays hidden until the API confirms an active admin */
+  body { visibility: hidden; }
+</style>
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white">
 
@@ -130,324 +134,95 @@
   </header>
 
   <!-- ================= MAIN CONTAINER ================= -->
-  <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
+<main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
 
-    <!-- Header & Breadcrumb -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
-      <div>
-        <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
-          <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
-          <span>&rsaquo;</span>
-          <span class="text-gray-700 font-bold">System Audit Logs</span>
-        </div>
-        <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Audit Trail &amp; Activity History</h1>
-        <p class="text-xs text-gray-500 mt-0.5">Real-time immutable logging for approvals, key releases, and room security events.</p>
+  <!-- Header & Breadcrumb -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+    <div>
+      <div class="flex items-center gap-2 text-xs text-gray-500 font-medium">
+        <a href="dashboard.html" class="text-[#880000] hover:underline">Dashboard</a>
+        <span>&rsaquo;</span>
+        <span class="text-gray-700 font-bold">System Audit Logs</span>
       </div>
-
-      <div class="flex items-center gap-2">
-        <button id="btnExportLogs" type="button" class="btn-pup-secondary text-xs px-3.5 py-2 border rounded-[3px] font-semibold flex items-center gap-1.5 hover:border-[#880000]">
-          <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Export Logs (CSV)
-        </button>
-      </div>
+      <h1 class="text-xl sm:text-2xl font-bold text-[#111111] mt-1">Audit Trail &amp; Activity History</h1>
+      <p class="text-xs text-gray-500 mt-0.5">Immutable record of reservation decisions, user approvals, room changes and schedule changes.</p>
     </div>
 
-    <!-- Filter Bar -->
-    <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <select id="categoryFilter" class="px-3 py-1.5 text-xs border border-gray-300 rounded-[3px] bg-white font-medium text-gray-700 focus:outline-none focus:border-[#880000]">
-          <option value="all">All Event Categories</option>
-          <option value="APPROVAL">Approvals</option>
-          <option value="KEY_RELEASE">Key Releases</option>
-          <option value="MAINTENANCE">Maintenance</option>
-          <option value="SECURITY">Security Overrides</option>
-          <option value="CONFIG">Room Configurations</option>
-        </select>
-        <span class="text-xs text-gray-400">|</span>
-        <span class="text-xs text-gray-500 font-semibold" id="logCount">Showing 0 of 0 total events</span>
-      </div>
+    <div class="flex items-center gap-2">
+      <button id="btnExportLogs" type="button" class="btn-pup-secondary text-xs px-3.5 py-2 border rounded-[3px] font-semibold flex items-center gap-1.5 hover:border-[#880000]">
+        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Export Logs (CSV)
+      </button>
+    </div>
+  </div>
 
-      <div class="w-full sm:w-64">
-        <input type="text" id="logSearch" placeholder="Filter by user, action, room..." class="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]" />
-      </div>
+  <!-- Filter Bar -->
+  <div class="bg-white p-4 rounded-[4px] border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <select id="categoryFilter" class="px-3 py-1.5 text-xs border border-gray-300 rounded-[3px] bg-white font-medium text-gray-700 focus:outline-none focus:border-[#880000]">
+        <option value="all">All Event Categories</option>
+        <option value="RESERVATION">Reservation Decisions</option>
+        <option value="USER_APPROVAL">User Approval</option>
+        <option value="ROOM">Room Management</option>
+        <option value="SCHEDULE">Schedule Management</option>
+      </select>
+      <span class="text-xs text-gray-400">|</span>
+      <span class="text-xs text-gray-500 font-semibold" id="logCount">Loading events…</span>
     </div>
 
-    <!-- Logs Table -->
-    <div class="bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs border-collapse">
-          <thead class="bg-gray-50 text-gray-700 font-bold uppercase text-[11px] border-b border-gray-200">
-            <tr>
-              <th class="py-3 px-4">Timestamp</th>
-              <th class="py-3 px-4">Event Type</th>
-              <th class="py-3 px-4">Initiated By</th>
-              <th class="py-3 px-4">Facility / Resource</th>
-              <th class="py-3 px-4">Action Summary</th>
-              <th class="py-3 px-4">Client Verification</th>
-              <th class="py-3 px-4 text-right">Result</th>
-            </tr>
-          </thead>
-          <tbody id="logsTableBody" class="divide-y divide-gray-100 text-gray-700 font-sans">
-            <!-- Populated dynamically via JS -->
-          </tbody>
-        </table>
-      </div>
+    <div class="w-full sm:w-64">
+      <input type="text" id="logSearch" placeholder="Filter by name, action, room..." class="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-[3px] focus:outline-none focus:border-[#880000]" />
+    </div>
+  </div>
+
+  <!-- Logs Table -->
+  <div class="bg-white rounded-[4px] border border-gray-200 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs border-collapse">
+        <thead class="bg-gray-50 text-gray-700 font-bold uppercase text-[11px] border-b border-gray-200">
+          <tr>
+            <th class="py-3 px-4">Timestamp</th>
+            <th class="py-3 px-4">Event Type</th>
+            <th class="py-3 px-4">Initiated By</th>
+            <th class="py-3 px-4">Facility / Resource</th>
+            <th class="py-3 px-4">Action Summary</th>
+            <th class="py-3 px-4">
+              Name
+              <span class="block normal-case font-medium text-[10px] text-gray-400">Program, Year Level-Section</span>
+            </th>
+            <th class="py-3 px-4 text-right">Result</th>
+          </tr>
+        </thead>
+        <tbody id="logsTableBody" class="divide-y divide-gray-100 text-gray-700 font-sans">
+          <!-- Populated by assets/js/logs.js -->
+        </tbody>
+      </table>
     </div>
 
-  </main>
-
-  <!-- ================= FOOTER ================= -->
-  <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
-        <span>POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS CRS</span>
-        <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
-      </div>
+    <div id="loadMoreWrap" class="hidden border-t border-gray-100 p-3 text-center">
+      <button id="btnLoadMore" type="button" class="text-xs font-bold text-[#880000] hover:underline">Load more events</button>
     </div>
-  </footer>
+  </div>
 
-  <!-- Supabase JS Client CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Root Configuration File -->
-  <script src="config.js"></script>
-  <script src="assets/js/api.js"></script>
+</main>
 
-  <script>
-    (function() {
-      // ---------- Profile Menu Setup (matching User Approvals) ----------
-      const client = (typeof supabaseClient !== 'undefined') ? supabaseClient : window.supabaseClient;
+<!-- ================= FOOTER ================= -->
+<footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+      <span>POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS CRS</span>
+      <span>&copy; 2026 PUP Canlalay Campus. All rights reserved.</span>
+    </div>
+  </div>
+</footer>
 
-      function initials(name) {
-        return (String(name || '').replace(/[^A-Za-z\s,]/g, '').split(/[\s,]+/).filter(Boolean)
-          .slice(0, 2).map(w => w[0].toUpperCase()).join('')) || 'AD';
-      }
+<!-- Supabase JS Client CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Root Configuration File -->
+<script src="config.js"></script>
+<script src="assets/js/api.js"></script>
 
-      function setupProfileMenu() {
-        const btn = document.getElementById('profileMenuBtn');
-        const menu = document.getElementById('profileDropdown');
-        const signOutBtn = document.getElementById('btnSignOut');
-        const mobileToggle = document.getElementById('mobileNavToggle');
-
-        if (btn && menu) {
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (mobileToggle) mobileToggle.checked = false;
-            menu.classList.toggle('hidden');
-          });
-          document.addEventListener('click', (e) => {
-            menu.classList.add('hidden');
-            if (mobileToggle && !e.target.closest('#nav') && !e.target.closest('.mobile-menu-button') && !e.target.closest('#mobileNavToggle')) {
-              mobileToggle.checked = false;
-            }
-          });
-        }
-
-        if (mobileToggle) {
-          mobileToggle.addEventListener('change', () => {
-            if (mobileToggle.checked && menu) {
-              menu.classList.add('hidden');
-            }
-          });
-        }
-
-        // System Administration sub-menu toggle on mobile
-        document.querySelectorAll('nav .group > button').forEach(subBtn => {
-          subBtn.addEventListener('click', (e) => {
-            if (window.innerWidth < 640) {
-              e.preventDefault();
-              const sub = subBtn.nextElementSibling;
-              if (sub) sub.classList.toggle('hidden');
-            }
-          });
-        });
-
-        if (signOutBtn) {
-          signOutBtn.addEventListener('click', async () => {
-            signOutBtn.disabled = true;
-            if (client && client.auth) {
-              try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
-            }
-            localStorage.removeItem('user_role');
-            localStorage.removeItem('pup_user');
-            window.location.replace('login.html');
-          });
-        }
-      }
-
-      async function loadProfile() {
-        if (!client || !client.auth) return;
-        try {
-          const { data: { session } } = await client.auth.getSession();
-          if (!session || !session.user) return;
-
-          const email = session.user.email || '';
-          const emailEl = document.getElementById('profileDropdownEmail');
-          if (emailEl) emailEl.textContent = email;
-
-          const { data: me } = await client
-            .from('users')
-            .select('full_name, role')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (me) {
-            const avatarEl = document.getElementById('adminAvatar');
-            const nameEl = document.getElementById('profileDropdownName');
-            const roleEl = document.getElementById('profileDropdownRole');
-            if (avatarEl) avatarEl.textContent = initials(me.full_name);
-            if (nameEl) nameEl.textContent = me.full_name || 'Admin';
-            if (roleEl) roleEl.textContent = `Role: ${me.role || 'Admin'}`;
-          }
-        } catch (e) {
-          console.warn('Profile load error in logs:', e);
-        }
-      }
-
-      setupProfileMenu();
-      loadProfile();
-
-      // ---------- Audit Logs ----------
-      const STORE_LOGS = 'crs_audit_logs'; // written by all-reservations.html on approve/decline
-
-      // Sample history (demo data)
-      const sampleLogs = [
-        { time: '11:28 AM', rel: '12m ago', type: 'APPROVAL', chipClass: 'approval', user: 'Engr. Roberto Cruz (Admin)', room: 'Lab 301 - Adv Networking', action: 'Approved reservation #RES-9014 for Danilo Santos. Physical key authorized.', ip: '192.168.10.42', status: 'SUCCESS' },
-        { time: '10:45 AM', rel: '55m ago', type: 'KEY_RELEASE', chipClass: 'key-release', user: 'Custodian Rm 300 (Staff)', room: 'Room 402 - Lecture Hall', action: 'Handed physical room key to Danilo Santos (Student ID: 2022-04912-MN-0).', ip: '192.168.10.15', status: 'CONFIRMED' },
-        { time: '09:30 AM', rel: '2h ago', type: 'MAINTENANCE', chipClass: 'maintenance', user: 'Facilities Unit (Admin)', room: 'Lab 305 - Software Eng', action: 'Scheduled AC filter servicing from 4:00 PM to 5:30 PM.', ip: '192.168.10.08', status: 'LOCKED' },
-        { time: '09:12 AM', rel: '2h ago', type: 'APPROVAL', chipClass: 'approval', user: 'Dr. Alicia Reyes (Faculty)', room: 'Lab 301 - Adv Networking', action: 'Endorsed student reservation request #REQ-4091 for OS lab exam.', ip: '192.168.12.51', status: 'ENDORSED' },
-        { time: '08:40 AM', rel: '3h ago', type: 'SECURITY', chipClass: 'security', user: 'System Gatekeeper', room: 'Room 202 - Seminar Hall', action: 'Auto-rejected reservation #RES-9011 due to class timetable overlap.', ip: '127.0.0.1 (System)', status: 'REJECTED' },
-        { time: '08:05 AM', rel: '3h ago', type: 'CONFIG', chipClass: 'config', user: 'Engr. Roberto Cruz (Admin)', room: 'Room 101 - General Lecture', action: 'Updated capacity limit from 50 to 55 students based on desk count audit.', ip: '192.168.10.42', status: 'UPDATED' },
-        { time: '07:30 AM', rel: '4h ago', type: 'APPROVAL', chipClass: 'approval', user: 'Prof. Dante Santos (Faculty)', room: 'Room 101 - General Lecture', action: 'Self-booked lecture room for Purposive Communication batch.', ip: '192.168.12.19', status: 'SUCCESS' },
-        { time: '07:00 AM', rel: '4h ago', type: 'CONFIG', chipClass: 'config', user: 'Security Dispatch', room: 'All Facilities', action: 'Daily morning campus perimeter unlock routine completed.', ip: '192.168.10.01', status: 'SUCCESS' },
-      ];
-
-      const tbody = document.getElementById('logsTableBody');
-      const searchInput = document.getElementById('logSearch');
-      const catFilter = document.getElementById('categoryFilter');
-      const logCount = document.getElementById('logCount');
-
-      let allLogs = [];
-      let visibleLogs = [];
-
-      function esc(s) {
-        return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
-          { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-        ));
-      }
-
-      function readStored() {
-        try { const v = JSON.parse(localStorage.getItem(STORE_LOGS)); return Array.isArray(v) ? v : []; }
-        catch (e) { return []; }
-      }
-
-      function relTime(date) {
-        const mins = Math.floor((Date.now() - date.getTime()) / 60000);
-        if (mins < 1) return 'just now';
-        if (mins < 60) return `${mins}m ago`;
-        const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `${hrs}h ago`;
-        return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-
-      function buildLogs() {
-        // Decisions made on all-reservations.html (newest first), then sample history.
-        const stored = readStored().map(l => {
-          const d = new Date(l.ts);
-          return {
-            time: d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' }),
-            rel: relTime(d),
-            csvTime: d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }),
-            type: l.type, chipClass: l.chipClass, user: l.user, room: l.room,
-            action: l.action, ip: l.ip, status: l.status
-          };
-        });
-        const today = new Date().toLocaleDateString('en-PH', { dateStyle: 'medium' });
-        const samples = sampleLogs.map(l => Object.assign({ csvTime: `${today}, ${l.time}` }, l));
-        allLogs = stored.concat(samples);
-      }
-
-      function statusColor(status) {
-        return (status === 'REJECTED' || status === 'DECLINED') ? 'text-rose-600' : 'text-emerald-700';
-      }
-
-      function render(items) {
-        if (!items.length) {
-          tbody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-10">No log entries match your filters.</td></tr>`;
-        } else {
-          tbody.innerHTML = items.map(l => `
-            <tr class="hover:bg-gray-50 transition">
-              <td class="py-3 px-4 font-mono">
-                <span class="font-bold text-gray-900">${esc(l.time)}</span>
-                <span class="block text-[10px] text-gray-400">${esc(l.rel)}</span>
-              </td>
-              <td class="py-3 px-4">
-                <span class="log-chip ${esc(l.chipClass)}">${esc(l.type)}</span>
-              </td>
-              <td class="py-3 px-4 font-semibold text-gray-800">${esc(l.user)}</td>
-              <td class="py-3 px-4 font-bold text-[#880000]">${esc(l.room)}</td>
-              <td class="py-3 px-4 text-gray-600 max-w-sm">${esc(l.action)}</td>
-              <td class="py-3 px-4"><span class="ip-tag">${esc(l.ip)}</span></td>
-              <td class="py-3 px-4 text-right">
-                <span class="font-bold text-[10px] ${statusColor(l.status)}">${esc(l.status)}</span>
-              </td>
-            </tr>
-          `).join('');
-        }
-        logCount.textContent = `Showing ${items.length} of ${allLogs.length} total events`;
-      }
-
-      function filter() {
-        const q = searchInput.value.toLowerCase().trim();
-        const cat = catFilter.value;
-        visibleLogs = allLogs.filter(l => {
-          const matchesCat = cat === 'all' || l.type === cat;
-          const matchesQ = !q ||
-            l.user.toLowerCase().includes(q) ||
-            l.room.toLowerCase().includes(q) ||
-            l.action.toLowerCase().includes(q) ||
-            l.type.toLowerCase().includes(q);
-          return matchesCat && matchesQ;
-        });
-        render(visibleLogs);
-      }
-
-      function refresh() {
-        buildLogs();
-        filter();
-      }
-
-      // ---------- CSV export (exports the rows currently shown) ----------
-      function csvCell(v) {
-        let s = String(v == null ? '' : v);
-        if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // avoid spreadsheet formula injection
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-
-      function exportCSV() {
-        if (!visibleLogs.length) { alert('There are no log entries to export.'); return; }
-        const header = ['Timestamp', 'Event Type', 'Initiated By', 'Facility / Resource', 'Action Summary', 'Client Verification', 'Result'];
-        const rows = visibleLogs.map(l => [l.csvTime, l.type, l.user, l.room, l.action, l.ip, l.status]);
-        const csv = [header].concat(rows).map(r => r.map(csvCell).join(',')).join('\r\n');
-        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      }
-
-      searchInput.addEventListener('input', filter);
-      catFilter.addEventListener('change', filter);
-      document.getElementById('btnExportLogs').addEventListener('click', exportCSV);
-
-      // Pick up decisions made in another tab
-      window.addEventListener('storage', (e) => { if (e.key === STORE_LOGS) refresh(); });
-
-      refresh();
-    })();
-  </script>
+<!-- Audit Logs page logic -->
+<script src="assets/js/logs.js"></script>
 </body>
 </html>
