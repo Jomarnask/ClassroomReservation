@@ -102,6 +102,15 @@
     },
     // Which of today / tomorrow can be booked (Monday-Saturday only)
     bookingWindow: function () { return request('/api/booking-window'); },
+    // Notification bell. The database creates the notifications; each user only sees their own.
+    notifications: {
+      // -> { items: [...], unread_count: n }
+      list: function (limit) { return request('/api/notifications' + toQuery({ limit: limit })); },
+      markRead: function (id) {
+        return request('/api/notifications/' + encodeURIComponent(id) + '/read', { method: 'PATCH' });
+      },
+      markAllRead: function () { return request('/api/notifications/read-all', { method: 'PATCH' }); },
+    },
     reservations: {
       // filters: { status, room_id, date_from, date_to, mine: true, limit }
       list: function (filters) { return request('/api/reservations' + toQuery(filters)); },
@@ -120,4 +129,26 @@
       },
     },
   };
+
+  // The bell lives in assets/js/notifications.js. It is loaded from here so every
+  // page that already includes api.js gets a working bell without another script tag.
+  const thisScript = document.currentScript;
+
+  function loadNotificationBell() {
+    if (window.__crsNotificationsLoaded || !document.querySelector('.navbar-actions')) return;
+    if (!thisScript || !thisScript.src) return;
+
+    window.__crsNotificationsLoaded = true;
+
+    const bell = document.createElement('script');
+    bell.src = thisScript.src.replace(/api\.js(\?.*)?$/, 'notifications.js');
+    bell.defer = true;
+    document.head.appendChild(bell);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadNotificationBell);
+  } else {
+    loadNotificationBell();
+  }
 })();

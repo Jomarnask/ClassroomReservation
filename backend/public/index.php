@@ -9,6 +9,7 @@ use App\Controllers\AdminController;
 use App\Controllers\FacultyScheduleController;
 use App\Controllers\ScheduleController;
 use App\Controllers\HealthController;
+use App\Controllers\NotificationController;
 use App\Controllers\UserController;
 use App\Controllers\ReservationController;
 use App\Controllers\RoomController;
@@ -76,6 +77,13 @@ $router->get('/api/schedules/{scheduleId}', [ScheduleController::class, 'show'],
 $router->patch('/api/schedules/{scheduleId}', [ScheduleController::class, 'update'], [$authMiddleware]);
 
 $router->delete('/api/schedules/{scheduleId}', [ScheduleController::class, 'destroy'], [$authMiddleware]);
+
+// 9. Notification bell - each user reads only their own notifications (Protected)
+$router->get('/api/notifications', [NotificationController::class, 'index'], [$authMiddleware]);
+
+$router->patch('/api/notifications/read-all', [NotificationController::class, 'markAllRead'], [$authMiddleware]);
+
+$router->patch('/api/notifications/{notificationId}/read', [NotificationController::class, 'markRead'], [$authMiddleware]);
 
 // -------------------------------------------------------------
 // Dispatch incoming request
