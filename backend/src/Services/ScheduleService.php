@@ -110,6 +110,7 @@ class ScheduleService
     public function update(AuthenticatedUser $user, int $scheduleId, array $input): array
     {
         $confirmed = $this->takeOverlapConfirmation($input);
+
         return $this->run($user, function (PDO $pdo) use ($user, $scheduleId, $input, $confirmed) {
             $this->assertAdmin($pdo, $user);
 
@@ -123,6 +124,7 @@ class ScheduleService
 
             $this->assertReferences($pdo, $data);
             $this->assertNoOverlap($pdo, $data, $scheduleId);
+
             // Only ask again when the room, day or time actually changed
             $sameSlot = $data['room_id'] === (int) $current['room_id']
                 && strcasecmp($data['day_of_week'], (string) $current['day_of_week']) === 0
@@ -210,53 +212,64 @@ class ScheduleService
         }
     }
 
+    /**
+     * Students store the signup text ("BS of Information Technology (BSIT)").
+     * Programs are compared by the short code in brackets (BSIT).
+     */
+    private function programKey(string $program): string
+    {
+        $program = mb_strtolower(trim($program));
+
+        return preg_match('/\(([^)]+)\)\s*$/u', $program, $m) ? trim($m[1]) : $program;
+    }
+
     /** Pulls the admin's "yes, save it anyway" flag out of the request body. */
-private function takeOverlapConfirmation(array &$input): bool
-{
-    $confirmed = filter_var($input['confirm_reservation_overlap'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    private function takeOverlapConfirmation(array &$input): bool
+    {
+        $confirmed = filter_var($input['confirm_reservation_overlap'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-    unset($input['confirm_reservation_overlap']);
+        unset($input['confirm_reservation_overlap']);
 
-    return $confirmed;
-}
-
-/**
- * An approved reservation already uses this room and time on some upcoming
- * date. The admin may still schedule the class: the reservation stays as it
- * is for that day. Without confirmation the save stops with a 409 that lists
- * the reservations so the screen can ask.
- */
-private function assertReservationOverlapConfirmed(PDO $pdo, array $data, bool $confirmed): void
-{
-    if ($confirmed) {
-        return;
+        return $confirmed;
     }
 
-    $isoDay = (int) array_search($data['day_of_week'], self::DAYS, true) + 1;
+    /**
+     * An approved reservation already uses this room and time on some upcoming
+     * date. The admin may still schedule the class: the reservation stays as it
+     * is for that day. Without confirmation the save stops with a 409 that lists
+     * the reservations so the screen can ask.
+     */
+    private function assertReservationOverlapConfirmed(PDO $pdo, array $data, bool $confirmed): void
+    {
+        if ($confirmed) {
+            return;
+        }
 
-    $rows = $this->repository->findApprovedReservationOverlaps(
-        $pdo,
-        $data['room_id'],
-        $isoDay,
-        $data['start_time'],
-        $data['end_time'],
-        date('Y-m-d')
-    );
+        $isoDay = (int) array_search($data['day_of_week'], self::DAYS, true) + 1;
 
-    if (!empty($rows)) {
-        throw new ApiException(
-            'There is currently an approved reservation in this room at this time.',
-            409,
-            ['code' => 'RESERVATION_OVERLAP', 'reservations' => $rows]
+        $rows = $this->repository->findApprovedReservationOverlaps(
+            $pdo,
+            $data['room_id'],
+            $isoDay,
+            $data['start_time'],
+            $data['end_time'],
+            date('Y-m-d')
         );
+
+        if (!empty($rows)) {
+            throw new ApiException(
+                'There is currently an approved reservation in this room at this time.',
+                409,
+                ['code' => 'RESERVATION_OVERLAP', 'reservations' => $rows]
+            );
+        }
     }
-}
 
     private function matchesClass(array $schedule, array $student): bool
     {
         return $schedule['program_course'] !== null
             && $student['program_course'] !== null
-            && mb_strtolower(trim((string) $schedule['program_course'])) === mb_strtolower(trim((string) $student['program_course']))
+            && $this->programKey((string) $schedule['program_course']) === $this->programKey((string) $student['program_course'])
             && (int) $schedule['year_level'] === (int) $student['year_level']
             && (int) $schedule['section'] === (int) $student['section'];
     }
@@ -378,7 +391,9 @@ private function assertReservationOverlapConfirmed(PDO $pdo, array $data, bool $
             'year_level' => $year,
             'section' => $section,
             // Keeps the older "BSIT 2-2" text column in sync for existing screens.
-            'course_section' => $program . ' ' . $year . '-' . $section,
+            'course_section' => $this->programKey($program) === mb_strtolower($program)
+                ? $program . ' ' . $year . '-' . $section
+                : mb_strtoupper($this->programKey($program)) . ' ' . $year . '-' . $section,
             'faculty_id' => $facultyId,
         ];
     }
