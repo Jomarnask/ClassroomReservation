@@ -389,7 +389,7 @@
           🔒
         </div>
         <div>
-          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Approved Bookings (Red)</p>
+          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Approved Today (Red)</p>
           <p id="statApprovedCount" class="text-xl font-bold text-red-700">0 Bookings</p>
         </div>
       </div>
@@ -670,6 +670,49 @@
           </div>
         </div>
 
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: DECLINE A PENDING RESERVATION ================= -->
+  <div id="declineModalOverlay" class="admin-modal-overlay" hidden>
+    <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="declineModalTitle" style="max-width: 460px;">
+
+      <!-- Modal Header -->
+      <div class="p-4 bg-[#880000] text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">⛔</span>
+          <div>
+            <h3 class="font-bold text-sm text-white" id="declineModalTitle">Decline Reservation</h3>
+            <p class="text-[11px] text-[#ffd658]">The slot is released and the student is notified</p>
+          </div>
+        </div>
+        <button type="button" class="text-white hover:bg-white/20 p-1.5 rounded transition" id="btnCloseDeclineModal" aria-label="Close">✕</button>
+      </div>
+
+      <!-- Modal Form -->
+      <form id="declineForm" novalidate class="p-6 space-y-4 text-xs">
+        <div id="declineSummary" class="rounded-[6px] border border-gray-200 bg-gray-50 p-3 space-y-1">
+          <!-- Filled by JS -->
+        </div>
+
+        <div>
+          <label for="declineReason" class="block font-bold text-gray-700 mb-1">
+            Reason for the student <span class="font-normal text-gray-400">(optional)</span>
+          </label>
+          <textarea id="declineReason" rows="3" maxlength="500" placeholder="e.g. The room is needed for a school event."
+            class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs font-medium focus:outline-none focus:border-[#880000] resize-none"></textarea>
+          <p class="mt-1 text-[10px] text-gray-400 text-right"><span id="declineReasonCount">0</span>/500</p>
+        </div>
+
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-gray-100">
+          <button type="button" id="btnCancelDecline" class="btn-ghost px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-[4px]">
+            Cancel
+          </button>
+          <button type="submit" id="btnConfirmDecline" class="px-5 py-2 text-xs font-bold bg-[#880000] hover:bg-[#5c0000] text-white rounded-[4px] shadow transition">
+            Decline Reservation
+          </button>
+        </div>
       </form>
     </div>
   </div>

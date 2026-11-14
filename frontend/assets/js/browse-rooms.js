@@ -428,6 +428,7 @@
           code: c.subject_code || '',
           section: c.course_section || '',
           faculty: c.faculty_name || state.facultyMap[c.faculty_id] || '',
+          facultyId: c.faculty_id || '',
           isMyClass: c.is_my_class === true
         };
       });
@@ -1113,6 +1114,10 @@
     const subjInput = document.getElementById('resSubject');
     if (subjInput) subjInput.value = '';
 
+    // Start with the faculty field unlocked and empty; validateReservationForm() locks it
+    // again when the chosen time is inside the student's own class.
+    facultyLock.manualValue = '';
+    syncFacultyField(null);
     const facultySel = document.getElementById('resFaculty');
     if (facultySel) facultySel.value = '';
 
@@ -1134,6 +1139,61 @@
     }
   }
 
+  // ── Class teacher (assigned by the Admin) ───────────────────────────────
+  // When the chosen time overlaps the student's own class, that class's teacher is
+  // filled in and the field is locked. The database applies the same rule, so a
+  // changed form cannot tag someone else.
+  const facultyLock = { manualValue: '' };   // what the student picked before the lock
+
+  function findOwnClassFaculty(r, dateVal, sMins, eMins) {
+    if (!r || !dateVal || eMins <= sMins) return null;
+
+    const dayIndex = new Date(dateVal + 'T00:00:00').getDay();
+    if (isNaN(dayIndex) || dayIndex === 0) return null;   // Sunday is closed
+    const dayName = DAY_NAMES[dayIndex - 1];
+
+    const own = state.classSchedules
+      .filter(c => c.isMyClass && c.facultyId
+        && (String(c.roomId) === String(r.id) || String(c.roomId) === String(r.number))
+        && c.day && c.day.toLowerCase() === dayName.toLowerCase()
+        && (c.startMinutes ?? timeToMinutes(c.start)) < eMins
+        && (c.endMinutes ?? timeToMinutes(c.end)) > sMins)
+      .sort((a, b) => (a.startMinutes ?? timeToMinutes(a.start)) - (b.startMinutes ?? timeToMinutes(b.start)));
+
+    return own.length ? own[0] : null;
+  }
+
+  function syncFacultyField(ownClass) {
+    const sel = document.getElementById('resFaculty');
+    if (!sel) return;
+
+    let hint = document.getElementById('resFacultyHint');
+    if (!hint) {
+      hint = document.createElement('p');
+      hint.id = 'resFacultyHint';
+      hint.className = 'mt-1 text-[11px] text-gray-500';
+      hint.hidden = true;
+      sel.insertAdjacentElement('afterend', hint);
+    }
+
+    // Only lock when that teacher is in the dropdown (an inactive teacher is not)
+    const canLock = !!ownClass && [...sel.options].some(o => o.value === ownClass.facultyId);
+
+    if (canLock) {
+      if (!sel.disabled) facultyLock.manualValue = sel.value;   // remember the student's own pick
+      sel.value = ownClass.facultyId;
+      sel.disabled = true;
+      sel.classList.add('bg-gray-100', 'cursor-not-allowed');
+      hint.textContent = 'Assigned by the Admin for your class schedule. You cannot change it.';
+      hint.hidden = false;
+    } else if (sel.disabled) {
+      sel.disabled = false;
+      sel.classList.remove('bg-gray-100', 'cursor-not-allowed');
+      sel.value = facultyLock.manualValue || '';
+      hint.hidden = true;
+    }
+  }
+
   // ── Live Validation ─────────────────────────────────────────────────────
   // The database re-checks everything; this only gives instant feedback.
   function validateReservationForm() {
@@ -1148,6 +1208,10 @@
 
     const sMins = timeToMinutes(startVal);
     const eMins = timeToMinutes(endVal);
+
+    // Own class time: the teacher assigned by the Admin is filled in and locked
+    syncFacultyField(findOwnClassFaculty(r, dateVal, sMins, eMins));
+
     const dates = getTodayAndTomorrowDates();
     const todayStr = dates[0].dateStr;
     const tomorrowStr = dates[1].dateStr;

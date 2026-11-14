@@ -159,6 +159,7 @@
     schedules: [],      // every active class (all rooms)
     reservations: [],   // pending + approved of the selected room in the shown week
     pending: [],        // every pending request (all rooms)
+    approvedToday: 0,   // approved bookings of the selected room for today
     saving: false,
     toastTimer: null
   };
@@ -365,9 +366,25 @@
     state.reservations = (rows || []).map(normReservation);
   }
 
+  // How many approved bookings the selected room has for TODAY (includes
+  // auto-approved own-class bookings). It does not depend on the week shown.
+  async function loadApprovedToday() {
+    if (!state.selectedRoom) { state.approvedToday = 0; return; }
+
+    const today = dateToStr(new Date());
+    const rows = await api.reservations.list({
+      room_id: state.selectedRoom.id,
+      status: 'approved',
+      date_from: today,
+      date_to: today,
+      limit: 500
+    });
+    state.approvedToday = (rows || []).length;
+  }
+
   async function refreshAll() {
     try {
-      await Promise.all([loadSchedules(), loadPending(), loadWeekReservations()]);
+      await Promise.all([loadSchedules(), loadPending(), loadWeekReservations(), loadApprovedToday()]);
     } catch (err) {
       console.error('Refresh failed:', err);
       showToast('Could not load data: ' + errorText(err), false);
@@ -483,9 +500,10 @@
     if (schedRoom) schedRoom.value = String(room.id);
 
     try {
-      await loadWeekReservations();
+      await Promise.all([loadWeekReservations(), loadApprovedToday()]);
     } catch (err) {
       state.reservations = [];
+      state.approvedToday = 0;
       showToast('Could not load reservations: ' + errorText(err), false);
     }
     renderAll();
@@ -505,7 +523,9 @@
     const pendingTableCount = document.getElementById('pendingTableCount');
     if (pendingTableCount) pendingTableCount.textContent = `${pendingCount} Pending`;
 
-    
+    const approvedToday = state.approvedToday;
+    const statApprovedCount = document.getElementById('statApprovedCount');
+    if (statApprovedCount) statApprovedCount.textContent = `${approvedToday} ${approvedToday === 1 ? 'Booking' : 'Bookings'}`;
   }
 
   // ── Weekly timetable ────────────────────────────────────────────────────
@@ -798,22 +818,78 @@
   }
 
   // ── Approve / decline (PATCH /api/reservations/{id}/decision) ───────────
+  // ── Decline dialog (matches the site; replaces the browser's prompt box) ─
+  let declineResolver = null;   // answers askDeclineReason(): the reason text, or null when cancelled
+
+  function askDeclineReason(res) {
+    const overlay = document.getElementById('declineModalOverlay');
+    const summary = document.getElementById('declineSummary');
+    const reason = document.getElementById('declineReason');
+
+    // Markup missing (older HTML): fall back to the plain browser prompt
+    if (!overlay || !summary || !reason) {
+      return Promise.resolve(window.prompt(`Decline reservation #${res.id} (${res.subject})?\nOptional reason for the student:`, ''));
+    }
+
+    const row = (label, value) => `
+      <div class="flex gap-2">
+        <span class="w-20 shrink-0 font-bold text-gray-500">${label}</span>
+        <span class="font-semibold text-gray-800 break-words min-w-0">${esc(value)}</span>
+      </div>`;
+
+    summary.innerHTML =
+      row('Reference', `#${res.id}`) +
+      row('Room', res.roomLabel) +
+      row('Applicant', res.requester) +
+      row('Date & Time', `${prettyDate(res.date)}, ${res.start} – ${res.end}`) +
+      row('Subject', res.subject || 'Room Reservation');
+
+    reason.value = '';
+    const count = document.getElementById('declineReasonCount');
+    if (count) count.textContent = '0';
+
+    overlay.hidden = false;
+    reason.focus();
+
+    return new Promise(resolve => { declineResolver = resolve; });
+  }
+
+  function closeDeclineModal(result) {
+    const overlay = document.getElementById('declineModalOverlay');
+    if (overlay) overlay.hidden = true;
+
+    if (declineResolver) {
+      const resolve = declineResolver;
+      declineResolver = null;
+      resolve(result);
+    }
+  }
+
+  let deciding = false;   // one decision at a time
+
   async function handleDecision(id, approve) {
+    if (deciding) return;
+
     const res = state.pending.find(r => String(r.id) === String(id));
     if (!res) return;
 
-    let reason;
-    if (!approve) {
-      reason = window.prompt(`Decline reservation #${res.id} (${res.subject})?\nOptional reason for the student:`, '');
-      if (reason === null) return; // cancelled
-    }
-
+    deciding = true;
     try {
-      await api.reservations.decide(res.id, approve, reason ? reason.trim() : undefined);
-    } catch (err) {
-      showToast(errorText(err), false);
-      await refreshAll(); // the request may already have been decided
-      return;
+      let reason;
+      if (!approve) {
+        reason = await askDeclineReason(res);
+        if (reason === null) return; // cancelled
+      }
+
+      try {
+        await api.reservations.decide(res.id, approve, reason ? reason.trim() : undefined);
+      } catch (err) {
+        showToast(errorText(err), false);
+        await refreshAll(); // the request may already have been decided
+        return;
+      }
+    } finally {
+      deciding = false;
     }
 
     await refreshAll();
@@ -1115,6 +1191,36 @@ async function saveSchedule(editId, payload) {
 
     const schedForm = document.getElementById('scheduleForm');
     if (schedForm) schedForm.addEventListener('submit', handleSaveSchedule);
+
+    // Decline dialog: Decline button sends the reason, everything else cancels
+    const declineOverlay = document.getElementById('declineModalOverlay');
+    const declineForm = document.getElementById('declineForm');
+    const declineReason = document.getElementById('declineReason');
+
+    if (declineForm) {
+      declineForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        closeDeclineModal(declineReason ? declineReason.value.trim() : '');
+      });
+    }
+    if (declineReason) {
+      declineReason.addEventListener('input', () => {
+        const count = document.getElementById('declineReasonCount');
+        if (count) count.textContent = String(declineReason.value.length);
+      });
+    }
+    ['btnCloseDeclineModal', 'btnCancelDecline'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => closeDeclineModal(null));
+    });
+    if (declineOverlay) {
+      declineOverlay.addEventListener('click', (e) => {
+        if (e.target === declineOverlay) closeDeclineModal(null);   // click on the dark backdrop
+      });
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && declineOverlay && !declineOverlay.hidden) closeDeclineModal(null);
+    });
 
     const btnCloseToast = document.getElementById('btnCloseSmToast');
     if (btnCloseToast) {

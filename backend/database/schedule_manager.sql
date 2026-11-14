@@ -164,6 +164,7 @@ DECLARE
     v_day TEXT;
     v_covered_until TIME := p_start;
     v_within BOOLEAN := FALSE;
+    v_class_faculty UUID;
     v_status reservation_status_type := 'pending';
     v_id INTEGER;
     v_rejected INTEGER := 0;
@@ -191,7 +192,7 @@ BEGIN
 
     FOR v_class IN
         SELECT s.program_course, s.year_level, s.section, s.subject_title,
-               s.start_time, s.end_time,
+               s.start_time, s.end_time, s.faculty_id,
                COALESCE(
                    public.program_key(s.program_course) = public.program_key(v_me.program_course)
                    AND s.year_level = v_me.year_level
@@ -220,9 +221,23 @@ BEGIN
         IF v_class.start_time <= v_covered_until THEN
             v_covered_until := GREATEST(v_covered_until, v_class.end_time);
         END IF;
+
+        -- The teacher the admin assigned to the first own class that overlaps the request
+        IF v_class_faculty IS NULL AND v_class.faculty_id IS NOT NULL THEN
+            v_class_faculty := v_class.faculty_id;
+        END IF;
     END LOOP;
 
     v_within := v_covered_until >= p_end;
+
+    -- Reserving in your own class time: the class teacher is tagged automatically and
+    -- the student cannot change it (whatever faculty was sent is replaced).
+    IF v_class_faculty IS NOT NULL AND EXISTS (
+        SELECT 1 FROM public.users
+        WHERE user_id = v_class_faculty AND role = 'faculty' AND account_status = 'active'
+    ) THEN
+        p_faculty_id := v_class_faculty;
+    END IF;
 
     IF v_within THEN
         v_status := 'approved';
