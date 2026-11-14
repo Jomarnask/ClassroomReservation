@@ -769,9 +769,9 @@
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
-          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE MASTER CONSOLE &bull; CCIS</p>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE DASHBOARD</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${adminName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">CCIS Facilities Administrator &bull; Super Admin Console &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus Facilities Administratorminor  &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
         </div>
         <div class="flex items-center gap-2">
           <a href="room-management.html" class="btn-pup-secondary text-xs flex items-center gap-1.5">
