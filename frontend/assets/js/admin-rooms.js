@@ -1,8 +1,8 @@
 /**
  * PUP Canlalay Campus CRS - Admin Room Browser (add-on for dashboard.html)
  *
- * Replaces the "Campus Slot Matrix" on the ADMIN dashboard with the same room
- * directory + Today/Tomorrow timetable used in browse-rooms.html, and lets the
+ * Draws the Room Directory + Today/Tomorrow timetable (the same one browse-rooms.html
+ * uses) inside the ADMIN dashboard's #adminRoomBrowserSlot, and lets the
  * admin reserve a room that is APPROVED immediately (no approval step).
  *
  * - Loads only on dashboard.html (one <script> tag, after dashboard.js).
@@ -778,10 +778,15 @@ window.supabaseClient = client;
     section.dataset.admMounted = '1';
     injectStyles();
 
-    var cell = section.querySelector('.schedule-grid-cell');
-    var col = cell ? cell.closest('div[class~="lg:col-span-5"]') : null;
+    // dashboard.js provides #adminRoomBrowserSlot (and already sizes both columns).
+    // Older dashboard.js files only had a hidden .schedule-grid-cell; that still works.
+    var slot = $('adminRoomBrowserSlot');
+    var cell = slot ? null : section.querySelector('.schedule-grid-cell');
+    var col = slot || (cell ? cell.closest('div[class~="lg:col-span-5"]') : null);
 
-    if (col) {
+    if (slot) {
+      slot.className = 'lg:col-span-7 min-w-0';   // drop the loading-box padding: the directory has its own
+    } else if (col) {
       var next = col.nextElementSibling;
       col.className = 'lg:col-span-7 min-w-0';
       if (next && /lg:col-span-7/.test(next.className)) next.className = next.className.replace('lg:col-span-7', 'lg:col-span-5');

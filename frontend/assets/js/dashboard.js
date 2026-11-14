@@ -769,9 +769,9 @@
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
-          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE DASHBOARD</p>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE MASTER CONSOLE &bull; CCIS</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${adminName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus Facilities Administratorminor  &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">CCIS Facilities Administrator &bull; Super Admin Console &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
         </div>
         <div class="flex items-center gap-2">
           <a href="room-management.html" class="btn-pup-secondary text-xs flex items-center gap-1.5">
@@ -866,7 +866,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Active Bookings</h3>
-            <p class="text-xs text-gray-500">Live high-density room occupancy matrix and scheduled lab blocks</p>
+            <p class="text-xs text-gray-500">Browse rooms, view every reservation on the timetable, and book a room as Admin (approved immediately)</p>
           </div>
 
           <div class="flex items-center gap-3">
@@ -879,14 +879,12 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-          <!-- admin-rooms.js replaces this column with the Room Directory (it looks for the
-               .schedule-grid-cell inside a lg:col-span-5 column, so keep both) -->
-          <div class="lg:col-span-5 bg-slate-50 border border-gray-200 rounded-[4px] p-4">
-            <div class="schedule-grid-cell hidden"></div>
+          <!-- Room Directory + timetable: admin-rooms.js draws it inside this slot -->
+          <div id="adminRoomBrowserSlot" class="lg:col-span-7 min-w-0 bg-slate-50 border border-gray-200 rounded-[4px] p-4">
             <p class="text-xs text-gray-500">Loading room directory&hellip;</p>
           </div>
 
-          <div class="lg:col-span-7 space-y-2.5">
+          <div class="lg:col-span-5 space-y-2.5">
             <div class="flex items-center justify-between">
               <span class="text-xs font-bold text-gray-700 uppercase tracking-wider block">Live Sessions (Showing Top 3)</span>
               <a href="all-reservations.html" class="text-[11px] font-semibold text-[#337ab7] hover:underline flex items-center gap-1">
