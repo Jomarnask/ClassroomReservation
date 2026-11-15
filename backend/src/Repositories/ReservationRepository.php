@@ -21,9 +21,10 @@ class ReservationRepository
             s.full_name AS student_name,
             s.pup_webmail AS student_webmail,
             s.student_number,
-            s.program_course,
-            s.year_level,
-            s.section,
+            COALESCE(r.program_course, s.program_course) AS program_course,
+            COALESCE(r.year_level, s.year_level) AS year_level,
+            COALESCE(r.section, s.section) AS section,
+            (r.program_course IS NOT NULL) AS class_booking,
             r.faculty_id,
             COALESCE(f.full_name, fu.full_name) AS faculty_name,
             r.admin_id,
@@ -52,6 +53,13 @@ class ReservationRepository
     {
         $sql = self::SELECT . ' WHERE 1 = 1';
         $params = [];
+
+        if (isset($filters['mine_user_id'])) {
+            // my own reservations, plus bookings an admin made for my class
+            $sql .= ' AND (r.student_id = CAST(:mine_user_id AS uuid)'
+                . ' OR public.student_in_class(r.program_course, r.year_level, r.section))';
+            $params['mine_user_id'] = $filters['mine_user_id'];
+        }
 
         if (isset($filters['student_id'])) {
             $sql .= ' AND r.student_id = CAST(:student_id AS uuid)';
@@ -226,8 +234,9 @@ class ReservationRepository
     }
 
     /**
-     * Calls public.admin_create_reservation(): the booking is approved at once and
-     * pending requests that overlap it are rejected automatically.
+     * Calls public.admin_create_reservation(): the booking is approved at once, assigned to
+     * a class (program + year + section), and pending requests that overlap it are rejected
+     * automatically.
      *
      * @return array{reservation_id:int,status:string,auto_rejected_competing_count:int}
      */
@@ -240,7 +249,10 @@ class ReservationRepository
                 CAST(:subject AS varchar),
                 CAST(:reservation_date AS date),
                 CAST(:start_time AS time),
-                CAST(:end_time AS time)
+                CAST(:end_time AS time),
+                CAST(:program_course AS text),
+                CAST(:year_level AS smallint),
+                CAST(:section AS smallint)
             ) AS result
         ");
 
@@ -251,6 +263,9 @@ class ReservationRepository
             'reservation_date' => $data['reservation_date'],
             'start_time' => $data['start_time'],
             'end_time' => $data['end_time'],
+            'program_course' => $data['program_course'],
+            'year_level' => $data['year_level'],
+            'section' => $data['section'],
         ]);
 
         return json_decode((string) $stmt->fetchColumn(), true) ?: [];

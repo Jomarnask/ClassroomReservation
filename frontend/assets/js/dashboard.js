@@ -22,9 +22,9 @@
   const client = (typeof window !== 'undefined' && window.supabaseClient)
     ? window.supabaseClient
     : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient
-        && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
-        : null);
+      && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+      : null);
 
   // ==========================================
   // 2. REPOSITORY & DATA STATE
@@ -211,7 +211,7 @@
         <a href="schedule.html" class="pup-nav-link">Schedule</a>
       `;
     } else {
-  nav.innerHTML = `
+      nav.innerHTML = `
     <a href="dashboard.html" class="pup-nav-link active font-bold text-[#ffd658]">Dashboard</a>
     <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
 
@@ -233,7 +233,7 @@
       </div>
     </div>
   `;
-}
+    }
   }
 
   // ==========================================
@@ -417,6 +417,7 @@
           <td class="py-3 px-4">
             <p class="font-bold text-gray-800">${esc(a.requester || 'Unknown')}</p>
             <span class="text-[10px] px-1.5 py-0.5 rounded-[3px] ${roleCls}">${esc(roleLabel)}</span>
+            ${a.class ? '<span class="text-[10px] font-semibold text-gray-500">&bull; ' + esc(a.class) + '</span>' : ''}
           </td>
           <td class="py-3 px-4">
             <span class="block font-semibold">${esc(dayLabel(a.reservation_date, data.today))}</span>
@@ -693,6 +694,7 @@
               </div>
               <p class="text-xs text-gray-600 mt-0.5">${esc(res.room)}</p>
               <p class="text-[11px] text-gray-500">${res.faculty ? 'Faculty: ' + esc(res.faculty) + ' &bull; ' : ''}${esc(res.dateLabel)} &bull; ${esc(fmtRange(res.start_time, res.end_time))}</p>
+              ${res.classBooking ? `<p class="text-[11px] font-semibold text-blue-700 mt-0.5">Booked for your class${res.classLabel ? ' (' + esc(res.classLabel) + ')' : ''} by the Admin</p>` : ''}
             </div>
             <div>
               <span class="inline-flex text-[11px] font-bold px-2.5 py-1 rounded-[3px] border ${st.badge}">${st.label}</span>
@@ -701,8 +703,8 @@
 
           <div class="pt-2 border-t border-gray-200/60 flex items-center justify-between gap-3 text-xs">
             <span class="text-[11px] text-gray-500">${res.status === 'approved'
-              ? 'Claim the physical key from the guard'
-              : 'Cancelled automatically 1 hour before the start time if nobody approves it'}</span>
+          ? 'Claim the physical key from the guard'
+          : 'Cancelled automatically 1 hour before the start time if nobody approves it'}</span>
             <div class="flex items-center gap-3 shrink-0">
               <button type="button" onclick="window.viewDigitalPass('${esc(res.ref)}')" class="text-[#337ab7] hover:underline font-semibold flex items-center gap-1">
                 <span>View Digital Pass</span> &nearr;
@@ -761,6 +763,9 @@
         start_time: r.start_time,
         end_time: r.end_time,
         status: r.status,
+        // an admin booked this room for the student's class (read-only for the student)
+        classBooking: r.class_booking === true,
+        classLabel: r.class_booking === true ? facultyStudentSection(r) : '',
       }));
       State.studentReservations.forEach(r => {
         const st = studentStatus(r.status);
@@ -1099,7 +1104,7 @@
     const status = String(r.status || '').toLowerCase();
     const statusColor = status === 'approved' ? 'text-emerald-700'
       : status === 'pending' ? 'text-amber-700'
-      : status === 'cancelled' ? 'text-slate-600' : 'text-rose-700';
+        : status === 'cancelled' ? 'text-slate-600' : 'text-rose-700';
 
     overlay.querySelector('#facultyDetailsTitle').textContent =
       `Item Details — RES-${String(r.reservation_id).padStart(4, '0')}`;
@@ -1565,8 +1570,8 @@
     if (!modal || !content) return;
 
     const res = State.studentReservations.find(r => r.ref === resId) ||
-                State.adminActivity.find(r => r.ref === resId) ||
-                { id: resId, room: '-', subject: '-', time: '-', statusLabel: 'NOT FOUND', statusClass: 'text-gray-500' };
+      State.adminActivity.find(r => r.ref === resId) ||
+      { id: resId, room: '-', subject: '-', time: '-', statusLabel: 'NOT FOUND', statusClass: 'text-gray-500' };
 
     content.innerHTML = `
       <div class="text-center pb-2 border-b border-gray-200">

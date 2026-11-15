@@ -164,6 +164,7 @@ class AdminDashboardService
             'room' => $this->roomLabel($row),
             'requester' => $row['student_name'],
             'requester_role' => $row['requester_role'],
+            'class' => $this->classLabel($row['program_course'], $row['year_level'], $row['section']),
             'faculty' => $row['faculty_name'],
             'subject' => $row['subject'],
             'reservation_date' => $row['reservation_date'],

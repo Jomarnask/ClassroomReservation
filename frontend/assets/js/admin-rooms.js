@@ -28,6 +28,30 @@ window.supabaseClient = client;
   var START_BOUNDARY = 7 * 60;   // 07:00 AM
   var END_BOUNDARY = 21 * 60;    // 09:00 PM
 
+  // These MUST match Schedule Manager and the sign-up options, because a student
+  // is matched to a class by program + year level + section.
+  var PROGRAMS = [
+    'BS of Information Technology (BSIT)',
+    'BS of Computer Engineering (BSCpE)',
+    'BS of Industrial Engineering (BSIE)',
+    'Diploma in Information Technology (DIT)',
+    'Diploma in Computer Engineering Technology (DCpET)'
+  ];
+  var YEAR_LEVELS = [
+    { value: 1, label: '1st Year' },
+    { value: 2, label: '2nd Year' },
+    { value: 3, label: '3rd Year' },
+    { value: 4, label: '4th Year' }
+  ];
+  var SECTIONS = [1, 2];
+
+  // 'BS of Information Technology (BSIT)', 3, 1 -> 'BSIT 3-1'
+  function classText(program, year, section) {
+    var m = String(program || '').match(/\(([^)]+)\)\s*$/);
+    var code = m ? m[1] : String(program || '');
+    return (code + (year != null && year !== '' ? ' ' + year + '-' + (section != null && section !== '' ? section : '?') : '')).trim();
+  }
+
   function $(id) { return document.getElementById(id); }
 
   function esc(str) {
@@ -243,6 +267,13 @@ window.supabaseClient = client;
             '</div>' +
             '<div><label for="admResFaculty" class="block font-bold text-gray-700 mb-1">Tagged Faculty Professor *</label>' +
               '<select id="admResFaculty" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs bg-white font-medium focus:outline-none focus:border-[#880000]"></select></div>' +
+            '<div><label for="admResProgram" class="block font-bold text-gray-700 mb-1">Student Class (Program, Year &amp; Section) *</label>' +
+              '<select id="admResProgram" required class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs bg-white font-medium focus:outline-none focus:border-[#880000]"></select>' +
+              '<div class="grid grid-cols-2 gap-3 mt-2">' +
+                '<select id="admResYear" required aria-label="Year level" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs bg-white font-medium focus:outline-none focus:border-[#880000]"></select>' +
+                '<select id="admResSection" required aria-label="Section" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs bg-white font-medium focus:outline-none focus:border-[#880000]"></select>' +
+              '</div>' +
+              '<p class="text-[11px] text-gray-500 mt-1">The students of this class can see the reservation on their dashboard and are notified.</p></div>' +
             '<div><label for="admResSubject" class="block font-bold text-gray-700 mb-1">Subject Code &amp; Reservation Purpose *</label>' +
               '<input type="text" id="admResSubject" required placeholder="e.g. CS314 - OS Laboratory / Department Meeting" class="w-full px-3 py-2 border border-gray-300 rounded-[4px] text-xs bg-white font-medium focus:outline-none focus:border-[#880000]" /></div>' +
             '<div id="admResAlert" class="adm-alert ok"></div>' +
@@ -268,6 +299,14 @@ window.supabaseClient = client;
       endSel.appendChild(new Option(minutesToTime(e), minutesToTime(e)));
     }
 
+    // class dropdowns (program, year level, section); the first option is a placeholder
+    $('admResProgram').innerHTML = '<option value="" disabled selected>-- Select Program --</option>' +
+      PROGRAMS.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
+    $('admResYear').innerHTML = '<option value="" disabled selected>-- Year Level --</option>' +
+      YEAR_LEVELS.map(function (y) { return '<option value="' + y.value + '">' + esc(y.label) + '</option>'; }).join('');
+    $('admResSection').innerHTML = '<option value="" disabled selected>-- Section --</option>' +
+      SECTIONS.map(function (n) { return '<option value="' + n + '">Section ' + n + '</option>'; }).join('');
+
     // events (wired once)
     $('admTtClose').addEventListener('click', closeTimetable);
     $('admTtOverlay').addEventListener('mousedown', function (ev) { if (ev.target === $('admTtOverlay')) closeTimetable(); });
@@ -279,7 +318,7 @@ window.supabaseClient = client;
     $('admResOverlay').addEventListener('mousedown', function (ev) { if (ev.target === $('admResOverlay')) closeBooking(); });
     $('admResForm').addEventListener('submit', submitBooking);
 
-    ['admResDate', 'admResStart', 'admResEnd', 'admResFaculty', 'admResSubject'].forEach(function (id) {
+    ['admResDate', 'admResStart', 'admResEnd', 'admResFaculty', 'admResProgram', 'admResYear', 'admResSection', 'admResSubject'].forEach(function (id) {
       $(id).addEventListener('input', validateBooking);
       $(id).addEventListener('change', validateBooking);
     });
@@ -347,6 +386,7 @@ window.supabaseClient = client;
         status: r.status, subject: r.subject,
         faculty: r.faculty_name || state.facultyMap[r.faculty_id] || 'Tagged faculty',
         requester: r.student_name || 'Student',
+        forClass: r.class_booking ? classText(r.program_course, r.year_level, r.section) : '',
         adminBooking: !!(state.user && r.student_id === state.user.id),
         detail: true
       };
@@ -487,7 +527,9 @@ window.supabaseClient = client;
 
     if (item.detail) {
       title = item.subject || 'Room Reservation';
-      meta = '<div>Faculty: ' + esc(item.faculty) + '</div><div class="text-gray-500 mt-0.5">Reserved by: ' + esc(item.requester) + '</div>';
+      meta = '<div>Faculty: ' + esc(item.faculty) + '</div>' +
+        (item.forClass ? '<div class="text-gray-500 mt-0.5">For class: ' + esc(item.forClass) + '</div>' : '') +
+        '<div class="text-gray-500 mt-0.5">Reserved by: ' + esc(item.requester) + '</div>';
       badge = approved ? (item.adminBooking ? 'Admin booking • Approved' : 'Approved / Occupied') : 'Pending approval';
     } else {
       title = approved ? 'Occupied' : 'In Process';
@@ -635,6 +677,10 @@ window.supabaseClient = client;
       state.faculty.map(function (u) { return '<option value="' + esc(u.user_id) + '">' + esc(u.full_name) + '</option>'; }).join('');
     if (!state.faculty.length) $('admResFaculty').innerHTML += '<option value="" disabled>No active faculty available yet</option>';
 
+    $('admResProgram').value = '';
+    $('admResYear').value = '';
+    $('admResSection').value = '';
+
     $('admResSubject').value = '';
     $('admResTitle').textContent = 'Admin Booking - ' + displayName(room);
 
@@ -682,6 +728,14 @@ window.supabaseClient = client;
       else if (pend.length) { type = 'warn'; msg = pend.length + ' pending student request(s) overlap this time. They will be automatically rejected when you reserve it.'; }
     }
 
+    // The booking must be assigned to a class so its students can see it
+    if (valid && (!$('admResProgram').value || !$('admResYear').value || !$('admResSection').value)) {
+      msg = 'Select the student program, year level and section to assign this booking to a class.' +
+        (type === 'warn' ? ' Note: ' + msg : '');
+      type = 'warn';
+      valid = false;
+    }
+
     box.className = 'adm-alert ' + type;
     box.textContent = (type === 'ok' ? '✔ ' : type === 'warn' ? '⚠ ' : '✖ ') + msg;
     btn.disabled = !valid || state.submitting;
@@ -700,9 +754,13 @@ window.supabaseClient = client;
       start: $('admResStart').value,
       end: $('admResEnd').value,
       faculty: $('admResFaculty').value,
+      program: $('admResProgram').value,
+      year: $('admResYear').value,
+      section: $('admResSection').value,
       subject: $('admResSubject').value.trim()
     };
     if (!room || !p.date || !p.start || !p.end || !p.faculty || !p.subject) { toast('Please complete all required fields.'); return; }
+    if (!p.program || !p.year || !p.section) { toast('Please select the student program, year level and section.'); return; }
     if (!validateBooking()) { toast('Cannot submit: please resolve the highlighted problem.'); return; }
 
     state.submitting = true;
@@ -714,6 +772,9 @@ window.supabaseClient = client;
         room_id: room.id,
         faculty_id: p.faculty,
         subject: p.subject.slice(0, 150),
+        program_course: p.program,
+        year_level: Number(p.year),
+        section: Number(p.section),
         reservation_date: p.date,
         start_time: toSqlTime(p.start),
         end_time: toSqlTime(p.end)
@@ -734,7 +795,7 @@ window.supabaseClient = client;
       renderTimetable();
     }
     var rejected = outcome && outcome.auto_rejected_competing_count ? outcome.auto_rejected_competing_count : 0;
-    toast('Reserved and approved: ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.' +
+    toast('Reserved and approved for ' + classText(p.program, p.year, p.section) + ': ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.' +
       (rejected ? ' ' + rejected + ' overlapping pending request(s) were declined automatically.' : ''));
   }
 

@@ -81,6 +81,13 @@
     return 'RES-' + String(num).padStart(4, '0');
   }
 
+  // 'BS of Information Technology (BSIT)', 3, 1 -> 'BSIT 3-1'
+  function classText(program, year, section) {
+    const m = String(program || '').match(/\(([^)]+)\)\s*$/);
+    const code = m ? m[1] : String(program || '');
+    return (code + (year != null && year !== '' ? ` ${year}-${section != null && section !== '' ? section : '?'}` : '')).trim();
+  }
+
   function facultyLabel(name) {
     return name ? 'Prof. ' + name : 'Unassigned';
   }
@@ -109,6 +116,9 @@
           end: formatTime(r.end_time),
           subject: r.subject,
           faculty: r.faculty_name || '',
+          // an admin booked this room for the student's class (read-only for the student)
+          classBooking: r.class_booking === true,
+          classLabel: r.class_booking === true ? classText(r.program_course, r.year_level, r.section) : '',
           status: status,
           rejectionReason: r.admin_remarks || '',
           createdAt: r.created_at
@@ -349,6 +359,7 @@
         </td>
         <td class="py-4 px-4 max-w-xs">
           <div class="font-bold text-gray-900 truncate">${esc(r.subject || 'N/A')}</div>
+          ${r.classBooking ? `<div class="mt-0.5 inline-block text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">Booked for your class${r.classLabel ? ' (' + esc(r.classLabel) + ')' : ''} by Admin</div>` : ''}
         </td>
         <td class="py-4 px-4 font-medium text-gray-800">
           ${esc(facultyLabel(r.faculty))}
@@ -419,6 +430,13 @@
         <p class="text-[10px] font-bold uppercase text-gray-500">Subject Code &amp; Purpose</p>
         <p class="font-bold text-gray-900 mt-0.5">${esc(r.subject || 'N/A')}</p>
       </div>
+
+      ${r.classBooking ? `
+        <div class="p-3 bg-blue-50 rounded-[8px] border border-blue-200">
+          <p class="text-[10px] font-bold uppercase text-blue-700">Booked For Your Class</p>
+          <p class="font-bold text-blue-900 mt-0.5">${esc(r.classLabel || 'Your class')} &bull; booked by the Admin</p>
+        </div>
+      ` : ''}
 
       <div class="grid grid-cols-2 gap-3">
         <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">

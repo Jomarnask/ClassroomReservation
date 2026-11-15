@@ -42,8 +42,9 @@ class ReservationService
         return $this->run($user, function (PDO $pdo) use ($user, $filters) {
             $this->assertActiveAccount($pdo, $user);
 
+            // "mine" = reservations I requested, plus bookings an admin made for my class
             if (!empty($filters['mine'])) {
-                $filters['student_id'] = $user->getId();
+                $filters['mine_user_id'] = $user->getId();
             }
             unset($filters['mine']);
 
@@ -325,6 +326,11 @@ class ReservationService
     {
         $allowed = ['room_id', 'faculty_id', 'subject', 'reservation_date', 'start_time', 'end_time'];
 
+        // Only an admin booking is assigned to a class (students cannot choose one)
+        if ($asAdmin) {
+            array_push($allowed, 'program_course', 'year_level', 'section');
+        }
+
         $unknown = array_diff(array_keys($input), $allowed);
 
         if (!empty($unknown)) {
@@ -347,6 +353,30 @@ class ReservationService
 
         if ($subject === '' || mb_strlen($subject) > 150) {
             throw new ApiException('Subject is required and must not exceed 150 characters.', 422);
+        }
+
+        $program = null;
+        $yearLevel = null;
+        $section = null;
+
+        if ($asAdmin) {
+            $program = trim((string) ($input['program_course'] ?? ''));
+
+            if ($program === '' || mb_strlen($program) > 50) {
+                throw new ApiException('The student program is required (max 50 characters).', 422);
+            }
+
+            $yearLevel = filter_var($input['year_level'] ?? null, FILTER_VALIDATE_INT);
+
+            if ($yearLevel === false || $yearLevel < 1 || $yearLevel > 6) {
+                throw new ApiException('The year level must be a number from 1 to 6.', 422);
+            }
+
+            $section = filter_var($input['section'] ?? null, FILTER_VALIDATE_INT);
+
+            if ($section === false || $section < 1 || $section > 99) {
+                throw new ApiException('The section must be a number from 1 to 99.', 422);
+            }
         }
 
         $date = $this->parseDate($input['reservation_date'] ?? null, 'reservation_date');
@@ -397,7 +427,7 @@ class ReservationService
             }
         }
 
-        return [
+        $data = [
             'room_id' => $roomId,
             'faculty_id' => strtolower($facultyId),
             'subject' => $subject,
@@ -405,6 +435,14 @@ class ReservationService
             'start_time' => $start,
             'end_time' => $end,
         ];
+
+        if ($asAdmin) {
+            $data['program_course'] = $program;
+            $data['year_level'] = $yearLevel;
+            $data['section'] = $section;
+        }
+
+        return $data;
     }
 
     private function validateDecision(array $input): array
