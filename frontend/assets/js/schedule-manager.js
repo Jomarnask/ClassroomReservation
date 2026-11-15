@@ -148,6 +148,12 @@
     return fields.length ? `${err.message} ${fields[0]}` : (err && err.message) || 'Something went wrong.';
   }
 
+  function getDefaultDay() {
+    const dayIndex = new Date().getDay(); // 0: Sun, 1: Mon, ... 6: Sat
+    if (dayIndex === 0) return 'Monday';
+    return DAY_NAMES[dayIndex - 1] || 'Monday';
+  }
+
   // ── Global State ────────────────────────────────────────────────────────
   const state = {
     user: null,
@@ -156,6 +162,7 @@
     faculty: [],
     selectedRoom: null,
     currentMonday: getMonday(new Date()),
+    selectedDayName: null, // default to today or Monday
     schedules: [],      // every active class (all rooms)
     reservations: [],   // pending + approved of the selected room in the shown week
     pending: [],        // every pending request (all rooms)
@@ -538,17 +545,30 @@
     const gridBody = document.getElementById('timetableGridBody');
     const weekDates = getWeekDates(state.currentMonday);
 
+    if (!state.selectedDayName) {
+      state.selectedDayName = getDefaultDay();
+    }
+
     const rangeLabel = document.getElementById('ttWeekRangeLabel');
     if (rangeLabel) {
       rangeLabel.textContent = `${weekDates[0].shortDate} – ${weekDates[weekDates.length - 1].shortDate}, ${state.currentMonday.getFullYear()}`;
+    }
+
+    // Render mobile day tabs & title
+    renderMobileDayTabs(weekDates);
+
+    const ttWrapper = document.getElementById('timetableWrapper');
+    if (ttWrapper) {
+      ttWrapper.classList.add('view-day-mode');
     }
 
     if (daysHeader) {
       const todayStr = dateToStr(new Date());
       daysHeader.innerHTML = weekDates.map(w => {
         const isToday = w.dateStr === todayStr;
+        const isActiveDay = w.dayName === state.selectedDayName;
         return `
-          <div class="py-2.5 px-2 border-r border-gray-200 last:border-r-0 ${isToday ? 'bg-amber-50/70 text-[#880000] font-bold' : 'text-gray-700 font-semibold'} text-xs">
+          <div class="day-header-col py-2.5 px-2 border-r border-gray-200 last:border-r-0 ${isToday ? 'bg-amber-50/70 text-[#880000] font-bold' : 'text-gray-700 font-semibold'} ${isActiveDay ? 'is-active-day' : ''} text-xs" data-day="${w.dayName}">
             <span class="block">${w.dayName}</span>
             <span class="text-[11px] font-normal text-gray-500">${w.shortDate}</span>
           </div>`;
@@ -577,6 +597,10 @@
     weekDates.forEach(dayInfo => {
       const dayCol = document.createElement('div');
       dayCol.className = 'day-column';
+      dayCol.setAttribute('data-day', dayInfo.dayName);
+      if (dayInfo.dayName === state.selectedDayName) {
+        dayCol.classList.add('is-active-day');
+      }
 
       for (let i = 0; i < 14; i++) {
         const line = document.createElement('div');
@@ -618,6 +642,39 @@
       });
 
       gridBody.appendChild(dayCol);
+    });
+  }
+
+  function renderMobileDayTabs(weekDates) {
+    const tabsContainer = document.getElementById('mobileDayTabsContainer');
+    const dayTitle = document.getElementById('mobileActiveDayTitle');
+    if (!tabsContainer) return;
+
+    const todayStr = dateToStr(new Date());
+    const activeDateInfo = weekDates.find(w => w.dayName === state.selectedDayName) || weekDates[0];
+    if (dayTitle) {
+      dayTitle.textContent = `${activeDateInfo.dayName} (${activeDateInfo.shortDate})`;
+    }
+
+    tabsContainer.innerHTML = weekDates.map(w => {
+      const isToday = w.dateStr === todayStr;
+      const isActive = w.dayName === state.selectedDayName;
+      return `
+        <button type="button" class="mobile-day-tab py-2 px-1 rounded-[8px] text-xs font-bold transition flex flex-col items-center justify-center gap-0.5 ${isActive ? 'bg-[#880000] text-white shadow' : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200'}" data-day="${w.dayName}">
+          <span class="text-[11px] uppercase tracking-tight">${w.dayName.slice(0, 3)}</span>
+          <span class="text-[10px] font-medium ${isActive ? 'text-[#ffd658]' : 'text-gray-500'}">${w.shortDate.split(' ')[1] || ''}</span>
+          ${isToday ? `<span class="w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[#ffd658]' : 'bg-[#880000]'}"></span>` : ''}
+        </button>
+      `;
+    }).join('');
+
+    tabsContainer.querySelectorAll('.mobile-day-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const day = btn.getAttribute('data-day');
+        if (!day) return;
+        state.selectedDayName = day;
+        renderWeeklyTimetable();
+      });
     });
   }
 
@@ -729,20 +786,20 @@
 
     tableBody.innerHTML = roomClasses.map(cls => `
       <tr class="hover:bg-blue-50/50 transition">
-        <td class="py-3 px-3">
+        <td class="py-3 px-3" data-label="Section / Block">
           <span class="inline-flex items-center gap-1.5 font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
             <span class="w-2 h-2 rounded-full bg-blue-600"></span>
             ${esc(cls.label)}
           </span>
         </td>
-        <td class="py-3 px-3">
+        <td class="py-3 px-3" data-label="Subject / Course">
           <div class="font-bold text-gray-900">${esc(cls.subject)}</div>
           ${cls.code ? `<div class="text-[10px] text-gray-500 font-mono">${esc(cls.code)}</div>` : ''}
         </td>
-        <td class="py-3 px-3 font-semibold text-gray-800">${esc(cls.day)}</td>
-        <td class="py-3 px-3 font-medium text-gray-700 whitespace-nowrap">${esc(cls.start)} – ${esc(cls.end)}</td>
-        <td class="py-3 px-3 text-gray-800">${esc(cls.faculty || 'Unassigned')}</td>
-        <td class="py-3 px-3 text-right whitespace-nowrap">
+        <td class="py-3 px-3 font-semibold text-gray-800" data-label="Day of Week">${esc(cls.day)}</td>
+        <td class="py-3 px-3 font-medium text-gray-700 whitespace-nowrap" data-label="Time Period">${esc(cls.start)} – ${esc(cls.end)}</td>
+        <td class="py-3 px-3 text-gray-800" data-label="Assigned Faculty">${esc(cls.faculty || 'Unassigned')}</td>
+        <td class="actions-cell py-3 px-3 text-right whitespace-nowrap">
           <button type="button" class="btn-edit-sched text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2.5 py-1 rounded font-bold text-xs mr-1 transition" data-id="${cls.id}">Edit</button>
           <button type="button" class="btn-del-sched text-red-600 hover:text-red-800 hover:bg-red-50 px-2.5 py-1 rounded font-bold text-xs transition" data-id="${cls.id}">Delete</button>
         </td>
@@ -778,20 +835,20 @@
 
     tableBody.innerHTML = state.pending.map(res => `
       <tr id="row-pending-${res.id}" class="hover:bg-amber-50/60 transition">
-        <td class="py-3 px-3 font-mono font-bold text-amber-900">#${esc(res.id)}</td>
-        <td class="py-3 px-3">
+        <td class="py-3 px-3 font-mono font-bold text-amber-900" data-label="Ref ID">#${esc(res.id)}</td>
+        <td class="py-3 px-3" data-label="Room">
           <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-gray-100 text-gray-800 border border-gray-200">${esc(res.roomLabel)}</span>
         </td>
-        <td class="py-3 px-3 font-semibold text-gray-900">${esc(res.requester)}</td>
-        <td class="py-3 px-3 whitespace-nowrap">
+        <td class="py-3 px-3 font-semibold text-gray-900" data-label="Applicant">${esc(res.requester)}</td>
+        <td class="py-3 px-3 whitespace-nowrap" data-label="Date &amp; Time">
           <div class="font-bold text-gray-800">${esc(prettyDate(res.date))}</div>
           <div class="text-[11px] text-gray-600">${esc(res.start)} – ${esc(res.end)}</div>
         </td>
-        <td class="py-3 px-3 max-w-[200px]">
+        <td class="py-3 px-3 max-w-[200px]" data-label="Subject &amp; Purpose">
           <p class="font-medium text-gray-900 truncate" title="${esc(res.subject)}">${esc(res.subject || 'Room Reservation')}</p>
         </td>
-        <td class="py-3 px-3 text-gray-700 whitespace-nowrap">${esc(res.faculty || 'Unassigned')}</td>
-        <td class="py-3 px-3 text-right whitespace-nowrap">
+        <td class="py-3 px-3 text-gray-700 whitespace-nowrap" data-label="Faculty">${esc(res.faculty || 'Unassigned')}</td>
+        <td class="actions-cell py-3 px-3 text-right whitespace-nowrap">
           <button type="button" class="btn-approve-res px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-[6px] text-xs shadow-sm transition mr-1.5" data-id="${res.id}">✔ Approve (Red)</button>
           <button type="button" class="btn-decline-res px-2.5 py-1.5 text-red-600 hover:bg-red-50 border border-red-300 font-bold rounded-[6px] text-xs transition" data-id="${res.id}">✕ Decline</button>
         </td>

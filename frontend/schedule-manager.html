@@ -231,6 +231,183 @@
       from { transform: scale(0.96); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
+
+    /* Mobile Timetable Day View & Responsive Layout */
+    @media (max-width: 767px) {
+      .timetable-wrapper {
+        border-radius: 10px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .timetable-wrapper.view-day-mode .timetable-inner {
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+      .timetable-wrapper.view-day-mode #timetableDaysHeader {
+        display: flex !important;
+        width: 100% !important;
+      }
+      .timetable-wrapper.view-day-mode #timetableGridBody {
+        display: flex !important;
+        width: 100% !important;
+      }
+      .timetable-wrapper.view-day-mode .day-header-col[data-day] {
+        display: none !important;
+      }
+      .timetable-wrapper.view-day-mode .day-header-col[data-day].is-active-day {
+        display: block !important;
+        flex: 1 1 0 !important;
+        width: 100% !important;
+      }
+      .timetable-wrapper.view-day-mode .day-column[data-day] {
+        display: none !important;
+      }
+      .timetable-wrapper.view-day-mode .day-column[data-day].is-active-day {
+        display: block !important;
+        flex: 1 1 0 !important;
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+      .time-axis-col {
+        width: 60px !important;
+      }
+      .time-slot-label {
+        font-size: 10px !important;
+        padding-right: 6px !important;
+      }
+      .schedule-card {
+        left: 4px;
+        right: 4px;
+        padding: 6px 8px;
+      }
+      .schedule-card .card-title {
+        font-size: 11.5px;
+      }
+      .schedule-card .card-time {
+        font-size: 10px;
+      }
+      .schedule-card .card-meta {
+        font-size: 9.5px;
+      }
+
+      /* Responsive Tables -> Cards on Mobile */
+      .table-container-responsive {
+        border: none !important;
+        overflow-x: visible !important;
+        background: transparent !important;
+      }
+      .responsive-table {
+        display: block;
+        width: 100%;
+        border: none !important;
+      }
+      .responsive-table thead {
+        display: none !important;
+      }
+      .responsive-table tbody {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+      }
+      .responsive-table tr {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+      }
+      .responsive-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0 !important;
+        border: none !important;
+        text-align: right !important;
+        width: 100%;
+        font-size: 12px;
+      }
+      .responsive-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-right: 12px;
+        text-align: left;
+        flex-shrink: 0;
+      }
+      .responsive-table td.actions-cell {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: stretch !important;
+        gap: 8px !important;
+        padding-top: 12px !important;
+        margin-top: 6px !important;
+        border-top: 1px solid #f1f5f9 !important;
+      }
+      .responsive-table td.actions-cell::before {
+        display: none !important;
+      }
+      .responsive-table td.actions-cell button {
+        flex: 1 1 0;
+        text-align: center;
+        justify-content: center;
+        padding: 9px 12px;
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .responsive-table td[colspan] {
+        display: block !important;
+        text-align: center !important;
+        padding: 24px 12px !important;
+      }
+      .responsive-table td[colspan]::before {
+        display: none !important;
+      }
+    }
+
+    /* Mobile Modals (Bottom sheet / Sticky actions) */
+    @media (max-width: 639px) {
+      .admin-modal-overlay {
+        padding: 0;
+        align-items: flex-end;
+      }
+      .admin-modal {
+        max-width: 100%;
+        max-height: 94vh;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .admin-modal form {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        max-height: calc(94vh - 60px);
+        padding: 16px;
+      }
+      .admin-modal select,
+      .admin-modal input,
+      .admin-modal textarea {
+        font-size: 14px !important;
+        min-height: 40px;
+      }
+      .modal-footer-sticky {
+        position: sticky;
+        bottom: 0;
+        background: #ffffff;
+        padding-top: 12px;
+        padding-bottom: 6px;
+        margin-top: auto;
+        z-index: 10;
+        border-top: 1px solid #f1f5f9;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between selection:bg-[#880000] selection:text-white" style="background-color:#f8fafc; color:#111111; font-family:'Noto Sans','Inter',system-ui,sans-serif;">
@@ -339,9 +516,9 @@
         </p>
       </div>
 
-      <div class="controls flex flex-wrap items-center gap-3">
+      <div class="controls flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
         <!-- Floor Filter -->
-        <select id="floorFilter" aria-label="Filter by floor" class="text-xs">
+        <select id="floorFilter" aria-label="Filter by floor" class="text-xs py-2.5 px-3 rounded-[12px] border border-gray-300 bg-white">
           <option value="all">All Floors</option>
           <option value="1">1st Floor</option>
           <option value="2" selected>2nd Floor</option>
@@ -350,12 +527,12 @@
         </select>
 
         <!-- Room Selector Dropdown -->
-        <select id="roomSelector" class="min-w-[200px] text-xs font-bold border border-gray-300 rounded-[12px] bg-white text-gray-900 focus:outline-none focus:border-[#880000]">
+        <select id="roomSelector" class="w-full sm:w-auto sm:min-w-[200px] text-xs font-bold border border-gray-300 rounded-[12px] bg-white text-gray-900 py-2.5 px-3 focus:outline-none focus:border-[#880000]">
           <!-- Populated by JS -->
         </select>
 
         <!-- "+ Add Class Schedule" Button -->
-        <button id="btnOpenAddSchedule" type="button" class="btn-primary flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-[12px] bg-[#880000] hover:bg-[#5c0000] text-white shadow transition">
+        <button id="btnOpenAddSchedule" type="button" class="btn-primary flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-[12px] bg-[#880000] hover:bg-[#5c0000] text-white shadow transition w-full sm:w-auto">
           <span>+</span>
           <span>Add Class Schedule</span>
         </button>
@@ -363,99 +540,112 @@
     </section>
 
     <!-- Stats & Room Overview Bar -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="card p-4 flex items-center gap-3.5 bg-white border border-gray-200">
-        <div class="w-10 h-10 rounded-lg bg-blue-50 border border-blue-200 text-[#2563eb] flex items-center justify-center font-bold text-lg">
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div class="card p-3 sm:p-4 flex items-center gap-3 bg-white border border-gray-200">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-blue-50 border border-blue-200 text-[#2563eb] flex items-center justify-center font-bold text-base sm:text-lg shrink-0">
           📚
         </div>
-        <div>
-          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Scheduled Classes (Blue)</p>
-          <p id="statClassCount" class="text-xl font-bold text-gray-900">0 Classes</p>
+        <div class="min-w-0">
+          <p class="text-[10px] sm:text-[11px] text-gray-500 font-semibold uppercase tracking-wider truncate">Classes (Blue)</p>
+          <p id="statClassCount" class="text-base sm:text-xl font-bold text-gray-900">0 Classes</p>
         </div>
       </div>
 
-      <div class="card p-4 flex items-center gap-3.5 bg-white border border-gray-200">
-        <div class="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center font-bold text-lg">
+      <div class="card p-3 sm:p-4 flex items-center gap-3 bg-white border border-gray-200">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center font-bold text-base sm:text-lg shrink-0">
           ⏳
         </div>
-        <div>
-          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Pending Approvals (Yellow)</p>
-          <p id="statPendingCount" class="text-xl font-bold text-amber-700">0 Requests</p>
+        <div class="min-w-0">
+          <p class="text-[10px] sm:text-[11px] text-gray-500 font-semibold uppercase tracking-wider truncate">Pending (Yellow)</p>
+          <p id="statPendingCount" class="text-base sm:text-xl font-bold text-amber-700">0 Requests</p>
         </div>
       </div>
 
-      <div class="card p-4 flex items-center gap-3.5 bg-white border border-gray-200">
-        <div class="w-10 h-10 rounded-lg bg-red-50 border border-red-200 text-[#880000] flex items-center justify-center font-bold text-lg">
+      <div class="card p-3 sm:p-4 flex items-center gap-3 bg-white border border-gray-200">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-red-50 border border-red-200 text-[#880000] flex items-center justify-center font-bold text-base sm:text-lg shrink-0">
           🔒
         </div>
-        <div>
-          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Approved Today (Red)</p>
-          <p id="statApprovedCount" class="text-xl font-bold text-red-700">0 Bookings</p>
+        <div class="min-w-0">
+          <p class="text-[10px] sm:text-[11px] text-gray-500 font-semibold uppercase tracking-wider truncate">Approved (Red)</p>
+          <p id="statApprovedCount" class="text-base sm:text-xl font-bold text-red-700">0 Bookings</p>
         </div>
       </div>
 
-      <div class="card p-4 flex items-center gap-3.5 bg-white border border-gray-200">
-        <div class="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold text-lg">
+      <div class="card p-3 sm:p-4 flex items-center gap-3 bg-white border border-gray-200">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center font-bold text-base sm:text-lg shrink-0">
           🏢
         </div>
-        <div>
-          <p class="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">Selected Room</p>
+        <div class="min-w-0">
+          <p class="text-[10px] sm:text-[11px] text-gray-500 font-semibold uppercase tracking-wider truncate">Selected Room</p>
           <p id="statRoomInfo" class="text-sm font-bold text-gray-900 truncate">Room 202</p>
         </div>
       </div>
     </section>
 
     <!-- Weekly Timetable Schedule Section -->
-    <section class="card p-6 bg-white border border-gray-200 rounded-[18px] shadow-sm space-y-6">
+    <section class="card p-4 sm:p-6 bg-white border border-gray-200 rounded-[18px] shadow-sm space-y-4 sm:space-y-6">
 
       <!-- Timetable Header Bar -->
       <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-gray-200">
         <div>
-          <div class="flex items-center gap-2 mb-1">
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
             <span class="text-[10px] font-bold uppercase tracking-wider text-[#880000] bg-red-50 px-2.5 py-0.5 rounded border border-red-200" id="ttFloorBadge">2nd Floor</span>
             <span class="text-[10px] font-bold text-gray-700 bg-gray-100 px-2.5 py-0.5 rounded border border-gray-200" id="ttTypeBadge">Lecture Room</span>
             <span class="text-[10px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-semibold" id="ttClassBadge">
               ● Admin Controlled
             </span>
           </div>
-          <h2 id="ttRoomTitle" class="text-xl sm:text-2xl font-bold text-[#111111] leading-tight">Room 202 - Seminar Hall</h2>
+          <h2 id="ttRoomTitle" class="text-lg sm:text-2xl font-bold text-[#111111] leading-tight">Room 202 - Seminar Hall</h2>
           <p id="ttRoomMeta" class="text-xs text-gray-500 mt-0.5">Level 2 &bull; Capacity: 35 Students &bull; TV Display, Round Table Setup</p>
         </div>
 
         <!-- Legend + Navigation -->
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
           <!-- Color Legend -->
-          <div class="flex flex-wrap items-center gap-3 text-xs bg-gray-50 px-3 py-1.5 rounded-[8px] border border-gray-200">
+          <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs bg-gray-50 px-3 py-2 rounded-[8px] border border-gray-200">
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#2563eb] border border-[#1d4ed8]"></span>
+              <span class="w-2.5 h-2.5 rounded-[3px] bg-[#2563eb] border border-[#1d4ed8]"></span>
               <span>Scheduled Class (Blue)</span>
             </span>            
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
-              <span>Pending Request (Yellow)</span>
+              <span class="w-2.5 h-2.5 rounded-[3px] bg-[#f59e0b] border border-[#d97706]"></span>
+              <span>Pending (Yellow)</span>
             </span>
             <span class="inline-flex items-center gap-1.5 font-bold text-gray-700">
-              <span class="w-3 h-3 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
+              <span class="w-2.5 h-2.5 rounded-[3px] bg-[#22c55e] border border-[#16a34a]"></span>
               <span>Available (Green)</span>
             </span>
           </div>
 
           <!-- Week Switcher -->
-          <div class="flex items-center bg-gray-50 p-1 border border-gray-200 rounded-[8px]">
-            <button id="ttBtnPrevWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Previous Week">
+          <div class="flex items-center justify-between sm:justify-start bg-gray-50 p-1 border border-gray-200 rounded-[8px] w-full sm:w-auto">
+            <button id="ttBtnPrevWeek" type="button" class="p-2 sm:p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Previous Week">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
             </button>
-            <span id="ttWeekRangeLabel" class="px-3 py-1 text-xs font-bold text-gray-800 select-none whitespace-nowrap">Oct 19 – Oct 25, 2026</span>
-            <button id="ttBtnNextWeek" type="button" class="p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Next Week">
+            <span id="ttWeekRangeLabel" class="px-2 sm:px-3 py-1 text-xs font-bold text-gray-800 select-none whitespace-nowrap text-center flex-grow sm:flex-grow-0">Oct 19 – Oct 25, 2026</span>
+            <button id="ttBtnNextWeek" type="button" class="p-2 sm:p-1.5 hover:bg-white rounded text-gray-600 hover:text-black transition" title="Next Week">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </button>
-            <button id="ttBtnThisWeek" type="button" class="ml-1 px-2.5 py-1 text-xs font-semibold bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 transition">This Week</button>
+            <button id="ttBtnThisWeek" type="button" class="ml-1 px-2.5 py-1.5 text-xs font-semibold bg-white border border-gray-300 hover:bg-gray-100 rounded text-gray-700 transition">This Week</button>
           </div>
         </div>
       </div>
 
+      <!-- Mobile Day Tabs Bar (Visible on mobile/tablet < 768px) -->
+      <div id="mobileTimetableControls" class="md:hidden flex flex-col gap-2 pt-1">
+        <div class="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#880000]"></span>
+          <span id="mobileActiveDayTitle">Today's Schedule</span>
+        </div>
+
+        <!-- 6 Day Tabs: Mon to Sat -->
+        <div id="mobileDayTabsContainer" class="grid grid-cols-6 gap-1 bg-gray-100 p-1 rounded-[10px] text-center select-none">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
       <!-- Weekly Schedule Grid View (Exact design from uploaded image) -->
-      <div class="timetable-wrapper">
+      <div class="timetable-wrapper view-day-mode" id="timetableWrapper">
         <div class="timetable-inner">
 
           <!-- Day Columns Header Row -->
@@ -494,8 +684,8 @@
         <span class="pill bg-amber-50 text-amber-800 border-amber-200" id="pendingTableCount">0 Requests</span>
       </div>
 
-      <div class="overflow-x-auto border border-gray-200 rounded-[8px]">
-        <table class="w-full text-left text-xs border-collapse">
+      <div class="table-container-responsive overflow-x-auto border border-gray-200 rounded-[8px]">
+        <table class="w-full text-left text-xs border-collapse responsive-table">
           <thead class="bg-gray-50 text-gray-600 uppercase text-[11px] font-bold border-b border-gray-200">
             <tr>
               <th class="py-2.5 px-3">Ref ID</th>
@@ -529,8 +719,8 @@
         </button>
       </div>
 
-      <div class="overflow-x-auto border border-gray-200 rounded-[8px]">
-        <table class="w-full text-left text-xs border-collapse">
+      <div class="table-container-responsive overflow-x-auto border border-gray-200 rounded-[8px]">
+        <table class="w-full text-left text-xs border-collapse responsive-table">
           <thead class="bg-gray-50 text-gray-600 uppercase text-[11px] font-bold border-b border-gray-200">
             <tr>
               <th class="py-2.5 px-3">Section / Block</th>
@@ -656,7 +846,7 @@
         </div>
 
         <!-- Modal Footer -->
-        <div class="pt-3 flex items-center justify-between border-t border-gray-100">
+        <div class="pt-3 flex items-center justify-between border-t border-gray-100 modal-footer-sticky">
           <button type="button" id="btnDeleteSchedule" class="hidden px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-[4px] transition">
             Delete Schedule
           </button>
@@ -705,7 +895,7 @@
           <p class="mt-1 text-[10px] text-gray-400 text-right"><span id="declineReasonCount">0</span>/500</p>
         </div>
 
-        <div class="pt-3 flex items-center justify-end gap-2 border-t border-gray-100">
+        <div class="pt-3 flex items-center justify-end gap-2 border-t border-gray-100 modal-footer-sticky">
           <button type="button" id="btnCancelDecline" class="btn-ghost px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-[4px]">
             Cancel
           </button>
@@ -720,7 +910,7 @@
   <!-- ================= FOOTER ================= -->
   <footer class="bg-[#111111] text-white border-t-4 border-[#880000] mt-12">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-400 text-center sm:text-left">
         <div class="flex items-center gap-2.5">
           <img src="assets/images/PUPLogo.png" alt="PUP Logo" class="w-6 h-6 object-contain" />
           <span class="font-semibold text-white">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES &bull; CANLALAY CAMPUS</span>
@@ -731,7 +921,7 @@
   </footer>
 
   <!-- Toast -->
-  <div id="smToast" class="fixed bottom-5 right-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[6px] shadow-2xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
+  <div id="smToast" class="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-5 sm:bottom-5 z-50 bg-[#111111] text-white px-4 py-3 rounded-[6px] shadow-2xl border border-gray-700 flex items-center gap-3 text-xs max-w-sm pointer-events-none translate-y-12 opacity-0 transition-all duration-300">
     <p id="smToastMsg" class="flex-grow font-medium text-gray-100"></p>
     <button type="button" id="btnCloseSmToast" class="text-gray-400 hover:text-white pointer-events-auto text-base">&times;</button>
   </div>
