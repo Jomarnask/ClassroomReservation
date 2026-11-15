@@ -43,18 +43,7 @@
     studentClasses: null,                                 // real: GET /api/schedules (null = profile has no program/year/section)
     studentLoaded: false,
     studentErrors: { reservations: null, classes: null },
-    facultyTaggedClasses: [
-      { id: 'CLS-101', code: 'CS314 (Sec 3-1)', title: 'Operating Systems Laboratory', room: 'Lab 301 - Advanced Networking Lab', schedule: 'Tue & Thu • 10:00 AM - 1:00 PM', students: 42, equipment: 'Cisco Racks, Linux Terminals', status: 'In-Session' },
-      { id: 'CLS-102', code: 'IT305 (Sec 3-2)', title: 'Web Systems and Technologies', room: 'Room 402 - Lecture Hall', schedule: 'Wed & Fri • 1:30 PM - 4:30 PM', students: 54, equipment: 'Projector, Split AC', status: 'Upcoming Today' },
-      { id: 'CLS-103', code: 'CS201 (Sec 2-1)', title: 'Data Structures and Algorithms', room: 'Room 208 - Multimedia Room', schedule: 'Mon & Thu • 7:30 AM - 10:30 AM', students: 48, equipment: 'Smart TV, Whiteboard', status: 'Scheduled' },
-      { id: 'CLS-104', code: 'CS301 (Sec 3-1)', title: 'Software Engineering Capstone', room: 'Lab 305 - Software Engineering Lab', schedule: 'Friday • 8:00 AM - 11:00 AM', students: 38, equipment: 'Gigabit LAN, Workstations', status: 'Scheduled' },
-    ],
-    facultyPendingApprovals: [
-      { id: 'REQ-4091', requester: 'Danilo Santos', studentNo: '2022-04912-MN-0', course: 'BS Information Technology', subject: 'CS314 Capstone Sensor Experiment', room: 'Lab 301', date: 'Oct 26, 2026', time: '2:00 PM - 5:00 PM', reason: 'High-speed networking packet inspection and lab demonstration.' },
-      { id: 'REQ-4092', requester: 'Bea Alonzo', studentNo: '2022-01934-MN-0', course: 'BS Computer Science', subject: 'CS301 Algorithm Review Session', room: 'Room 402', date: 'Oct 28, 2026', time: '10:00 AM - 12:00 PM', reason: 'Preparation for regional ACM programming competition.' },
-      { id: 'REQ-4093', requester: 'Samantha Ramos', studentNo: '2022-03102-MN-0', course: 'BS Information Technology', subject: 'Agile Software Testing Mock Sprint', room: 'Lab 305', date: 'Tomorrow', time: '8:00 AM - 10:00 AM', reason: 'Needs local Docker instances pre-configured.' },
-      { id: 'REQ-4094', requester: 'Christian Diaz', studentNo: '2021-08192-MN-0', course: 'BS Computer Engineering', subject: 'Embedded Systems Hardware Defense', room: 'Room 208', date: 'Friday', time: '1:00 PM - 4:00 PM', reason: 'Final prototype demonstration.' },
-    ],
+    facultySchedule: null,  // last answer of GET /api/faculty/schedule
     adminDashboard: null,   // last answer of GET /api/admin/dashboard
     adminActivity: [],      // today's activity rows (used by the Slip button)
   };
@@ -261,6 +250,9 @@
       startStudentAutoRefresh();
     } else if (role === 'Faculty') {
       renderFacultyView(root, user);
+      if (State.facultySchedule) paintFaculty(State.facultySchedule); // show the last data at once
+      loadFacultyDashboard();      // real data from GET /api/faculty/schedule
+      startFacultyAutoRefresh();
     } else if (role === 'Admin') {
       renderAdminView(root, user);
       if (State.adminDashboard) paintAdmin(State.adminDashboard); // show the last data at once
@@ -878,9 +870,293 @@
   // ==========================================
   // 9. FACULTY VIEW
   // ==========================================
+  // ---- Data: GET /api/faculty/schedule (the same call the Schedule page uses) ----
+  let facultyTimer = null;
+  let facultyRequestId = 0;
+  let facultyVisibilityWired = false;
+
+  const UPCOMING_LIMIT = 5;   // rows in "Upcoming Tagged Classes"
+  const PENDING_LIMIT = 3;    // cards in "Pending Tagged Classes"
+  const WEEKDAY_NUMBER = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
+
+  function addDaysYmd(ymd, days) {
+    const d = new Date(ymd + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('en-CA');
+  }
+
+  // When does this weekly class happen next? A class that is running now counts as "in session";
+  // one that already ended today moves to its next weekday.
+  function nextOccurrence(cls, now) {
+    const target = WEEKDAY_NUMBER[String(cls.day_of_week || '').toLowerCase()];
+    if (!target || target === 7) return null;   // unknown day, or Sunday (the campus is closed)
+
+    const start = timeToMin(cls.start_time);
+    const end = timeToMin(cls.end_time);
+
+    for (let offset = 0; offset <= 7; offset++) {
+      const date = addDaysYmd(now.date, offset);
+      const weekday = new Date(date + 'T00:00:00').getDay() || 7;   // Monday = 1 ... Sunday = 7
+      if (weekday !== target) continue;
+      if (offset === 0 && now.minutes >= end) continue;              // today's class is over
+
+      const status = offset === 0 ? (now.minutes >= start ? 'in-session' : 'today') : 'scheduled';
+      return { date, status, sortKey: offset * 1440 + start };
+    }
+    return null;
+  }
+
+  // "BS of Information Technology (BSIT)", 1, 1 -> "BSIT 1-1"
+  function facultyStudentSection(r) {
+    const code = (String(r.program_course || '').match(/\(([^)]+)\)/) || [])[1] || r.program_course || '';
+    if (r.year_level && r.section) return `${code} ${r.year_level}-${r.section}`.trim();
+    return code || 'Student Request';
+  }
+
+  function classStatusBadge(status) {
+    if (status === 'in-session') return { label: 'In Session', cls: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]' };
+    if (status === 'today') return { label: 'Upcoming Today', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+    return { label: 'Scheduled', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+  }
+
+  function paintFacultyUpcoming(classes, now) {
+    const body = document.getElementById('facultyUpcomingBody');
+    if (!body) return;
+
+    const upcoming = (classes || [])
+      .map(c => ({ c, next: nextOccurrence(c, now) }))
+      .filter(x => x.next)
+      .sort((a, b) => a.next.sortKey - b.next.sortKey || String(a.c.subject_title).localeCompare(String(b.c.subject_title)))
+      .slice(0, UPCOMING_LIMIT);
+
+    if (!upcoming.length) {
+      body.innerHTML = `<tr><td colspan="4" class="py-8 px-4 text-center text-gray-500">
+        No classes are tagged to you yet. The Admin assigns them in the Schedule Manager.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = upcoming.map(({ c, next }) => {
+      const badge = classStatusBadge(next.status);
+      const dayName = String(c.day_of_week || '');
+      return `
+        <tr class="hover:bg-gray-50 transition">
+          <td class="py-3 px-4">
+            <p class="font-bold text-gray-900">${esc(c.subject_title)}</p>
+            <p class="text-[11px] text-gray-500">${esc([c.subject_code, c.course_section].filter(Boolean).join(' • '))}</p>
+          </td>
+          <td class="py-3 px-4 font-semibold text-[#880000]">${esc(roomLabel(c))}</td>
+          <td class="py-3 px-4">
+            <p>${esc(dayName.slice(0, 3))} &bull; ${esc(fmtRange(c.start_time, c.end_time))}</p>
+            <p class="text-[11px] text-gray-500">${esc(dayLabel(next.date, now.date))}</p>
+          </td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${badge.cls}">${badge.label}</span>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function paintFacultyPending(reservations, now) {
+    const list = document.getElementById('facultyPendingList');
+    if (!list) return;
+
+    const pending = (reservations || [])
+      .filter(r => String(r.status).toLowerCase() === 'pending' && String(r.reservation_date).slice(0, 10) >= now.date)
+      .sort((a, b) => String(a.reservation_date).localeCompare(String(b.reservation_date))
+        || String(a.start_time).localeCompare(String(b.start_time)))
+      .slice(0, PENDING_LIMIT);
+
+    if (!pending.length) {
+      list.innerHTML = `<p class="text-xs text-gray-500 py-2">No student reservations are waiting for the Admin right now.</p>`;
+      return;
+    }
+
+    list.innerHTML = pending.map(r => {
+      const date = String(r.reservation_date).slice(0, 10);
+      return `
+        <div class="p-3.5 border border-amber-200 rounded-[3px] bg-amber-50/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-[3px]">RES-${String(r.reservation_id).padStart(4, '0')}</span>
+              <span class="font-bold text-sm text-[#111111]">${esc(r.subject)}</span>
+            </div>
+            <p class="text-xs text-gray-700">
+              Requested by: <strong>${esc(r.student_name || 'Student')}</strong> &bull; ${esc(facultyStudentSection(r))}
+            </p>
+            <p class="text-[11px] text-gray-600">
+              Facility: <strong class="text-[#880000]">${esc(roomLabel(r))}</strong> &bull;
+              Schedule: <strong>${esc(dayLabel(date, now.date))} (${esc(fmtRange(r.start_time, r.end_time))})</strong>
+            </p>
+          </div>
+          <div class="shrink-0">
+            <button type="button" data-res-id="${r.reservation_id}"
+              class="faculty-details-btn px-2.5 py-1 text-[11px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-[5px] transition">
+              Details
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function paintFaculty(data) {
+    if (!document.getElementById('upcoming-tagged-classes')) return;   // another role's page
+    const now = manilaNow();
+    paintFacultyUpcoming(data.classes, now);
+    paintFacultyPending(data.reservations, now);
+  }
+
+  async function loadFacultyDashboard() {
+    const myRequest = ++facultyRequestId;
+    const errEl = document.getElementById('facultyDashError');
+
+    try {
+      if (!window.api || !window.api.schedule) throw new Error('The API client (api.js) is not loaded.');
+
+      const data = await window.api.schedule.mine();
+      if (myRequest !== facultyRequestId) return; // a newer request replaced this one
+
+      State.facultySchedule = data;
+      paintFaculty(data);
+      if (errEl) errEl.classList.add('hidden');
+    } catch (err) {
+      if (myRequest !== facultyRequestId) return;
+      console.error('Faculty dashboard failed:', err);
+
+      if (errEl) {
+        errEl.textContent = err.status === 403
+          ? 'An active faculty account is required to see this dashboard.'
+          : 'Could not load your schedule: ' + (err.message || 'Unknown error');
+        errEl.classList.remove('hidden');
+      }
+
+      // Nothing loaded yet: replace the "Loading" text so it does not look stuck
+      if (!State.facultySchedule) {
+        const body = document.getElementById('facultyUpcomingBody');
+        if (body) body.innerHTML = '<tr><td colspan="4" class="py-6 px-4 text-center text-gray-500">Unavailable</td></tr>';
+        const list = document.getElementById('facultyPendingList');
+        if (list) list.innerHTML = '<p class="text-xs text-gray-500 py-2">Unavailable</p>';
+      }
+    }
+  }
+
+  // Refresh every minute (class statuses change with the clock) and when you come back to the tab
+  function startFacultyAutoRefresh() {
+    clearInterval(facultyTimer);
+    facultyTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadFacultyDashboard();
+    }, 60000);
+
+    if (!facultyVisibilityWired) {
+      facultyVisibilityWired = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && State.detectedRole === 'Faculty') loadFacultyDashboard();
+      });
+    }
+  }
+
+  // ---- "Details" popup: same layout as the Schedule page's popup ----
+  function ensureFacultyDetailsModal() {
+    let overlay = document.getElementById('facultyDetailsOverlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'facultyDetailsOverlay';
+    overlay.className = 'fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="bg-white border border-gray-200 rounded-[18px] shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="p-4 bg-[#880000] text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">📋</span>
+            <h3 class="font-bold text-sm text-white" id="facultyDetailsTitle">Item Details</h3>
+          </div>
+          <button type="button" id="btnCloseFacultyDetails" class="text-white hover:bg-white/20 p-1.5 rounded transition" aria-label="Close">✕</button>
+        </div>
+        <div class="p-6 space-y-4 text-xs" id="facultyDetailsBody"></div>
+        <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end">
+          <button type="button" id="btnDismissFacultyDetails" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-[6px] transition">Close</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.classList.add('hidden');
+    overlay.querySelector('#btnCloseFacultyDetails').addEventListener('click', close);
+    overlay.querySelector('#btnDismissFacultyDetails').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    return overlay;
+  }
+
+  function openFacultyDetails(reservationId) {
+    const r = ((State.facultySchedule && State.facultySchedule.reservations) || [])
+      .find(x => String(x.reservation_id) === String(reservationId));
+    if (!r) return;
+
+    const overlay = ensureFacultyDetailsModal();
+    const date = String(r.reservation_date).slice(0, 10);
+    const dateLabel = new Date(date + 'T00:00:00')
+      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const status = String(r.status || '').toLowerCase();
+    const statusColor = status === 'approved' ? 'text-emerald-700'
+      : status === 'pending' ? 'text-amber-700'
+      : status === 'cancelled' ? 'text-slate-600' : 'text-rose-700';
+
+    overlay.querySelector('#facultyDetailsTitle').textContent =
+      `Item Details — RES-${String(r.reservation_id).padStart(4, '0')}`;
+
+    overlay.querySelector('#facultyDetailsBody').innerHTML = `
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200 space-y-1">
+        <p class="text-[10px] font-bold uppercase text-gray-500 tracking-wider">Assigned Room</p>
+        <p class="font-extrabold text-sm text-gray-900">${esc(roomLabel(r))}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Schedule / Date</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(dateLabel)}</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Time Slot</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(fmtTime(r.start_time))} – ${esc(fmtTime(r.end_time))}</p>
+        </div>
+      </div>
+
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+        <p class="text-[10px] font-bold uppercase text-gray-500">Subject / Purpose</p>
+        <p class="font-bold text-gray-900 mt-0.5">${esc(r.subject || 'N/A')}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Course Section / Type</p>
+          <p class="font-bold text-gray-800 mt-0.5">Student Request</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Requester &amp; Program/Section</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(r.student_name || 'Student')}</p>
+          <p class="text-[11px] text-gray-500 font-medium">${esc(facultyStudentSection(r))}</p>
+        </div>
+      </div>
+
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+        <p class="text-[10px] font-bold uppercase text-gray-500">Status</p>
+        <p class="font-bold capitalize mt-0.5 ${statusColor}">${esc(status)}</p>
+      </div>
+
+      ${r.admin_remarks ? `
+        <div class="p-3 bg-rose-50 border border-rose-200 rounded-[8px] text-rose-800">
+          <p class="text-[10px] font-bold uppercase">Admin Remarks</p>
+          <p class="mt-0.5 font-medium">${esc(r.admin_remarks)}</p>
+        </div>
+      ` : ''}`;
+
+    overlay.classList.remove('hidden');
+  }
+
   function renderFacultyView(container, user) {
     const facultyName = esc(State.profile?.full_name || 'Faculty');
 
+    // The page is drawn at once with "Loading" text; loadFacultyDashboard() fills in the real data.
     container.innerHTML = `
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
@@ -890,21 +1166,20 @@
           <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus &bull; Faculty Account</p>
         </div>
         <div>
-          <button type="button" onclick="window.openReservationModal()" class="btn-pup-primary text-xs shadow-sm">
-            <span>+</span>
-            <span>Schedule Special Session</span>
-          </button>
+          <a href="schedule.html" class="btn-pup-primary text-xs shadow-sm">View My Schedule</a>
         </div>
       </div>
+
+      <div id="facultyDashError" class="hidden text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-[3px] px-4 py-3"></div>
 
       <!-- SECTION 1: UPCOMING TAGGED CLASSES -->
       <div id="upcoming-tagged-classes" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Upcoming Tagged Classes</h3>
-            <p class="text-xs text-gray-500">Regular lecture periods and laboratory classes tagged with your faculty assignment</p>
+            <p class="text-xs text-gray-500">Your next ${UPCOMING_LIMIT} classes tagged with your faculty assignment, soonest first</p>
           </div>
-          <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+          <a href="schedule.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
             <span>Full Schedule Details</span>
             <span class="text-sm font-extrabold">&rarr;</span>
           </a>
@@ -917,29 +1192,11 @@
                 <th class="py-3 px-4">Subject &amp; Section</th>
                 <th class="py-3 px-4">Assigned Facility</th>
                 <th class="py-3 px-4">Schedule Time</th>
-                <th class="py-3 px-4">Enrolled</th>
                 <th class="py-3 px-4">Status</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100 text-gray-700">
-              ${State.facultyTaggedClasses.slice(0, 3).map(cls => `
-                <tr class="hover:bg-gray-50 transition">
-                  <td class="py-3 px-4">
-                    <p class="font-bold text-gray-900">${cls.title}</p>
-                    <p class="text-[11px] text-gray-500">${cls.code}</p>
-                  </td>
-                  <td class="py-3 px-4 font-semibold text-[#880000]">${cls.room}</td>
-                  <td class="py-3 px-4">${cls.schedule}</td>
-                  <td class="py-3 px-4 font-medium">${cls.students} Students</td>
-                  <td class="py-3 px-4">
-                    <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${
-                      cls.status.includes('In-Session') ? 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]' : 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]'
-                    }">
-                      ${cls.status}
-                    </span>
-                  </td>
-                </tr>
-              `).join('')}
+            <tbody id="facultyUpcomingBody" class="divide-y divide-gray-100 text-gray-700">
+              <tr><td colspan="4" class="py-6 px-4 text-center text-gray-500">Loading&hellip;</td></tr>
             </tbody>
           </table>
         </div>
@@ -950,43 +1207,28 @@
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
             <h3 class="text-lg font-bold text-[#111111]">Pending Tagged Classes</h3>
-            <p class="text-xs text-gray-500">Student reservation requests requiring your professor endorsement prior to admin release</p>
+            <p class="text-xs text-gray-500">Student reservations that tagged you and are waiting for the Admin's decision</p>
           </div>
-          <a href="user-approvals.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline transition">
-            <span>Open Approvals Queue</span>
+          <a href="schedule.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline transition">
+            <span>View All in My Schedule</span>
             <span class="text-sm font-extrabold">&rarr;</span>
           </a>
         </div>
 
-        <div class="space-y-3">
-          ${State.facultyPendingApprovals.slice(0, 3).map(req => `
-            <div id="card-${req.id}" class="p-3.5 border border-amber-200 rounded-[3px] bg-amber-50/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono font-bold text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-[3px]">${req.id}</span>
-                  <span class="font-bold text-sm text-[#111111]">${req.subject}</span>
-                </div>
-                <p class="text-xs text-gray-700">
-                  Requested by: <strong>${req.requester}</strong> (${req.studentNo}) &bull; ${req.course}
-                </p>
-                <p class="text-[11px] text-gray-600">
-                  Facility: <strong class="text-[#880000]">${req.room}</strong> &bull; Schedule: <strong>${req.date} (${req.time})</strong>
-                </p>
-              </div>
-
-              <div class="flex items-center gap-2 shrink-0">
-                <button type="button" onclick="window.endorseStudentRequest('${req.id}', '${req.requester}')" class="btn-pup-primary text-xs">
-                  Endorse Request
-                </button>
-                <button type="button" onclick="window.declineStudentRequest('${req.id}', '${req.requester}')" class="btn-pup-secondary text-xs">
-                  Decline
-                </button>
-              </div>
-            </div>
-          `).join('')}
+        <div id="facultyPendingList" class="space-y-3">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
         </div>
       </div>
     `;
+
+    // One listener for every "Details" button
+    const pendingList = container.querySelector('#facultyPendingList');
+    if (pendingList) {
+      pendingList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.faculty-details-btn');
+        if (btn) openFacultyDetails(btn.getAttribute('data-res-id'));
+      });
+    }
   }
 
   // ==========================================
@@ -1360,20 +1602,6 @@
     } catch (err) {
       console.error('Cancel failed:', err);
       window.showToast(err.message || 'Could not cancel the reservation.', 'warning');
-    }
-  };
-
-  window.endorseStudentRequest = function (id, name) {
-    State.facultyPendingApprovals = State.facultyPendingApprovals.filter(r => r.id !== id);
-    window.showToast(`Endorsed request for ${name} (${id})`, 'success');
-    renderViewForRole(State.detectedRole, State.user);
-  };
-
-  window.declineStudentRequest = function (id, name) {
-    if (confirm(`Decline request ${id} from ${name}?`)) {
-      State.facultyPendingApprovals = State.facultyPendingApprovals.filter(r => r.id !== id);
-      window.showToast(`Declined request ${id}`, 'warning');
-      renderViewForRole(State.detectedRole, State.user);
     }
   };
 
