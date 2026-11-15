@@ -112,20 +112,14 @@ copy config-template.js config.js     # macOS/Linux: cp config-template.js confi
 | Room management | `room-management.html` | Admins edit a room's number, name, type and active status. Inactive rooms cannot be reserved. | PHP API |
 | User approvals | `user-approvals.html` | Admins approve, reject, deactivate and reactivate accounts. | PHP API |
 | Faculty schedule | `schedule.html` | Faculty-only weekly view of their own class schedules and the student requests that tag them. | PHP API |
+| Schedule manager | `schedule-manager.html` | Admins assign recurring weekly class schedules, approve or decline pending student reservation requests, monitor room utilization stats, and navigate schedules via a mobile-responsive Day-by-Day tab view and stacked cards. | PHP API (`room_schedules`, `room_reservations`) |
+| Audit logs | `logs.html` | Admins review immutable system audit logs with category filtering (Reservations, Approvals, Rooms, Schedules), search, and pagination. | PHP API (`audit_logs`) |
 
 Visibility rules in Browse Rooms: **students** see their own requests in detail and other students' requests only as busy time slots; **faculty** see only the requests that tag them, with the applicant's details; **administrators** see everything.
-
-### Partly working
-
-| Page | Current behavior |
-|---|---|
-| `schedule-manager.html` | The editor works, but it saves class schedules and sample data in the browser's `localStorage`. It does **not** read or write the `room_schedules` table, so schedules created here are not visible to anyone else. |
-| `logs.html` | Shows audit entries stored in the browser's `localStorage` by `all-reservations.html`. Nothing is written to the `audit_logs` table and the page has no role check. |
 
 ### Not implemented yet
 
 - **Email notifications.**
-- **Direct admin booking** depends on a database function, `admin_create_reservation`, that the dashboard calls but that is not defined in any script in `backend/database/`.
 
 ---
 
@@ -136,10 +130,14 @@ All endpoints except `/api/health` need `Authorization: Bearer <Supabase access 
 | Area | Endpoints |
 |---|---|
 | Foundation | `GET /api/health`, `GET /api/me`, `GET /api/admin/check` |
+| Admin | `GET /api/admin/dashboard`, `POST /api/admin/reservations`, `GET /api/booking-window` |
 | Rooms | `GET /api/rooms`, `GET /api/rooms/{id}`, `POST /api/rooms` (admin), `PATCH /api/rooms/{id}` (admin), `GET /api/rooms/{id}/taken-slots` |
 | Reservations | `GET /api/reservations`, `GET /api/reservations/{id}`, `POST /api/reservations` (student), `PATCH /api/reservations/{id}/decision` (admin), `PATCH /api/reservations/{id}/cancel` |
+| Schedules | `GET /api/schedules`, `POST /api/schedules` (admin), `GET /api/schedules/{id}`, `PATCH /api/schedules/{id}` (admin), `DELETE /api/schedules/{id}` (admin) |
 | Users | `GET /api/users` (admin), `PATCH /api/users/{id}/status` (admin) |
-| Faculty | `GET /api/faculty/schedule` (faculty) |
+| Faculty | `GET /api/faculty/schedule` (faculty), `GET /api/faculty` (active faculty list) |
+| Audit Logs | `GET /api/audit-logs` (admin) |
+| Notifications | `GET /api/notifications`, `PATCH /api/notifications/read-all`, `PATCH /api/notifications/{id}/read` |
 
 ---
 
@@ -149,14 +147,15 @@ All endpoints except `/api/health` need `Authorization: Bearer <Supabase access 
 - [x] Reservations API (create, list, approve/decline, cancel, taken slots) and the booking, My Requests and Review pages
 - [x] Users API and User Approvals page
 - [x] Faculty schedule API and Schedule page
-- [ ] Schedules API (`GET/POST/DELETE /api/schedules`) and moving Schedule Manager from `localStorage` to the `room_schedules` table
-- [ ] Direct admin booking: add the `admin_create_reservation` SQL function and an API endpoint
-- [ ] `GET /api/faculty` (active faculty directory) and `PATCH` for the user's own profile
-- [ ] Add-room form in Room Management; real password reset flow
-- [ ] Audit trail: write to `audit_logs` and add `GET /api/logs`, then wire `logs.html`
+- [x] Schedules API (`GET/POST/PATCH/DELETE /api/schedules`) and Schedule Manager backed by `room_schedules`
+- [x] Direct admin booking: `POST /api/admin/reservations`
+- [x] Active faculty directory (`GET /api/faculty`)
+- [x] Audit trail: backend writes to `audit_logs` and `GET /api/audit-logs`, wired to `logs.html`
+- [x] Notifications API (`GET/PATCH /api/notifications`)
+- [x] UI/UX: Mobile-responsive layouts on Schedule Manager (Day-by-Day Tab Selector, responsive card stacks, mobile modals)
 - [ ] Email notifications for approved, declined and cancelled requests
 - [ ] More PHPUnit tests (booking rules, role checks, token handling) and a GitHub Actions workflow
-- [ ] UI/UX: mobile layouts, dark mode, loading skeletons, empty states, pagination, keyboard accessibility
+- [ ] Additional UI/UX: dark mode, loading skeletons, keyboard accessibility
 
 ---
 

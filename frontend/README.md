@@ -18,8 +18,8 @@ Static frontend for the PUP Canlalay Campus Classroom & Facility Reservation Sys
 | `all-reservations.html` | admin | Pending, Approved, and Declined & Cancelled requests. Approve or decline with remarks. | PHP API |
 | `room-management.html` | admin | Edit a room's number, name, type and active status. | PHP API |
 | `user-approvals.html` | admin | Approve, reject, deactivate and reactivate accounts. | PHP API |
-| `schedule-manager.html` | admin | Edit weekly class schedules. **Saved only in the browser's `localStorage`**, not in the database. | none (local only) |
-| `logs.html` | admin menu (no role check yet) | Shows audit entries that `all-reservations.html` stored in `localStorage`. | none (local only) |
+| `schedule-manager.html` | admin | Assign and manage recurring weekly class schedules, review and approve/decline pending reservations, view timetable grid with mobile-responsive Day-by-Day tabs and card stack. | PHP API (`/api/schedules`, `/api/rooms`, `/api/reservations`, `/api/users`) |
+| `logs.html` | admin | System-wide audit logs with category filtering, search, and pagination. | PHP API (`/api/audit-logs`) |
 
 The pages that read the PHP API need the API running and an API URL in `config.js`.
 
@@ -106,7 +106,18 @@ try {
 }
 ```
 
-Available helpers: `api.rooms` (`list`, `get`, `create`, `update`, `takenSlots`), `api.reservations` (`list`, `get`, `create`, `decide`, `cancel`), `api.users` (`list`, `setStatus`), `api.schedule` (`mine`), and `api.request(path, options)` for anything else. Endpoint details are in `backend/README.md`.
+Available helpers:
+- `api.rooms` (`list`, `get`, `create`, `update`, `takenSlots`)
+- `api.reservations` (`list`, `get`, `create`, `decide`, `cancel`, `bookingWindow`, `createAdmin`)
+- `api.schedules` (`list`, `get`, `create`, `update`, `remove`)
+- `api.users` (`list`, `setStatus`)
+- `api.faculty` (`list`, `schedule`)
+- `api.auditLogs` (`list`)
+- `api.notifications` (`list`, `markAllRead`, `markRead`)
+- `api.admin` (`dashboard`)
+- `api.request(path, options)` for generic HTTP requests
+
+Endpoint details are in `backend/README.md`.
 
 Sign-in, the sign-in guard on each page, the profile page and some dropdowns still call Supabase directly.
 
@@ -140,7 +151,6 @@ Sign-in, the sign-in guard on each page, the profile page and some dropdowns sti
 
 ## Known issues and to-do
 
-- Move Schedule Manager and Audit Logs from `localStorage` to the database and the API.
 - Add an "add room" form (and a floor field) to Room Management.
 - Split the large inline `<script>` blocks in some pages into separate files, and show a friendly error banner for failed requests instead of `console.error` only.
-- UI/UX: mobile layouts, dark mode, loading skeletons, empty states, pagination and keyboard accessibility.
+- Additional UI/UX: dark mode, loading skeletons, empty states, pagination and keyboard accessibility. Schedule Manager is now fully responsive for mobile screens.

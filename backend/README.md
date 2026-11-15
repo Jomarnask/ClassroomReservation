@@ -111,13 +111,17 @@ Run these in the Supabase **SQL Editor**, in this order:
 | 2 | `database/create_initial_admin.sql` | Creates the first administrator (`admin@pup.edu.ph` by default). **Change the default password** before or right after running it. |
 | 3 | `database/faculty_schedule.sql` | Adds the database function used by `GET /api/faculty/schedule`. Run it once, or that endpoint fails. |
 | 4 | `database/setup_backend_role.sql` | Optional. Creates a restricted login (`crs_backend_user`) for the API instead of a powerful database user. Recommended for production. |
+| 5 | `database/schedule_manager.sql` | Schema and RLS policies for academic schedule management (`room_schedules`). |
+| 6 | `database/audit_logs.sql` | System audit logs table, triggers, and automated logging for reservations, users, and rooms. |
+| 7 | `database/notifications.sql` | In-app user notifications table and RLS policies. |
+| 8 | `database/admin_booking.sql` | Direct administrator booking functions (`admin_create_reservation`). |
 
 Notes:
 
 - A database trigger creates a `users` profile row when someone signs up, with status `pending`. Roles are `student`, `faculty`, `admin`; account statuses are `pending`, `active`, `rejected`, `inactive`; reservation statuses are `pending`, `approved`, `rejected`, `cancelled`.
 - Approving and declining go through the database functions `decide_reservation()` and `cancel_reservation()`. Approving a reservation automatically declines competing pending requests for the same time.
-- The dashboard's direct admin booking calls a function named `admin_create_reservation()`, which is **not** defined in any script here yet.
-- The `audit_logs` table exists but nothing writes to it yet.
+- Direct admin booking is supported via `POST /api/admin/reservations` using `admin_create_reservation()`.
+- Audit logs are recorded automatically in `audit_logs` and queryable via `GET /api/audit-logs`.
 
 ---
 
@@ -178,6 +182,33 @@ Allowed changes: pending to active or rejected, active to inactive, rejected or 
 | Method and path | Access | Description |
 |---|---|---|
 | `GET /api/faculty/schedule` | active faculty | Returns `classes` (the faculty's own weekly class schedules) and `reservations` (student requests that tag them). |
+| `GET /api/faculty` | any active user | List active faculty members for selection in booking forms. |
+
+### Schedules (Master Timetable)
+
+| Method and path | Access | Description |
+|---|---|---|
+| `GET /api/schedules` | any active user | List recurring weekly class schedules. Filters: `room_id`, `day`, `faculty_id`, `program_course`, `year_level`, `section`. |
+| `GET /api/schedules/{id}` | any active user | Single schedule details. |
+| `POST /api/schedules` | admin | Create a recurring weekly class schedule block in `room_schedules`. |
+| `PATCH /api/schedules/{id}` | admin | Update an existing class schedule. |
+| `DELETE /api/schedules/{id}` | admin | Delete a class schedule block. |
+
+### Admin & Audit Logs
+
+| Method and path | Access | Description |
+|---|---|---|
+| `GET /api/admin/dashboard` | admin | Comprehensive dashboard metrics (today's counts, rooms, pending users, pending reservations, activity). |
+| `POST /api/admin/reservations` | admin | Direct admin booking for classrooms and facilities. |
+| `GET /api/audit-logs` | admin | Immutable system audit log entries with category filtering, search, and pagination. |
+
+### Notifications
+
+| Method and path | Access | Description |
+|---|---|---|
+| `GET /api/notifications` | any active user | Fetch user's in-app notifications and unread count. |
+| `PATCH /api/notifications/read-all` | any active user | Mark all user notifications as read. |
+| `PATCH /api/notifications/{id}/read` | any active user | Mark a single notification as read. |
 
 ---
 
@@ -236,8 +267,6 @@ Render's free tier puts services to sleep when idle, so the first request after 
 
 ## Remaining work
 
-- Schedules API (`GET/POST/DELETE /api/schedules`) and moving the Schedule Manager page onto it
-- Direct admin booking: the `admin_create_reservation` SQL function and an API endpoint
-- `GET /api/faculty` (active faculty directory) and an endpoint for users to edit their own profile
-- Audit log endpoints (`GET /api/logs`) and writing to `audit_logs`
-- More PHPUnit tests (booking rules, role checks, token handling), CI, and rate limiting
+- Email notifications for approved, declined, and cancelled requests
+- Profile update endpoint for students and faculty
+- Additional PHPUnit tests (booking rules, role checks, token handling), CI, and rate limiting
