@@ -29,14 +29,20 @@
       });
     } catch (networkErr) {
       // Server down, wrong URL, or blocked by CORS.
-      throw new Error('Cannot reach the server at ' + BASE_URL + '. Is the API running?');
+      const msg = 'Cannot reach the server at ' + BASE_URL + '. Is the API running?';
+      showErrorBanner(msg, 'error');
+      throw new Error(msg);
     }
 
     let json = null;
     try { json = await res.json(); } catch (_) { /* non-JSON response */ }
 
     if (!res.ok || !json || json.success === false) {
-      const err = new Error((json && json.message) || 'Request failed (' + res.status + ').');
+      const msg = (json && json.message) || 'Request failed (' + res.status + ').';
+      if (!opts.silent) {
+        showErrorBanner(msg, 'error');
+      }
+      const err = new Error(msg);
       err.status = res.status;
       err.errors = (json && json.errors) || {};
       throw err;
@@ -54,8 +60,52 @@
     return qs ? '?' + qs : '';
   }
 
+  function showErrorBanner(message, type) {
+    if (!message) return;
+    const kind = type || 'error';
+    let banner = document.getElementById('crsGlobalErrorBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'crsGlobalErrorBanner';
+      banner.setAttribute('role', 'alert');
+      banner.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-lg w-[calc(100%-2rem)] flex items-start gap-3 p-3.5 rounded-lg shadow-xl text-xs font-semibold transition-all duration-300 pointer-events-auto';
+      document.body.appendChild(banner);
+    }
+
+    const isError = kind === 'error';
+    banner.style.backgroundColor = isError ? '#fef2f2' : '#eff6ff';
+    banner.style.border = isError ? '1px solid #f87171' : '1px solid #60a5fa';
+    banner.style.color = isError ? '#991b1b' : '#1e40af';
+
+    banner.innerHTML = `
+      <span class="text-base leading-none select-none">${isError ? '⚠️' : 'ℹ️'}</span>
+      <div class="flex-grow">
+        <p class="font-bold text-xs">${isError ? 'Request Issue' : 'Notice'}</p>
+        <p class="font-medium text-[11px] opacity-90 mt-0.5">${String(message).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        })}</p>
+      </div>
+      <button type="button" aria-label="Close" class="text-gray-400 hover:text-gray-700 ml-1 font-bold text-sm leading-none focus:outline-none">&times;</button>
+    `;
+
+    const closeBtn = banner.querySelector('button');
+    if (closeBtn) {
+      closeBtn.onclick = function () {
+        banner.classList.add('hidden');
+      };
+    }
+
+    banner.classList.remove('hidden');
+    clearTimeout(banner._timer);
+    banner._timer = setTimeout(function () {
+      if (banner) banner.classList.add('hidden');
+    }, 6000);
+  }
+
   window.api = {
     request: request,
+    showError: showErrorBanner,
+    showBanner: showErrorBanner,
     rooms: {
       // filters: { active_only: true, search: '', room_type: '', floor: 1 }
       list: function (filters) { return request('/api/rooms' + toQuery(filters)); },
