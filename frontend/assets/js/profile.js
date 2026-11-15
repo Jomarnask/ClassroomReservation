@@ -131,33 +131,9 @@
     const nav = document.getElementById('roleNavLinks');
     if (!nav) return;
 
-    if (role === 'Student') {
-      nav.innerHTML = `
-        <a href="dashboard.html" class="pup-nav-link">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="profile.html" class="pup-nav-link active">Profile</a>
-      `;
-    } else if (role === 'Faculty') {
-      nav.innerHTML = `
-        <a href="dashboard.html" class="pup-nav-link">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">Browse Rooms</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="profile.html" class="pup-nav-link active">Profile</a>
-      `;
-    } else {
-      nav.innerHTML = `
-        <a href="dashboard.html" class="pup-nav-link">Dashboard</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="room-management.html" class="pup-nav-link">Room Management</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
-        <span class="text-white/60 font-light select-none">|</span>
-        <a href="profile.html" class="pup-nav-link active">Profile</a>
-      `;
-    }
+    // The profile page only links back to the dashboard, for every role,
+    // on desktop and in the mobile menu.
+    nav.innerHTML = '<a href="dashboard.html" class="pup-nav-link">Dashboard</a>';
   }
 
   // ==========================================

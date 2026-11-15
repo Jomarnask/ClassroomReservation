@@ -82,6 +82,37 @@
     return new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Manila' });
   }
 
+  // Today's date and the minute of the day in Manila time
+  function getNowManila() {
+    const now = new Date();
+    const ymd = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+    const [h, m] = now.toLocaleTimeString('en-GB', {
+      timeZone: 'Asia/Manila', hour12: false, hour: '2-digit', minute: '2-digit'
+    }).split(':').map(Number);
+    return { ymd, minutes: h * 60 + m };
+  }
+
+  function minutesOfDay(t) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0;
+  }
+
+  // Reservations that happen next come first. Ones that already finished go to the
+  // bottom, the most recent of them first.
+  function sortReservationsSoonestFirst(items) {
+    const now = getNowManila();
+    const isPast = r => r.dateStr < now.ymd
+      || (r.dateStr === now.ymd && minutesOfDay(r.endRaw) <= now.minutes);
+    const key = r => r.dateStr + ' ' + String(r.startRaw || '').slice(0, 5);   // "YYYY-MM-DD HH:MM"
+
+    const upcoming = items.filter(r => !isPast(r))
+      .sort((a, b) => key(a).localeCompare(key(b)) || a.dbId - b.dbId);
+    const past = items.filter(isPast)
+      .sort((a, b) => key(b).localeCompare(key(a)) || b.dbId - a.dbId);
+
+    return upcoming.concat(past);
+  }
+
   // '2026-10-23' -> 'Fri, Oct 23, 2026'
   function formatDateLabel(ymd) {
     if (!ymd) return 'Scheduled';
@@ -305,6 +336,8 @@
           dateLabel: formatDateLabel(r.reservation_date),
           start: formatTime(r.start_time),
           end: formatTime(r.end_time),
+          startRaw: r.start_time,
+          endRaw: r.end_time,
           subject: r.subject,
           section: 'Student Request',
           requesterName: r.student_name || 'Student',
@@ -314,7 +347,8 @@
         };
       });
 
-      state.schedules = [...classItems, ...reservationItems];
+      // Tagged reservations first (soonest upcoming on top), then the regular weekly classes
+      state.schedules = [...sortReservationsSoonestFirst(reservationItems), ...classItems];
     } catch (err) {
       console.error('Failed to load faculty schedule:', err);
       state.schedules = [];

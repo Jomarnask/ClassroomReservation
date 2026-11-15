@@ -820,7 +820,7 @@
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
-          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">CCIS STUDENT PORTAL</p>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">PUP - CRS STUDENT PORTAL</p>
           <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${studentName}!</h2>
           <p class="text-xs text-gray-500 font-medium mt-0.5">${program} &bull; Student ID: ${studentNo}</p>
         </div>
@@ -1166,8 +1166,8 @@
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
-          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">FACULTY CONSOLE &bull; FIRST SEMESTER</p>
-          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome, ${facultyName}!</h2>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">FACULTY DASHBOARD</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome, Prof. ${facultyName}!</h2>
           <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus &bull; Faculty Account</p>
         </div>
         <div>
@@ -1247,9 +1247,9 @@
       <!-- Welcome Header -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
         <div>
-          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE MASTER CONSOLE &bull; CCIS</p>
-          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${adminName}!</h2>
-          <p class="text-xs text-gray-500 font-medium mt-0.5">CCIS Facilities Administrator &bull; Super Admin Console &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE DASHBOARD</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, Prof. ${adminName}!</h2>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus Facilities Administrator &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
         </div>
         <div class="flex items-center gap-2">
           <a href="room-management.html" class="btn-pup-secondary text-xs flex items-center gap-1.5">
