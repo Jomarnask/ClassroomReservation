@@ -339,9 +339,9 @@
           startRaw: r.start_time,
           endRaw: r.end_time,
           subject: r.subject,
-          section: 'Student Request',
-          requesterName: r.student_name || 'Student',
-          requesterDetails: formatStudentSection(r),
+          section: r.admin_booking === true ? formatStudentSection(r) : 'Student Request',
+          requesterName: r.admin_booking === true ? 'Admin' : (r.student_name || 'Student'),
+          requesterDetails: r.admin_booking === true ? 'Admin booking' : formatStudentSection(r),
           status: String(r.status || '').toLowerCase(),
           remarks: r.admin_remarks || ''
         };
