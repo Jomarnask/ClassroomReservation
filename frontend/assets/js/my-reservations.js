@@ -472,7 +472,16 @@
     const r = state.reservations.find(item => String(item.id) === String(id));
     if (!r) return;
 
-    if (!confirm(`Are you sure you want to cancel reservation request ${r.id}?`)) return;
+    const ok = window.crsConfirm
+      ? await window.crsConfirm(`Are you sure you want to cancel reservation request ${r.id}?`, {
+          title: 'Cancel Reservation',
+          type: 'warning',
+          confirmText: 'Yes, Cancel Request',
+          cancelText: 'Keep Request',
+          danger: true
+        })
+      : confirm(`Are you sure you want to cancel reservation request ${r.id}?`);
+    if (!ok) return;
 
     try {
       await api.reservations.cancel(r.dbId);

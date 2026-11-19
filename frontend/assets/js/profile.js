@@ -278,14 +278,14 @@
 
       if (updateError) {
         console.error('PROFILE: Database update error.', updateError);
-        alert(`Failed to update profile: ${updateError.message}`);
+        crsModal.error(`Failed to update profile: ${updateError.message}`);
         return;
       }
 
       // Check if RLS blocked the update (0 rows modified)
       if (!updatedRows || updatedRows.length === 0) {
         console.error('PROFILE: 0 rows updated. Check Supabase RLS UPDATE policy.');
-        alert('Update failed: No database rows were modified. Ensure RLS UPDATE policies allow modifying user_id = ' + State.user.id);
+        crsModal.error('Update failed: No database rows were modified. Ensure RLS UPDATE policies allow modifying user_id = ' + State.user.id);
         return;
       }
 
@@ -294,7 +294,7 @@
 
       renderProfileData();
       exitEditMode();
-      alert('Profile updated successfully!');
+      crsModal.success('Profile updated successfully!');
     });
   }
 

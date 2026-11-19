@@ -35,7 +35,7 @@ ClassroomReservation/
 │   ├── assets/
 │   │   ├── css/
 │   │   ├── images/
-│   │   └── js/                # Page scripts + api.js (PHP API client)
+│   │   └── js/                # Page scripts, crs-modal.js, and api.js (PHP API client)
 │   ├── *.html                 # Pages
 │   ├── build.js               # Generates config.js from environment variables (used by Vercel)
 │   ├── config-template.js     # Template for a local config.js
@@ -48,7 +48,8 @@ ClassroomReservation/
 │   ├── tests/                 # PHPUnit test + foundation check script
 │   ├── Dockerfile
 │   ├── composer.json
-│   ├── .env.example
+│   ├── .env.example           # Base environment configuration template
+│   ├── .env.*.example         # Environment-specific overrides (local, testing, production)
 │   └── README.md
 │
 ├── docs/design.md             # Design system and branding guidelines
@@ -141,6 +142,28 @@ All endpoints except `/api/health` need `Authorization: Bearer <Supabase access 
 
 ---
 
+## Recent updates (November 19, 2026)
+
+### 1. Custom PUP-Branded Dialog & Modal System (`frontend/assets/js/crs-modal.js`)
+- **Native Dialog Replacement:** Replaced standard browser popup alerts (`window.alert`) and prompts (`window.confirm`) across all pages with custom, non-blocking modals built specifically for the PUP-CRS design system.
+- **Visual Design & Brand Identity:** Styled with PUP Maroon (`#880000`), Dark Maroon (`#5c0000`), and Gold (`#ffd658`) accent strip, institutional subheadings (`PUP CANLALAY CAMPUS CRS`), and contextual icons:
+  - **Success (Emerald):** Account creation submission, login success redirect, and profile update alerts.
+  - **Error / Declination (Crimson):** Authentication errors, profile database failures, and declined credentials.
+  - **Warning (Amber):** Admin privilege granting, validation issues, email domain mismatch, inactive status notices.
+  - **Info (PUP Blue):** General notices and system messages.
+- **Asynchronous Confirmation Dialog (`crsConfirm`):** Promise-based confirmation workflow (`await crsConfirm(...)`) with customizable button labels, destructive/danger styles, and seamless keyboard navigation (<kbd>Enter</kbd> to confirm, <kbd>Escape</kbd> / backdrop click to cancel). Applied to:
+  - User Approvals (`user-approvals.html`): Admin approval, decline, deactivate, and reactivate account workflows.
+  - Reservation Cancellations (`browse-rooms.js`, `dashboard.js`, `my-reservations.js`): User cancellation confirmations.
+  - Schedule Manager (`schedule-manager.js`): Deleting recurring weekly classes and overriding reservation overlap appointments.
+- **Safety Net & Seamless Integration:** Automatically injected into dashboard views via `api.js` while globally routing legacy `window.alert` calls to `crsModal` without altering any underlying application or API logic.
+
+### 2. Multi-Environment Configuration & Cascading Overrides (`backend/`)
+- **Dynamic `.env` Loading (`backend/src/bootstrap.php`):** Implemented a layered environment configuration that loads the base `.env` file first, then dynamically loads and overrides with `.env.{APP_ENV}` (`.env.local`, `.env.testing`, `.env.production`).
+- **Environment Templates:** Added `.env.local.example`, `.env.testing.example`, and `.env.production.example` alongside the base `.env.example`.
+- **Git Protection:** Updated `.gitignore` to safeguard all `.env.*` secrets while keeping example templates tracked.
+
+---
+
 ## Roadmap
 
 - [x] Rooms API and Room Management page
@@ -153,6 +176,8 @@ All endpoints except `/api/health` need `Authorization: Bearer <Supabase access 
 - [x] Audit trail: backend writes to `audit_logs` and `GET /api/audit-logs`, wired to `logs.html`
 - [x] Notifications API (`GET/PATCH /api/notifications`)
 - [x] UI/UX: Mobile-responsive layouts on Schedule Manager (Day-by-Day Tab Selector, responsive card stacks, mobile modals)
+- [x] UI/UX: Custom PUP-CRS branded modal and confirmation dialog system (`crsModal` / `crsConfirm`) replacing native browser `alert()` and `confirm()` dialogs across all pages
+- [x] Environment management: Multi-environment `.env` cascading loader (`.env.local`, `.env.testing`, `.env.production`) in backend bootstrap
 - [ ] Email notifications for approved, declined and cancelled requests
 - [ ] More PHPUnit tests (booking rules, role checks, token handling) and a GitHub Actions workflow
 - [ ] Additional UI/UX: dark mode, loading skeletons, keyboard accessibility

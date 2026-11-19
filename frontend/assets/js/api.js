@@ -198,9 +198,13 @@
     },
   };
 
-  // The bell lives in assets/js/notifications.js. It is loaded from here so every
-  // page that already includes api.js gets a working bell without another script tag.
+  // Load crs-modal.js automatically if not already loaded
   const thisScript = document.currentScript;
+  if (!window.crsModal && thisScript && thisScript.src) {
+    const modalScript = document.createElement('script');
+    modalScript.src = thisScript.src.replace(/api\.js(\?.*)?$/, 'crs-modal.js');
+    document.head.appendChild(modalScript);
+  }
 
   function loadNotificationBell() {
     if (window.__crsNotificationsLoaded || !document.querySelector('.navbar-actions')) return;

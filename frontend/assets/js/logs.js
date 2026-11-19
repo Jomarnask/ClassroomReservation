@@ -311,7 +311,7 @@
   }
 
   function exportCSV() {
-    if (!state.items.length) { alert('There are no log entries to export.'); return; }
+    if (!state.items.length) { crsModal.warning('There are no log entries to export.', { title: 'No Data' }); return; }
 
     const header = ['Timestamp', 'Event Type', 'Initiated By', 'Facility / Resource', 'Action Summary', 'Name (Program, Year Level-Section)', 'Result'];
     const rows = state.items.map(l => {

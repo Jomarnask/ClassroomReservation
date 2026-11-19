@@ -1087,12 +1087,19 @@ async function saveSchedule(editId, payload) {
         `(${r.subject}, ${r.student_name})`
       ).join('\n');
 
-      const ok = window.confirm(
-        `There is currently an approved reservation in this room at this time:\n\n${list}\n\n` +
+      const msg = `There is currently an approved reservation in this room at this time:\n\n${list}\n\n` +
         'Are you sure you want to appoint this schedule?\n\n' +
-        'OK = the schedule is saved and the reservation continues for that day as it is.\n' +
-        'Cancel = the schedule is not saved.'
-      );
+        'Confirm = the schedule is saved and the reservation continues for that day as it is.\n' +
+        'Cancel = the schedule is not saved.';
+
+      const ok = window.crsConfirm
+        ? await window.crsConfirm(msg, {
+            title: 'Reservation Overlap Warning',
+            type: 'warning',
+            confirmText: 'Save Schedule Anyway',
+            cancelText: 'Do Not Save'
+          })
+        : window.confirm(msg);
 
       if (!ok) {
         const cancelled = new Error('Schedule not saved.');
@@ -1176,7 +1183,18 @@ async function saveSchedule(editId, payload) {
     const item = state.schedules.find(c => String(c.id) === String(id));
     if (!item) return;
 
-    if (!window.confirm(`Delete the weekly class "${item.label} - ${item.subject}" on ${item.day}?\nIt will stop repeating every week.`)) {
+    const msg = `Delete the weekly class "${item.label} - ${item.subject}" on ${item.day}?\nIt will stop repeating every week.`;
+    const ok = window.crsConfirm
+      ? await window.crsConfirm(msg, {
+          title: 'Delete Class Schedule',
+          type: 'warning',
+          confirmText: 'Delete Schedule',
+          cancelText: 'Keep Schedule',
+          danger: true
+        })
+      : window.confirm(msg);
+
+    if (!ok) {
       return;
     }
 

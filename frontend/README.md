@@ -84,6 +84,7 @@ php -S 127.0.0.1:8000 -t public public/index.php
 ```html
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="assets/js/crs-modal.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/your-page-script.js"></script>
 ```
@@ -120,6 +121,32 @@ Available helpers:
 Endpoint details are in `backend/README.md`.
 
 Sign-in, the sign-in guard on each page, the profile page and some dropdowns still call Supabase directly.
+
+---
+
+## Custom Modal and Confirmation Dialogs (`assets/js/crs-modal.js`)
+
+All standard browser `alert()` and `confirm()` dialogs are replaced with `crsModal` and `crsConfirm`. The system matches the PUP-CRS maroon and gold institutional branding, includes backdrop blur, entrance animations, and full keyboard accessibility (<kbd>Enter</kbd> to confirm, <kbd>Escape</kbd> to cancel).
+
+```javascript
+// 1. Alerts & Notices
+await crsModal('Your details have been saved.', { type: 'success', title: 'Success' });
+crsModal.success('Profile updated.');
+crsModal.error('Failed to update room.');
+crsModal.warning('Account status is pending.');
+
+// 2. Asynchronous Confirmation Dialogs
+const ok = await crsConfirm('Are you sure you want to cancel this reservation request?', {
+  title: 'Cancel Reservation',
+  type: 'warning',
+  confirmText: 'Yes, Cancel Request',
+  cancelText: 'Keep Request',
+  danger: true // styles confirm button with crimson red
+});
+if (!ok) return;
+```
+
+`crs-modal.js` also provides a safety net by redirecting native `window.alert` calls to `crsModal` and auto-loads through `api.js` if omitted.
 
 ---
 

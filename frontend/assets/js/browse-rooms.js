@@ -1405,7 +1405,16 @@
 
   // ── Cancel my own pending request ───────────────────────────────────────
   async function cancelMyReservation(id) {
-    if (!confirm('Cancel this pending reservation request?')) return;
+    const ok = window.crsConfirm
+      ? await window.crsConfirm('Cancel this pending reservation request?', {
+          title: 'Cancel Reservation',
+          type: 'warning',
+          confirmText: 'Yes, Cancel Request',
+          cancelText: 'Keep Request',
+          danger: true
+        })
+      : confirm('Cancel this pending reservation request?');
+    if (!ok) return;
 
     try {
       await api.reservations.cancel(id);

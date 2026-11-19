@@ -130,23 +130,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const role = activeBtn?.dataset?.role || 'student';
 
       if (password !== confirmPassword) {
-        alert('Passwords do not match.');
+        crsModal.warning('Passwords do not match.', { title: 'Validation Error' });
         return;
       }
 
       if (!terms) {
-        alert('Please agree to the Terms of Service and Privacy Policy.');
+        crsModal.warning('Please agree to the Terms of Service and Privacy Policy.', { title: 'Terms Required' });
         return;
       }
 
       // Institutional Email Domain Enforcement
       const lowerEmail = email.toLowerCase();
       if (role === 'student' && !lowerEmail.endsWith('@iskolarngbayan.pup.edu.ph')) {
-        alert('Student accounts must use an official @iskolarngbayan.pup.edu.ph webmail address.');
+        crsModal.warning('Student accounts must use an official @iskolarngbayan.pup.edu.ph webmail address.', { title: 'Invalid Email' });
         return;
       }
       if ((role === 'faculty' || role === 'admin') && !lowerEmail.endsWith('@pup.edu.ph')) {
-        alert(`${role === 'admin' ? 'Admin' : 'Faculty'} accounts must use an official @pup.edu.ph webmail address.`);
+        crsModal.warning(`${role === 'admin' ? 'Admin' : 'Faculty'} accounts must use an official @pup.edu.ph webmail address.`, { title: 'Invalid Email' });
         return;
       }
 
@@ -171,16 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (error) {
-          alert(`Registration Error: ${error.message}`);
+          crsModal.error(`Registration Error: ${error.message}`);
           return;
         }
 
-        alert('Registration submitted! Your account will be active once an admin approves it.');
+        await crsModal.success('Registration submitted! Your account will be active once an admin approves it.', { title: 'Registration Complete' });
         window.location.href = 'login.html';
 
       } catch (err) {
         console.error('Unexpected Signup Error:', err);
-        alert(`An error occurred during registration: ${err.message || err}`);
+        crsModal.error(`An error occurred during registration: ${err.message || err}`);
       }
     });
   }
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const pwdVal = document.getElementById('password')?.value;
 
       if (!userInput || !pwdVal) {
-        alert('Please enter your credentials.');
+        crsModal.warning('Please enter your credentials.', { title: 'Missing Credentials' });
         return;
       }
 
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
           .maybeSingle();
 
         if (dbError || !userRecord) {
-          alert('No account found matching that Student Number.');
+          crsModal.error('No account found matching that Student Number.');
           return;
         }
 
@@ -269,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (error) {
           console.error('Login error:', error.status, error.code, error.message);
-          alert(`Login Failed: ${error.message}`);
+          crsModal.error(`Login Failed: ${error.message}`);
           return;
         }
 
@@ -283,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (profileError || !profile) {
           console.error('Profile lookup failed:', profileError);
           await supabaseClient.auth.signOut();
-          alert('No profile found for this account. Please contact the administrator.');
+          crsModal.error('No profile found for this account. Please contact the administrator.');
           return;
         }
 
@@ -295,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rejected: 'Your registration was declined. Please contact the administrator.',
             inactive: 'Your account has been deactivated. Please contact the administrator.'
           };
-          alert(msgs[status] || 'Your account is not active.');
+          crsModal.warning(msgs[status] || 'Your account is not active.', { title: 'Account Inactive' });
           return;
         }
 
@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (selectedRole && selectedRole !== realRole) {
           await supabaseClient.auth.signOut();
-          alert(`This account is registered as ${realRole}, not ${selectedRole}. Please select the correct role.`);
+          crsModal.error(`This account is registered as ${realRole}, not ${selectedRole}. Please select the correct role.`, { title: 'Role Mismatch' });
           return;
         }
 
@@ -315,12 +315,12 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('pup_user');
         localStorage.removeItem('demoRole');
 
-        alert('Login Successful! Redirecting to dashboard...');
+        await crsModal.success('Login Successful! Redirecting to dashboard...', { title: 'Welcome Back!' });
         window.location.replace('dashboard.html');
 
       } catch (err) {
         console.error('Unexpected Login Error:', err);
-        alert('An error occurred during login. Please try again.');
+        crsModal.error('An error occurred during login. Please try again.');
       }
     });
   }

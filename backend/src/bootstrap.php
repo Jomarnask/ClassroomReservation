@@ -9,10 +9,21 @@ require_once $backendRoot . '/vendor/autoload.php';
 use Dotenv\Dotenv;
 use App\Config;
 
-// Load environment variables safely if .env exists
+// ── Load environment variables ──────────────────────────────
+// 1. Load the base .env file (shared defaults)
 if (file_exists($backendRoot . '/.env')) {
     $dotenv = Dotenv::createImmutable($backendRoot);
     $dotenv->safeLoad();
+}
+
+// 2. Load environment-specific overrides (.env.local, .env.testing, .env.production)
+//    APP_ENV can be set in the base .env or as a system environment variable.
+$appEnv = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV') ?: 'local';
+$envFile = '.env.' . $appEnv;
+
+if (file_exists($backendRoot . '/' . $envFile)) {
+    $dotenvOverride = Dotenv::createMutable($backendRoot, $envFile);
+    $dotenvOverride->safeLoad();
 }
 
 // Set default timezone

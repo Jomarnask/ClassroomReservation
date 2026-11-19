@@ -376,6 +376,7 @@ backend/vendor/
 backend/.env
 backend/.env.*
 !backend/.env.example
+!backend/.env.*.example
 .phpunit.result.cache
 backend/.phpunit.result.cache
 

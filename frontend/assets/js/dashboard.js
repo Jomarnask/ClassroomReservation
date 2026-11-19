@@ -1598,7 +1598,16 @@
     const res = State.studentReservations.find(r => r.reservation_id === id);
     const ref = res ? res.ref : 'this reservation';
 
-    if (!confirm(`Cancel reservation ${ref}?`)) return;
+    const ok = window.crsConfirm
+      ? await window.crsConfirm(`Cancel reservation ${ref}?`, {
+          title: 'Cancel Reservation',
+          type: 'warning',
+          confirmText: 'Yes, Cancel',
+          cancelText: 'Keep',
+          danger: true
+        })
+      : confirm(`Cancel reservation ${ref}?`);
+    if (!ok) return;
 
     try {
       await window.api.reservations.cancel(id);

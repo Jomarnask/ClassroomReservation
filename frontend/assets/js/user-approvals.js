@@ -74,7 +74,7 @@
       if (window.api && window.api.showError) {
         window.api.showError(`Failed to update user status: ${msg}`);
       } else {
-        alert(`Update failed: ${msg}`);
+        crsModal.error(`Update failed: ${msg}`);
       }
       return false;
     }
@@ -235,19 +235,55 @@
         const msg = isAdminReq
           ? `ADMIN ACCESS: approve ${name} as an administrator? They will get full control of the system.`
           : `Approve ${name} (${user.role})?`;
-        if (!confirm(msg)) return;
+        const confirmed = window.crsConfirm
+          ? await window.crsConfirm(msg, {
+              title: isAdminReq ? 'Admin Access Request' : 'Confirm Approval',
+              type: isAdminReq ? 'warning' : 'info',
+              confirmText: isAdminReq ? 'Approve Admin' : 'Approve',
+              cancelText: 'Cancel'
+            })
+          : confirm(msg);
+        if (!confirmed) return;
         newStatus = 'active';
       } else if (action === 'reject') {
-        if (!confirm(`Reject the registration of ${name}?`)) return;
+        const msg = `Reject the registration of ${name}?`;
+        const confirmed = window.crsConfirm
+          ? await window.crsConfirm(msg, {
+              title: 'Decline Registration',
+              type: 'warning',
+              confirmText: 'Reject',
+              cancelText: 'Cancel',
+              danger: true
+            })
+          : confirm(msg);
+        if (!confirmed) return;
         newStatus = 'rejected';
       } else if (action === 'deactivate') {
-        if (!confirm(`Deactivate ${name}? They will lose access immediately.`)) return;
+        const msg = `Deactivate ${name}? They will lose access immediately.`;
+        const confirmed = window.crsConfirm
+          ? await window.crsConfirm(msg, {
+              title: 'Deactivate User',
+              type: 'warning',
+              confirmText: 'Deactivate',
+              cancelText: 'Cancel',
+              danger: true
+            })
+          : confirm(msg);
+        if (!confirmed) return;
         newStatus = 'inactive';
       } else if (action === 'reactivate') {
         const msg = isAdminReq
           ? `ADMIN ACCESS: reactivate ${name} as an administrator?`
           : `Reactivate ${name}?`;
-        if (!confirm(msg)) return;
+        const confirmed = window.crsConfirm
+          ? await window.crsConfirm(msg, {
+              title: isAdminReq ? 'Admin Reactivation' : 'Confirm Reactivation',
+              type: isAdminReq ? 'warning' : 'info',
+              confirmText: 'Reactivate',
+              cancelText: 'Cancel'
+            })
+          : confirm(msg);
+        if (!confirmed) return;
         newStatus = 'active';
       }
 
