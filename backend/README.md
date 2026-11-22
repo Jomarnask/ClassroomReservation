@@ -63,7 +63,7 @@ copy .env.local.example .env.local      # local overrides (macOS/Linux: cp)
 ```
 
 1. Run the database scripts (see [Database setup](#database-setup)).
-2. Fill in `.env` and/or `.env.local` (see [Environment variables](#environment-variables)). The bootstrap loader reads base `.env` first, then cascades overrides from `.env.{APP_ENV}` (`.env.local`, `.env.testing`, `.env.production`).
+2. Fill in `.env` and/or `.env.local` (see [Environment variables](#environment-variables)). The bootstrap loader reads base `.env` first, then cascades overrides from `.env.{APP_ENV}` (`.env.local`, `.env.staging`, `.env.production`).
 3. Start the server:
 
 ```bash
