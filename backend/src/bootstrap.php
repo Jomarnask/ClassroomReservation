@@ -16,7 +16,7 @@ if (file_exists($backendRoot . '/.env')) {
     $dotenv->safeLoad();
 }
 
-// 2. Load environment-specific overrides (.env.local, .env.testing, .env.production)
+// 2. Load environment-specific overrides (.env.local, .env.staging, .env.production)
 //    APP_ENV can be set in the base .env or as a system environment variable.
 $appEnv = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV') ?: 'local';
 $envFile = '.env.' . $appEnv;
