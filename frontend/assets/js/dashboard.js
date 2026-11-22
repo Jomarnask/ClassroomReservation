@@ -1,0 +1,1657 @@
+﻿/**
+ * PUP Canlalay Campus CRS - Role-Based Dashboard Engine
+ *
+ * SECURITY CHANGES in this version:
+ * - Requires a valid Supabase session. No session -> redirect to login.html.
+ * - Role is read from public.users (by user_id), NOT from user_metadata or localStorage.
+ * - Account must be 'active'.
+ * - Removed the ?role= URL override, localStorage fallback and the 'Admin' default.
+ * - Any error fails closed (redirects to login) instead of showing a dashboard.
+ * - Signing out in another tab redirects this tab to login.
+ */
+
+(function () {
+  'use strict';
+
+  // ==========================================
+  // 1. SUPABASE CLIENT RESOLUTION
+  // ==========================================
+  // Use the shared client from config.js. If it is missing, build one from the
+  // SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY values in config.js. There is no
+  // hard-coded project: if neither exists, client stays null.
+  const client = (typeof window !== 'undefined' && window.supabaseClient)
+    ? window.supabaseClient
+    : ((typeof window !== 'undefined' && window.supabase && window.supabase.createClient
+      && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_PUBLISHABLE_KEY !== 'undefined')
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+      : null);
+
+  // ==========================================
+  // 2. REPOSITORY & DATA STATE
+  // ==========================================
+  const State = {
+    detectedRole: null, // 'Admin' | 'Faculty' | 'Student' (set only after verification)
+    user: null,
+    profile: null,      // row from public.users
+    isAuthenticated: false,
+    notifications: [
+      { id: 1, title: 'Room 402 Approved', message: 'Admin granted your reservation for Oct 27.', time: '10m ago', unread: true },
+      { id: 2, title: 'Maintenance Notice', message: 'Lab 305 AC servicing scheduled at 4:00 PM.', time: '1h ago', unread: true },
+      { id: 3, title: 'Faculty Endorsement', message: 'Dr. Alicia Reyes tagged you in reservation #RES-8921.', time: '3h ago', unread: false },
+    ],
+    studentReservations: [],                              // real: GET /api/reservations?mine=true
+    studentClasses: null,                                 // real: GET /api/schedules (null = profile has no program/year/section)
+    studentLoaded: false,
+    studentErrors: { reservations: null, classes: null },
+    facultySchedule: null,  // last answer of GET /api/faculty/schedule
+    adminDashboard: null,   // last answer of GET /api/admin/dashboard
+    adminActivity: [],      // today's activity rows (used by the Slip button)
+  };
+
+  // Escape text coming from the database before putting it in innerHTML
+  function esc(str) {
+    return String(str ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  // Role normalization. Unknown values map to the LEAST privileged role.
+  function normalizeRole(raw) {
+    if (!raw) return 'Student';
+    const r = String(raw).trim().toLowerCase();
+    if (r === 'admin' || r === 'super admin' || r === 'superadmin') return 'Admin';
+    if (r === 'faculty') return 'Faculty';
+    return 'Student';
+  }
+
+  // ==========================================
+  // 3. SESSION & ROLE VERIFICATION
+  // Returns null when the visitor is NOT a valid, active, signed-in user.
+  // ==========================================
+  async function detectUserRole() {
+    if (!client || !client.auth) return null;
+
+    const { data: { session }, error } = await client.auth.getSession();
+    if (error || !session || !session.user) return null;
+
+    const user = session.user;
+
+    // Role comes from the database, never from the browser.
+    const { data: profile, error: profileError } = await client
+      .from('users')
+      .select('full_name, role, account_status, student_number, program_course, year_level, section, pup_webmail')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Profile lookup failed:', profileError);
+      return null;
+    }
+    if (!profile) return null;
+    if (String(profile.account_status).toLowerCase() !== 'active') return null;
+
+    return {
+      role: normalizeRole(profile.role),
+      user,
+      profile,
+    };
+  }
+
+  function goToLogin() {
+    window.location.replace('login.html');
+  }
+
+  // ==========================================
+  // 4. MAIN CONTROLLER
+  // ==========================================
+  async function initDashboard() {
+    try {
+      const result = await detectUserRole();
+
+      if (!result) {
+        // Not signed in / no profile / inactive: clear any stale session and leave.
+        if (client && client.auth) {
+          try { await client.auth.signOut(); } catch (e) { /* ignore */ }
+        }
+        return goToLogin();
+      }
+
+      const { role, user, profile } = result;
+      State.detectedRole = role;
+      State.user = user;
+      State.profile = profile;
+      State.isAuthenticated = true;
+
+      updateHeaderUserMeta(role, user);
+      renderNavbarForRole(role);
+      renderViewForRole(role, user);
+      renderNotifications();
+      setupEventHandlers();
+
+      // Reveal the page only after the check passed (body is hidden by CSS until now)
+      document.body.style.visibility = 'visible';
+
+    } catch (err) {
+      console.error('Fatal dashboard initialization error:', err);
+      goToLogin(); // fail closed
+    }
+  }
+
+  // If the user signs out in another tab, kick this tab to login too.
+  if (client && client.auth) {
+    client.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') goToLogin();
+    });
+  }
+
+  // Back/forward cache can show a stale dashboard after logout; force a re-check.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) window.location.reload();
+  });
+
+  // ==========================================
+  // 5. HEADER & PROFILE DISPLAY
+  // ==========================================
+  function updateHeaderUserMeta(role, user) {
+    const avatarEl = document.getElementById('userAvatarText');
+    const nameEl = document.getElementById('profileDropdownName');
+    const emailEl = document.getElementById('profileDropdownEmail');
+    const roleEl = document.getElementById('profileDropdownRole');
+    const statusText = document.getElementById('sessionStatusText');
+    const roleBadge = document.getElementById('currentRoleBadge');
+    const roomMgmtLink = document.getElementById('linkRoomManagement');
+
+    const fullName = State.profile?.full_name || user?.user_metadata?.full_name || 'PUP User';
+    const email = user?.email || State.profile?.pup_webmail || '';
+
+    // Initials from the real name (e.g. "Casalla, James Ivan S." -> "CJ")
+    const initials = fullName
+      .replace(/[^A-Za-z\s,]/g, '')
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0].toUpperCase())
+      .join('') || role.slice(0, 2).toUpperCase();
+
+    if (avatarEl) avatarEl.textContent = initials;
+    if (nameEl) nameEl.textContent = fullName;
+    if (emailEl) emailEl.textContent = email;
+    if (roleEl) roleEl.textContent = `Role: ${role}`;
+    if (roleBadge) roleBadge.textContent = `Role: ${role}`;
+
+    // Room Management is admin-only
+    if (roomMgmtLink) roomMgmtLink.classList.toggle('hidden', role !== 'Admin');
+
+    if (statusText) {
+      statusText.innerHTML = `Connected via Supabase Auth &bull; Logged in as <strong>${esc(email)}</strong> &bull; Role: <strong>${esc(role)}</strong>`;
+    }
+  }
+
+  // ==========================================
+  // 6. NAVBAR RENDERING
+  // ==========================================
+  function renderNavbarForRole(role) {
+    const nav = document.getElementById('roleNavLinks');
+    if (!nav) return;
+
+    if (role === 'Student') {
+      nav.innerHTML = `
+        <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="my-reservations.html" class="pup-nav-link">My Reservations</a>
+      `;
+    } else if (role === 'Faculty') {
+      nav.innerHTML = `
+        <a href="dashboard.html" class="pup-nav-link active">Dashboard</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="browse-rooms.html" class="pup-nav-link">Browse Rooms</a>
+        <span class="nav-separator text-white/60 font-light select-none">|</span>
+        <a href="schedule.html" class="pup-nav-link">Schedule</a>
+      `;
+    } else {
+      nav.innerHTML = `
+    <a href="dashboard.html" class="pup-nav-link active font-bold text-[#ffd658]">Dashboard</a>
+    <a href="all-reservations.html" class="pup-nav-link">All Reservations</a>
+
+    <!-- Consolidated System Administration Dropdown -->
+    <div class="relative group inline-block">
+      <button type="button" class="pup-nav-link flex items-center gap-1.5 focus:outline-none">
+        <span>System Administration</span>
+        <svg class="w-3.5 h-3.5 fill-current opacity-80 transition-transform group-hover:rotate-180" viewBox="0 0 20 20">
+          <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+        </svg>
+      </button>
+
+      <!-- Dropdown Sub-menu -->
+      <div class="hidden group-hover:block group-focus-within:block absolute left-0 mt-1 w-52 bg-white text-[#111111] rounded-[4px] shadow-2xl border border-gray-200 py-1.5 z-50">
+        <a href="room-management.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Room Management</a>
+        <a href="schedule-manager.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Schedule Manager</a>
+        <a href="user-approvals.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">User Approvals</a>
+        <a href="logs.html" class="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 hover:text-[#880000] font-semibold text-xs transition">Audit Logs</a>
+      </div>
+    </div>
+  `;
+    }
+  }
+
+  // ==========================================
+  // 7. VIEW RENDERING BASED ON ROLE
+  // ==========================================
+  function renderViewForRole(role, user) {
+    const root = document.getElementById('dashboardRoot');
+    if (!root) return;
+
+    if (role === 'Student') {
+      renderStudentView(root, user);
+      if (State.studentLoaded) paintStudent(); // show the last data at once
+      loadStudentDashboard();       // real data from the API
+      startStudentAutoRefresh();
+    } else if (role === 'Faculty') {
+      renderFacultyView(root, user);
+      if (State.facultySchedule) paintFaculty(State.facultySchedule); // show the last data at once
+      loadFacultyDashboard();      // real data from GET /api/faculty/schedule
+      startFacultyAutoRefresh();
+    } else if (role === 'Admin') {
+      renderAdminView(root, user);
+      if (State.adminDashboard) paintAdmin(State.adminDashboard); // show the last data at once
+      loadAdminDashboard();        // real numbers from GET /api/admin/dashboard
+      startAdminAutoRefresh();
+    }
+
+    if (window.lucide && window.lucide.createIcons) {
+      window.lucide.createIcons();
+    }
+  }
+
+  // ==========================================
+  // ADMIN DASHBOARD DATA  (GET /api/admin/dashboard)
+  // ==========================================
+  let adminTimer = null;
+  let adminRequestId = 0;
+  let adminVisibilityWired = false;
+
+  const MANILA = 'Asia/Manila';
+
+  // '13:30:00' -> '1:30 PM'
+  function fmtTime(t) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+    if (!m) return '';
+    const h = parseInt(m[1], 10);
+    return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM');
+  }
+
+  function fmtRange(start, end) {
+    return fmtTime(start) + ' - ' + fmtTime(end);
+  }
+
+  // '2026-11-14' -> Today / Tomorrow / Yesterday / Nov 14
+  function dayLabel(dateStr, today) {
+    if (!dateStr) return '';
+    if (dateStr === today) return 'Today';
+    const diff = Math.round((new Date(dateStr + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+    if (diff === 1) return 'Tomorrow';
+    if (diff === -1) return 'Yesterday';
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  }
+
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function statusBadge(a) {
+    let label = 'Declined';
+    let cls = 'bg-[#FEF2F2] text-[#991B1B] border-[#FECACA]';
+    let slipClass = 'text-rose-600';
+
+    if (a.status === 'approved') {
+      label = 'Approved'; cls = 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]'; slipClass = 'text-emerald-600';
+    } else if (a.status === 'pending') {
+      label = 'Pending'; cls = 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]'; slipClass = 'text-amber-600';
+    } else if (a.status === 'cancelled') {
+      label = a.auto_cancelled ? 'Auto-cancelled' : 'Cancelled';
+      cls = 'bg-gray-100 text-gray-600 border-gray-200'; slipClass = 'text-gray-500';
+    }
+
+    return { label, cls, slipClass };
+  }
+
+  function paintAdminPending(data) {
+    const box = document.getElementById('adminPendingList');
+    if (!box) return;
+
+    const items = data.pending_reservations.items;
+    if (!items.length) {
+      box.innerHTML = '<p class="text-xs text-gray-500 py-2">No reservation requests are waiting for a decision.</p>';
+      return;
+    }
+
+    box.innerHTML = items.map(p => `
+      <div class="p-3 bg-white border border-gray-200 rounded-[3px] flex items-center justify-between gap-3 hover:border-[#880000] transition">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-xs text-[#880000] font-mono">${esc(p.ref)}</span>
+            <span class="text-xs font-semibold text-gray-800">${esc(p.room)}</span>
+          </div>
+          <p class="text-[11px] text-gray-500 truncate">${esc(p.requester || 'Unknown')} &bull; ${esc(p.subject)}${p.faculty ? ' &bull; ' + esc(p.faculty) : ''}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-[11px] font-bold text-gray-800">${esc(dayLabel(p.reservation_date, data.today))}</p>
+          <p class="text-[11px] text-gray-500">${esc(fmtRange(p.start_time, p.end_time))}</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Live Sessions (top 3): rooms in use right now (approved reservation or weekly class)
+  function paintAdminRooms(data) {
+    const live = document.getElementById('adminLiveList');
+    if (!live) return;
+
+    const inUse = data.room_status.filter(r => r.status === 'in_use' && r.current);
+    if (!inUse.length) {
+      live.innerHTML = '<p class="text-xs text-gray-500 py-2">No rooms are in use right now.</p>';
+      return;
+    }
+
+    live.innerHTML = inUse.slice(0, 3).map(r => {
+      const c = r.current;
+      const occupant = (c.faculty || c.who || 'Unknown') + (c.title ? ' (' + c.title + ')' : '');
+
+      return `
+        <div class="p-3 bg-white border border-gray-200 rounded-[3px] flex items-center justify-between hover:border-[#880000] transition shadow-2xs">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-xs text-[#880000] font-mono">${esc('Room ' + r.room_number)}</span>
+              <span class="text-xs font-semibold text-gray-800">${esc(occupant)}</span>
+            </div>
+            <p class="text-[11px] text-gray-500">Floor ${esc(r.floor)} &bull; ${esc(fmtRange(c.start_time, c.end_time))}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+              ${c.type === 'class' ? 'Class' : 'Reservation'}
+            </span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function paintAdminActivity(data) {
+    const body = document.getElementById('historyTableBody');
+    if (!body) return;
+
+    State.adminActivity = data.activity.map(a => {
+      const badge = statusBadge(a);
+      return {
+        id: a.ref,
+        ref: a.ref,
+        room: a.room,
+        subject: a.subject,
+        time: dayLabel(a.reservation_date, data.today) + ' \u2022 ' + fmtRange(a.start_time, a.end_time),
+        statusLabel: badge.label.toUpperCase(),
+        statusClass: badge.slipClass,
+      };
+    });
+
+    if (!data.activity.length) {
+      body.innerHTML = '<tr><td colspan="8" class="py-6 px-4 text-center text-gray-500">No reservation activity yet today.</td></tr>';
+      return;
+    }
+
+    body.innerHTML = data.activity.map(a => {
+      const badge = statusBadge(a);
+      const role = String(a.requester_role || 'student');
+      const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+      const roleCls = role === 'faculty'
+        ? 'bg-purple-50 text-purple-700 border border-purple-200'
+        : role === 'admin'
+          ? 'bg-gray-100 text-gray-700 border border-gray-300'
+          : 'bg-blue-50 text-blue-700 border border-blue-200';
+
+      return `
+        <tr class="hover:bg-gray-50 transition">
+          <td class="py-3 px-4 font-bold text-[#880000] font-mono">${esc(a.ref)}</td>
+          <td class="py-3 px-4 font-semibold text-gray-900">${esc(a.room)}</td>
+          <td class="py-3 px-4">
+            <p class="font-bold text-gray-800">${esc(a.requester || 'Unknown')}</p>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-[3px] ${roleCls}">${esc(roleLabel)}</span>
+            ${a.class ? '<span class="text-[10px] font-semibold text-gray-500">&bull; ' + esc(a.class) + '</span>' : ''}
+          </td>
+          <td class="py-3 px-4">
+            <span class="block font-semibold">${esc(dayLabel(a.reservation_date, data.today))}</span>
+            <span class="text-gray-500">${esc(fmtRange(a.start_time, a.end_time))}</span>
+          </td>
+          <td class="py-3 px-4 text-gray-600">${esc(a.subject)}</td>
+          <td class="py-3 px-4 text-gray-500 font-medium">${a.faculty ? esc(a.faculty) : '<span class="text-gray-400">&mdash;</span>'}</td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${badge.cls}">${badge.label}</span>
+          </td>
+          <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+            <button type="button" onclick="window.viewDigitalPass('${esc(a.ref)}')" class="text-[#337ab7] hover:underline font-semibold">Slip</button>
+            <span class="text-gray-300">&bull;</span>
+            <a href="logs.html" class="text-gray-600 hover:text-[#880000] hover:underline font-semibold">Log &rarr;</a>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function paintAdmin(data) {
+    State.adminDashboard = data;
+
+    setText('adminPendingReqCount', data.pending_reservations.count);
+    setText('adminPendingReqLabel', data.pending_reservations.count > 0 ? 'Needs a decision' : 'All clear');
+    setText('adminTodayCount', data.today_bookings.approved);
+    setText('adminTodayLabel', data.today_bookings.pending + ' pending');
+    setText('totalRoomsCount', data.rooms.total);
+    setText('activeRoomsLabel', data.rooms.active + ' Active');
+    setText('pendingApprovalsCount', data.pending_users);
+    setText('pendingApprovalsLabel', data.pending_users > 0 ? 'Requires Review' : 'All clear');
+
+    paintAdminPending(data);
+    paintAdminRooms(data);
+    paintAdminActivity(data);
+
+    const when = new Date(data.generated_at).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: MANILA });
+    setText('adminUpdatedAt', 'Updated ' + when);
+  }
+
+  async function loadAdminDashboard() {
+    const myRequest = ++adminRequestId;
+    const errEl = document.getElementById('adminDashError');
+
+    try {
+      if (!window.api || !window.api.admin) throw new Error('The API client (api.js) is not loaded.');
+
+      const data = await window.api.admin.dashboard();
+      if (myRequest !== adminRequestId) return; // a newer request replaced this one
+
+      paintAdmin(data);
+      if (errEl) errEl.classList.add('hidden');
+    } catch (err) {
+      if (myRequest !== adminRequestId) return;
+      console.error('Admin dashboard failed:', err);
+
+      if (errEl) {
+        errEl.textContent = err.status === 403
+          ? 'Administrator access is required to see this dashboard.'
+          : 'Could not load the dashboard: ' + (err.message || 'Unknown error');
+        errEl.classList.remove('hidden');
+      }
+
+      // Nothing loaded yet: replace the "..." placeholders so they do not look stuck
+      if (!State.adminDashboard) {
+        ['adminPendingReqCount', 'adminTodayCount', 'totalRoomsCount', 'pendingApprovalsCount'].forEach(id => setText(id, '-'));
+        ['adminPendingReqLabel', 'adminTodayLabel', 'activeRoomsLabel', 'pendingApprovalsLabel'].forEach(id => setText(id, 'Unavailable'));
+      }
+    }
+  }
+
+  // Refresh every minute while the tab is open, and again when you come back to it
+  function startAdminAutoRefresh() {
+    clearInterval(adminTimer);
+    adminTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadAdminDashboard();
+    }, 60000);
+
+    if (!adminVisibilityWired) {
+      adminVisibilityWired = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && State.detectedRole === 'Admin') loadAdminDashboard();
+      });
+    }
+  }
+
+  // ==========================================
+  // STUDENT DASHBOARD DATA
+  //   reservations: GET /api/reservations?mine=true   (own reservations only)
+  //   classes:      GET /api/schedules?program_course&year_level&section
+  // ==========================================
+  let studentTimer = null;
+  let studentRequestId = 0;
+  let studentVisibilityWired = false;
+
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  // Current date, minutes since midnight and weekday in Philippine time
+  function manilaNow() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: MANILA, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'long'
+    }).formatToParts(new Date());
+    const get = (type) => (parts.find(p => p.type === type) || {}).value;
+    let hour = parseInt(get('hour'), 10);
+    if (hour === 24) hour = 0;
+
+    return {
+      date: get('year') + '-' + get('month') + '-' + get('day'),
+      minutes: hour * 60 + parseInt(get('minute'), 10),
+      weekday: get('weekday'),
+    };
+  }
+
+  // '13:30:00' -> 810
+  function timeToMin(t) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : 0;
+  }
+
+  function roomLabel(row) {
+    const name = String(row.room_name || '').trim();
+    return 'Room ' + (row.room_number || '?') + (name ? ' - ' + name : '');
+  }
+
+  // The classes to show: today's remaining ones, or the next day that has classes
+  function pickClasses(rows, now) {
+    const todayIdx = DAY_NAMES.indexOf(now.weekday);
+
+    for (let offset = 0; offset < 7; offset++) {
+      const dayName = DAY_NAMES[(todayIdx + offset) % 7];
+      if (dayName === 'Sunday') continue; // the campus is closed
+
+      let list = rows
+        .filter(r => String(r.day_of_week).toLowerCase() === dayName.toLowerCase())
+        .sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+
+      if (!list.length) continue;
+
+      if (offset === 0) {
+        const unfinished = list.filter(r => timeToMin(r.end_time) > now.minutes);
+        if (!unfinished.length) continue; // everything today is over: look at the next day
+        const finished = list.filter(r => timeToMin(r.end_time) <= now.minutes);
+        list = unfinished.concat(finished);
+      }
+
+      const label = offset === 0 ? 'Today' : (offset === 1 ? 'Tomorrow' : dayName);
+      return { label, dayName, items: list.slice(0, 3), total: list.length, today: offset === 0 };
+    }
+
+    return null;
+  }
+
+  function classState(r, now, isToday) {
+    if (!isToday) return { label: 'Upcoming', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+
+    const s = timeToMin(r.start_time);
+    const e = timeToMin(r.end_time);
+    if (now.minutes >= e) return { label: 'Finished', cls: 'bg-gray-100 text-gray-600 border-gray-200' };
+    if (now.minutes >= s) return { label: 'Ongoing', cls: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]' };
+    return { label: 'Upcoming', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+  }
+
+  function paintStudentClasses() {
+    const box = document.getElementById('studentClassesList');
+    const label = document.getElementById('studentClassesLabel');
+    if (!box) return;
+
+    const p = State.profile || {};
+    const setLabel = (text) => { if (label) label.textContent = text; };
+
+    if (State.studentErrors.classes) {
+      setLabel('');
+      box.innerHTML = '<p class="text-xs text-rose-700 py-2">Could not load your class schedule: ' + esc(State.studentErrors.classes) + '</p>';
+      return;
+    }
+
+    if (State.studentClasses === null) {
+      setLabel('');
+      box.innerHTML = `
+        <p class="text-xs text-gray-600 py-2">
+          Your profile does not have a program, year level and section yet, so your class rooms cannot be shown.
+          <a href="profile.html" class="text-[#880000] font-bold hover:underline">Open my profile</a>
+        </p>`;
+      return;
+    }
+
+    const now = manilaNow();
+    const pick = pickClasses(State.studentClasses, now);
+
+    if (!pick) {
+      setLabel('');
+      box.innerHTML = '<p class="text-xs text-gray-500 py-2">No class schedule has been set for your section yet. Your administrator adds it in Schedule Manager.</p>';
+      return;
+    }
+
+    setLabel(pick.today
+      ? "Today's classes"
+      : 'No more classes today. Next classes: ' + pick.dayName);
+
+    const section = [p.program_course, p.year_level && p.section ? p.year_level + '-' + p.section : ''].filter(Boolean).join(' ');
+
+    box.innerHTML = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">` + pick.items.map(r => {
+      const st = classState(r, now, pick.today);
+      const title = [r.subject_title, r.subject_code ? '(' + r.subject_code + ')' : ''].filter(Boolean).join(' ');
+
+      return `
+        <div class="border border-gray-200 rounded-[3px] p-4 bg-white hover:border-[#880000] transition space-y-3 shadow-2xs">
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${esc(pick.label)}</span>
+              <h4 class="font-bold text-sm text-[#111111]">${esc(roomLabel(r))}</h4>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-[3px] border shrink-0 ${st.cls}">${st.label}</span>
+          </div>
+          <div class="p-2.5 bg-gray-50 rounded-[3px] text-xs text-gray-700 border border-gray-100 space-y-0.5">
+            <p class="font-semibold text-gray-900 truncate">${esc(title || 'Class')}</p>
+            <p class="text-[11px] text-gray-500">${r.faculty_name ? esc(r.faculty_name) + ' &bull; ' : ''}${esc(fmtRange(r.start_time, r.end_time))}</p>
+          </div>
+          <div class="flex justify-between items-center pt-2 border-t border-gray-100 text-xs">
+            <span class="text-[11px] text-gray-400 font-medium truncate">${esc(section)}</span>
+            <a href="browse-rooms.html" class="text-[#880000] hover:text-[#5c0000] font-bold text-xs inline-flex items-center gap-1 hover:underline shrink-0">
+              Reserve &rarr;
+            </a>
+          </div>
+        </div>`;
+    }).join('') + `</div>` + (pick.total > pick.items.length
+      ? `<p class="text-[11px] text-gray-500 mt-3">+ ${pick.total - pick.items.length} more class(es) ${pick.today ? 'today' : 'that day'}</p>`
+      : '');
+  }
+
+  function studentStatus(status) {
+    if (status === 'approved') {
+      return { label: 'Approved', badge: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]', card: 'bg-[#ECFDF5]/30 border-[#A7F3D0]', slipClass: 'text-emerald-600' };
+    }
+    return { label: 'Pending Admin Confirmation', badge: 'bg-[#FEF3C7] text-[#92400E] border-[#FDE68A]', card: 'bg-[#FEF3C7]/30 border-[#FDE68A]', slipClass: 'text-amber-600' };
+  }
+
+  function paintStudentReservations() {
+    const box = document.getElementById('studentReservationsList');
+    if (!box) return;
+
+    if (State.studentErrors.reservations) {
+      box.innerHTML = '<p class="text-xs text-rose-700 py-2">Could not load your reservations: ' + esc(State.studentErrors.reservations) + '</p>';
+      return;
+    }
+
+    const now = manilaNow();
+
+    // Only pending / approved reservations that have not finished yet, soonest first
+    const active = State.studentReservations
+      .filter(r => (r.status === 'pending' || r.status === 'approved')
+        && (r.reservation_date > now.date || (r.reservation_date === now.date && timeToMin(r.end_time) > now.minutes)))
+      .sort((a, b) => a.reservation_date.localeCompare(b.reservation_date) || timeToMin(a.start_time) - timeToMin(b.start_time));
+
+    if (!active.length) {
+      box.innerHTML = `
+        <p class="text-xs text-gray-600 py-2">
+          You have no active reservations.
+          <a href="browse-rooms.html" class="text-[#880000] font-bold hover:underline">Browse rooms to book one</a>
+        </p>`;
+      return;
+    }
+
+    box.innerHTML = active.slice(0, 3).map(res => {
+      const st = studentStatus(res.status);
+
+      return `
+        <div class="p-3.5 border rounded-[3px] ${st.card} space-y-2">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-xs text-[#880000] tracking-wide font-mono">${esc(res.ref)}</span>
+                <span class="font-bold text-sm text-[#111111]">${esc(res.subject)}</span>
+              </div>
+              <p class="text-xs text-gray-600 mt-0.5">${esc(res.room)}</p>
+              <p class="text-[11px] text-gray-500">${res.faculty ? 'Faculty: ' + esc(res.faculty) + ' &bull; ' : ''}${esc(res.dateLabel)} &bull; ${esc(fmtRange(res.start_time, res.end_time))}</p>
+              ${res.classBooking ? `<p class="text-[11px] font-semibold text-blue-700 mt-0.5">Booked for your class${res.classLabel ? ' (' + esc(res.classLabel) + ')' : ''} by the Admin</p>` : ''}
+            </div>
+            <div>
+              <span class="inline-flex text-[11px] font-bold px-2.5 py-1 rounded-[3px] border ${st.badge}">${st.label}</span>
+            </div>
+          </div>
+
+          <div class="pt-2 border-t border-gray-200/60 flex items-center justify-between gap-3 text-xs">
+            <span class="text-[11px] text-gray-500">${res.status === 'approved'
+          ? 'Claim the physical key from the guard'
+          : 'Cancelled automatically 1 hour before the start time if nobody approves it'}</span>
+            <div class="flex items-center gap-3 shrink-0">
+              <button type="button" onclick="window.viewDigitalPass('${esc(res.ref)}')" class="text-[#337ab7] hover:underline font-semibold flex items-center gap-1">
+                <span>View Digital Pass</span> &nearr;
+              </button>
+              ${res.status === 'pending' ? `
+                <button type="button" onclick="window.cancelReservation(${Number(res.reservation_id)})" class="text-red-600 hover:underline font-semibold">
+                  Cancel
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>`;
+    }).join('') + (active.length > 3
+      ? `<p class="text-[11px] text-gray-500">+ ${active.length - 3} more. <a href="my-reservations.html" class="text-[#337ab7] font-semibold hover:underline">View all my reservations</a></p>`
+      : '');
+  }
+
+  function paintStudent() {
+    paintStudentClasses();
+    paintStudentReservations();
+  }
+
+  async function loadStudentDashboard() {
+    const myRequest = ++studentRequestId;
+    const errEl = document.getElementById('studentDashError');
+
+    if (!window.api) {
+      if (errEl) { errEl.textContent = 'The API client (api.js) is not loaded.'; errEl.classList.remove('hidden'); }
+      return;
+    }
+
+    const now = manilaNow();
+    const p = State.profile || {};
+    const canMatchClasses = !!(p.program_course && p.year_level && p.section);
+
+    const [resResult, clsResult] = await Promise.allSettled([
+      window.api.reservations.list({ mine: true, date_from: now.date, limit: 200 }),
+      canMatchClasses
+        ? window.api.schedules.list({ program_course: p.program_course, year_level: p.year_level, section: p.section })
+        : Promise.resolve(null),
+    ]);
+
+    if (myRequest !== studentRequestId) return; // a newer request replaced this one
+
+    State.studentErrors = { reservations: null, classes: null };
+
+    if (resResult.status === 'fulfilled') {
+      State.studentReservations = (resResult.value || []).map(r => ({
+        reservation_id: r.reservation_id,
+        ref: 'RES-' + String(r.reservation_id).padStart(4, '0'),
+        room: roomLabel(r),
+        subject: r.subject,
+        faculty: r.faculty_name,
+        reservation_date: r.reservation_date,
+        dateLabel: dayLabel(r.reservation_date, now.date),
+        start_time: r.start_time,
+        end_time: r.end_time,
+        status: r.status,
+        // an admin booked this room for the student's class (read-only for the student)
+        classBooking: r.class_booking === true,
+        classLabel: r.class_booking === true ? facultyStudentSection(r) : '',
+      }));
+      State.studentReservations.forEach(r => {
+        const st = studentStatus(r.status);
+        r.time = r.dateLabel + ' \u2022 ' + fmtRange(r.start_time, r.end_time);
+        r.statusLabel = r.status === 'approved' ? 'APPROVED' : 'PENDING';
+        r.statusClass = st.slipClass;
+      });
+    } else {
+      console.error('Student reservations failed:', resResult.reason);
+      State.studentErrors.reservations = (resResult.reason && resResult.reason.message) || 'Unknown error';
+    }
+
+    if (clsResult.status === 'fulfilled') {
+      State.studentClasses = clsResult.value; // null when the profile has no program / year / section
+    } else {
+      console.error('Student classes failed:', clsResult.reason);
+      State.studentErrors.classes = (clsResult.reason && clsResult.reason.message) || 'Unknown error';
+    }
+
+    State.studentLoaded = true;
+    if (errEl) errEl.classList.add('hidden');
+    paintStudent();
+  }
+
+  // Refresh every minute while the tab is open, and again when you come back to it
+  function startStudentAutoRefresh() {
+    clearInterval(studentTimer);
+    studentTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadStudentDashboard();
+    }, 60000);
+
+    if (!studentVisibilityWired) {
+      studentVisibilityWired = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && State.detectedRole === 'Student') loadStudentDashboard();
+      });
+    }
+  }
+
+  // ==========================================
+  // 8. STUDENT VIEW
+  // ==========================================
+  function renderStudentView(container, user) {
+    const studentName = esc(State.profile?.full_name || 'Student');
+    const studentNo = esc(State.profile?.student_number || 'N/A');
+    const p = State.profile || {};
+    const classInfo = p.year_level && p.section ? ' &bull; Year ' + esc(p.year_level) + ' - Section ' + esc(p.section) : '';
+    const program = esc(p.program_course || 'PUP Student') + classInfo;
+
+    // Drawn at once; loadStudentDashboard() fills in the real data.
+    container.innerHTML = `
+      <!-- Welcome Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+        <div>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">PUP - CRS STUDENT PORTAL</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, ${studentName}!</h2>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">${program} &bull; Student ID: ${studentNo}</p>
+        </div>
+        <div>
+          <a href="browse-rooms.html" class="btn-pup-primary text-xs shadow-sm inline-flex items-center gap-1.5">
+            <span>+</span>
+            <span>New Room Reservation</span>
+          </a>
+        </div>
+      </div>
+
+      <div id="studentDashError" class="hidden text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-[3px] px-4 py-3"></div>
+
+      <!-- SECTION 1: ASSIGNED ROOMS -->
+      <div id="assigned-rooms" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Assigned Rooms</h3>
+            <p class="text-xs text-gray-500">Rooms for your section's weekly class schedule <span id="studentClassesLabel" class="font-semibold text-gray-700"></span></p>
+          </div>
+          <a href="browse-rooms.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+            <span>Browse All Rooms</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+
+        <div id="studentClassesList">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <!-- SECTION 2: ONGOING RESERVATION -->
+      <div id="ongoing-reservation" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Ongoing Reservation</h3>
+            <p class="text-xs text-gray-500">Your upcoming pending and approved reservations</p>
+          </div>
+          <a href="my-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#337ab7] hover:text-[#23527c] hover:underline transition">
+            <span>View All My Tickets</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+
+        <div id="studentReservationsList" class="space-y-3">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // ==========================================
+  // 9. FACULTY VIEW
+  // ==========================================
+  // ---- Data: GET /api/faculty/schedule (the same call the Schedule page uses) ----
+  let facultyTimer = null;
+  let facultyRequestId = 0;
+  let facultyVisibilityWired = false;
+
+  const UPCOMING_LIMIT = 5;   // rows in "Upcoming Tagged Classes"
+  const PENDING_LIMIT = 3;    // cards in "Pending Tagged Classes"
+  const WEEKDAY_NUMBER = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
+
+  function addDaysYmd(ymd, days) {
+    const d = new Date(ymd + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('en-CA');
+  }
+
+  // When does this weekly class happen next? A class that is running now counts as "in session";
+  // one that already ended today moves to its next weekday.
+  function nextOccurrence(cls, now) {
+    const target = WEEKDAY_NUMBER[String(cls.day_of_week || '').toLowerCase()];
+    if (!target || target === 7) return null;   // unknown day, or Sunday (the campus is closed)
+
+    const start = timeToMin(cls.start_time);
+    const end = timeToMin(cls.end_time);
+
+    for (let offset = 0; offset <= 7; offset++) {
+      const date = addDaysYmd(now.date, offset);
+      const weekday = new Date(date + 'T00:00:00').getDay() || 7;   // Monday = 1 ... Sunday = 7
+      if (weekday !== target) continue;
+      if (offset === 0 && now.minutes >= end) continue;              // today's class is over
+
+      const status = offset === 0 ? (now.minutes >= start ? 'in-session' : 'today') : 'scheduled';
+      return { date, status, sortKey: offset * 1440 + start };
+    }
+    return null;
+  }
+
+  // "BS of Information Technology (BSIT)", 1, 1 -> "BSIT 1-1"
+  function facultyStudentSection(r) {
+    const code = (String(r.program_course || '').match(/\(([^)]+)\)/) || [])[1] || r.program_course || '';
+    if (r.year_level && r.section) return `${code} ${r.year_level}-${r.section}`.trim();
+    return code || 'Student Request';
+  }
+
+  function classStatusBadge(status) {
+    if (status === 'in-session') return { label: 'In Session', cls: 'bg-[#ECFDF5] text-[#065F46] border-[#A7F3D0]' };
+    if (status === 'today') return { label: 'Upcoming Today', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+    return { label: 'Scheduled', cls: 'bg-[#EFF6FF] text-[#1E40AF] border-[#DBEAFE]' };
+  }
+
+  function paintFacultyUpcoming(classes, now) {
+    const body = document.getElementById('facultyUpcomingBody');
+    if (!body) return;
+
+    const upcoming = (classes || [])
+      .map(c => ({ c, next: nextOccurrence(c, now) }))
+      .filter(x => x.next)
+      .sort((a, b) => a.next.sortKey - b.next.sortKey || String(a.c.subject_title).localeCompare(String(b.c.subject_title)))
+      .slice(0, UPCOMING_LIMIT);
+
+    if (!upcoming.length) {
+      body.innerHTML = `<tr><td colspan="4" class="py-8 px-4 text-center text-gray-500">
+        No classes are tagged to you yet. The Admin assigns them in the Schedule Manager.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = upcoming.map(({ c, next }) => {
+      const badge = classStatusBadge(next.status);
+      const dayName = String(c.day_of_week || '');
+      return `
+        <tr class="hover:bg-gray-50 transition">
+          <td class="py-3 px-4">
+            <p class="font-bold text-gray-900">${esc(c.subject_title)}</p>
+            <p class="text-[11px] text-gray-500">${esc([c.subject_code, c.course_section].filter(Boolean).join(' • '))}</p>
+          </td>
+          <td class="py-3 px-4 font-semibold text-[#880000]">${esc(roomLabel(c))}</td>
+          <td class="py-3 px-4">
+            <p>${esc(dayName.slice(0, 3))} &bull; ${esc(fmtRange(c.start_time, c.end_time))}</p>
+            <p class="text-[11px] text-gray-500">${esc(dayLabel(next.date, now.date))}</p>
+          </td>
+          <td class="py-3 px-4">
+            <span class="px-2 py-0.5 rounded-[3px] text-[10px] font-bold border ${badge.cls}">${badge.label}</span>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function paintFacultyPending(reservations, now) {
+    const list = document.getElementById('facultyPendingList');
+    if (!list) return;
+
+    const pending = (reservations || [])
+      .filter(r => String(r.status).toLowerCase() === 'pending' && String(r.reservation_date).slice(0, 10) >= now.date)
+      .sort((a, b) => String(a.reservation_date).localeCompare(String(b.reservation_date))
+        || String(a.start_time).localeCompare(String(b.start_time)))
+      .slice(0, PENDING_LIMIT);
+
+    if (!pending.length) {
+      list.innerHTML = `<p class="text-xs text-gray-500 py-2">No student reservations are waiting for the Admin right now.</p>`;
+      return;
+    }
+
+    list.innerHTML = pending.map(r => {
+      const date = String(r.reservation_date).slice(0, 10);
+      return `
+        <div class="p-3.5 border border-amber-200 rounded-[3px] bg-amber-50/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="font-mono font-bold text-xs bg-amber-200 text-amber-900 px-2 py-0.5 rounded-[3px]">RES-${String(r.reservation_id).padStart(4, '0')}</span>
+              <span class="font-bold text-sm text-[#111111]">${esc(r.subject)}</span>
+            </div>
+            <p class="text-xs text-gray-700">
+              Requested by: <strong>${esc(r.student_name || 'Student')}</strong> &bull; ${esc(facultyStudentSection(r))}
+            </p>
+            <p class="text-[11px] text-gray-600">
+              Facility: <strong class="text-[#880000]">${esc(roomLabel(r))}</strong> &bull;
+              Schedule: <strong>${esc(dayLabel(date, now.date))} (${esc(fmtRange(r.start_time, r.end_time))})</strong>
+            </p>
+          </div>
+          <div class="shrink-0">
+            <button type="button" data-res-id="${r.reservation_id}"
+              class="faculty-details-btn px-2.5 py-1 text-[11px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-[5px] transition">
+              Details
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function paintFaculty(data) {
+    if (!document.getElementById('upcoming-tagged-classes')) return;   // another role's page
+    const now = manilaNow();
+    paintFacultyUpcoming(data.classes, now);
+    paintFacultyPending(data.reservations, now);
+  }
+
+  async function loadFacultyDashboard() {
+    const myRequest = ++facultyRequestId;
+    const errEl = document.getElementById('facultyDashError');
+
+    try {
+      if (!window.api || !window.api.schedule) throw new Error('The API client (api.js) is not loaded.');
+
+      const data = await window.api.schedule.mine();
+      if (myRequest !== facultyRequestId) return; // a newer request replaced this one
+
+      State.facultySchedule = data;
+      paintFaculty(data);
+      if (errEl) errEl.classList.add('hidden');
+    } catch (err) {
+      if (myRequest !== facultyRequestId) return;
+      console.error('Faculty dashboard failed:', err);
+
+      if (errEl) {
+        errEl.textContent = err.status === 403
+          ? 'An active faculty account is required to see this dashboard.'
+          : 'Could not load your schedule: ' + (err.message || 'Unknown error');
+        errEl.classList.remove('hidden');
+      }
+
+      // Nothing loaded yet: replace the "Loading" text so it does not look stuck
+      if (!State.facultySchedule) {
+        const body = document.getElementById('facultyUpcomingBody');
+        if (body) body.innerHTML = '<tr><td colspan="4" class="py-6 px-4 text-center text-gray-500">Unavailable</td></tr>';
+        const list = document.getElementById('facultyPendingList');
+        if (list) list.innerHTML = '<p class="text-xs text-gray-500 py-2">Unavailable</p>';
+      }
+    }
+  }
+
+  // Refresh every minute (class statuses change with the clock) and when you come back to the tab
+  function startFacultyAutoRefresh() {
+    clearInterval(facultyTimer);
+    facultyTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') loadFacultyDashboard();
+    }, 60000);
+
+    if (!facultyVisibilityWired) {
+      facultyVisibilityWired = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && State.detectedRole === 'Faculty') loadFacultyDashboard();
+      });
+    }
+  }
+
+  // ---- "Details" popup: same layout as the Schedule page's popup ----
+  function ensureFacultyDetailsModal() {
+    let overlay = document.getElementById('facultyDetailsOverlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'facultyDetailsOverlay';
+    overlay.className = 'fixed inset-0 z-[70] bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="bg-white border border-gray-200 rounded-[18px] shadow-2xl w-full max-w-lg overflow-hidden">
+        <div class="p-4 bg-[#880000] text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">📋</span>
+            <h3 class="font-bold text-sm text-white" id="facultyDetailsTitle">Item Details</h3>
+          </div>
+          <button type="button" id="btnCloseFacultyDetails" class="text-white hover:bg-white/20 p-1.5 rounded transition" aria-label="Close">✕</button>
+        </div>
+        <div class="p-6 space-y-4 text-xs" id="facultyDetailsBody"></div>
+        <div class="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end">
+          <button type="button" id="btnDismissFacultyDetails" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold rounded-[6px] transition">Close</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.classList.add('hidden');
+    overlay.querySelector('#btnCloseFacultyDetails').addEventListener('click', close);
+    overlay.querySelector('#btnDismissFacultyDetails').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    return overlay;
+  }
+
+  function openFacultyDetails(reservationId) {
+    const r = ((State.facultySchedule && State.facultySchedule.reservations) || [])
+      .find(x => String(x.reservation_id) === String(reservationId));
+    if (!r) return;
+
+    const overlay = ensureFacultyDetailsModal();
+    const date = String(r.reservation_date).slice(0, 10);
+    const dateLabel = new Date(date + 'T00:00:00')
+      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const status = String(r.status || '').toLowerCase();
+    const statusColor = status === 'approved' ? 'text-emerald-700'
+      : status === 'pending' ? 'text-amber-700'
+        : status === 'cancelled' ? 'text-slate-600' : 'text-rose-700';
+
+    overlay.querySelector('#facultyDetailsTitle').textContent =
+      `Item Details — RES-${String(r.reservation_id).padStart(4, '0')}`;
+
+    overlay.querySelector('#facultyDetailsBody').innerHTML = `
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200 space-y-1">
+        <p class="text-[10px] font-bold uppercase text-gray-500 tracking-wider">Assigned Room</p>
+        <p class="font-extrabold text-sm text-gray-900">${esc(roomLabel(r))}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Schedule / Date</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(dateLabel)}</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Time Slot</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(fmtTime(r.start_time))} – ${esc(fmtTime(r.end_time))}</p>
+        </div>
+      </div>
+
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+        <p class="text-[10px] font-bold uppercase text-gray-500">Subject / Purpose</p>
+        <p class="font-bold text-gray-900 mt-0.5">${esc(r.subject || 'N/A')}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Course Section / Type</p>
+          <p class="font-bold text-gray-800 mt-0.5">Student Request</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+          <p class="text-[10px] font-bold uppercase text-gray-500">Requester &amp; Program/Section</p>
+          <p class="font-bold text-gray-800 mt-0.5">${esc(r.student_name || 'Student')}</p>
+          <p class="text-[11px] text-gray-500 font-medium">${esc(facultyStudentSection(r))}</p>
+        </div>
+      </div>
+
+      <div class="p-3 bg-gray-50 rounded-[8px] border border-gray-200">
+        <p class="text-[10px] font-bold uppercase text-gray-500">Status</p>
+        <p class="font-bold capitalize mt-0.5 ${statusColor}">${esc(status)}</p>
+      </div>
+
+      ${r.admin_remarks ? `
+        <div class="p-3 bg-rose-50 border border-rose-200 rounded-[8px] text-rose-800">
+          <p class="text-[10px] font-bold uppercase">Admin Remarks</p>
+          <p class="mt-0.5 font-medium">${esc(r.admin_remarks)}</p>
+        </div>
+      ` : ''}`;
+
+    overlay.classList.remove('hidden');
+  }
+
+  function renderFacultyView(container, user) {
+    const facultyName = esc(State.profile?.full_name || 'Faculty');
+
+    // The page is drawn at once with "Loading" text; loadFacultyDashboard() fills in the real data.
+    container.innerHTML = `
+      <!-- Welcome Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+        <div>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">FACULTY DASHBOARD</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome, Prof. ${facultyName}!</h2>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus &bull; Faculty Account</p>
+        </div>
+        <div>
+          <a href="schedule.html" class="btn-pup-primary text-xs shadow-sm">View My Schedule</a>
+        </div>
+      </div>
+
+      <div id="facultyDashError" class="hidden text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-[3px] px-4 py-3"></div>
+
+      <!-- SECTION 1: UPCOMING TAGGED CLASSES -->
+      <div id="upcoming-tagged-classes" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Upcoming Tagged Classes</h3>
+            <p class="text-xs text-gray-500">Your next ${UPCOMING_LIMIT} classes tagged with your faculty assignment, soonest first</p>
+          </div>
+          <a href="schedule.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+            <span>Full Schedule Details</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border border-gray-200 rounded-[3px]">
+            <thead class="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th class="py-3 px-4">Subject &amp; Section</th>
+                <th class="py-3 px-4">Assigned Facility</th>
+                <th class="py-3 px-4">Schedule Time</th>
+                <th class="py-3 px-4">Status</th>
+              </tr>
+            </thead>
+            <tbody id="facultyUpcomingBody" class="divide-y divide-gray-100 text-gray-700">
+              <tr><td colspan="4" class="py-6 px-4 text-center text-gray-500">Loading&hellip;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SECTION 2: PENDING TAGGED CLASSES -->
+      <div id="pending-tagged-classes" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Pending Tagged Classes</h3>
+            <p class="text-xs text-gray-500">Student reservations that tagged you and are waiting for the Admin's decision</p>
+          </div>
+          <a href="schedule.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline transition">
+            <span>View All in My Schedule</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+
+        <div id="facultyPendingList" class="space-y-3">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+        </div>
+      </div>
+    `;
+
+    // One listener for every "Details" button
+    const pendingList = container.querySelector('#facultyPendingList');
+    if (pendingList) {
+      pendingList.addEventListener('click', (e) => {
+        const btn = e.target.closest('.faculty-details-btn');
+        if (btn) openFacultyDetails(btn.getAttribute('data-res-id'));
+      });
+    }
+  }
+
+  // ==========================================
+  // 10. ADMIN VIEW
+  // ==========================================
+  function renderAdminView(container, user) {
+    const adminName = esc(State.profile?.full_name || 'Administrator');
+
+    // The page is drawn at once with "..." placeholders; loadAdminDashboard() fills in real data.
+    container.innerHTML = `
+      <!-- Welcome Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm">
+        <div>
+          <p class="text-xs font-bold text-[#880000] uppercase tracking-wider">ADMINISTRATIVE DASHBOARD</p>
+          <h2 class="text-xl sm:text-2xl font-bold text-[#111111] mt-0.5">Welcome back, Prof. ${adminName}!</h2>
+          <p class="text-xs text-gray-500 font-medium mt-0.5">PUP Canlalay Campus Facilities Administrator &bull; <span id="adminUpdatedAt">Loading&hellip;</span></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="room-management.html" class="btn-pup-secondary text-xs flex items-center gap-1.5">
+            <span>Manage Rooms</span>
+            <span class="text-sm font-bold">&rarr;</span>
+          </a>
+          <button type="button" onclick="window.openReservationModal()" class="btn-pup-primary text-xs">
+            + Admin Booking
+          </button>
+        </div>
+      </div>
+
+      <div id="adminDashError" class="hidden text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-[3px] px-4 py-3"></div>
+
+      <!-- TOP METRICS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div id="pending-requests" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Requests</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="adminPendingReqCount" class="text-3xl font-extrabold text-amber-600">&hellip;</span>
+              <span id="adminPendingReqLabel" class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Loading</span>
+            </div>
+            <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline mt-2">
+              <span>Review Reservations</span>
+              <span class="text-sm font-extrabold">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Today's Bookings</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="adminTodayCount" class="text-3xl font-extrabold text-[#111111]">&hellip;</span>
+              <span id="adminTodayLabel" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">Loading</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Approved for today</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Rooms</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="totalRoomsCount" class="text-3xl font-extrabold text-[#111111]">&hellip;</span>
+              <span id="activeRoomsLabel" class="text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-[3px] border border-emerald-200">Loading</span>
+            </div>
+            <a href="room-management.html" class="inline-flex items-center gap-1 text-xs font-semibold text-[#880000] hover:underline mt-2">
+              <span>View Inventory Directory</span>
+              <span class="text-sm font-bold">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <div id="pending-approvals" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Pending Accounts</p>
+            <div class="flex items-baseline gap-2 mt-1">
+              <span id="pendingApprovalsCount" class="text-3xl font-extrabold text-amber-600">&hellip;</span>
+              <span id="pendingApprovalsLabel" class="text-xs font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-[3px] border border-amber-200">Loading</span>
+            </div>
+            <a href="user-approvals.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline mt-2">
+              <span>Review User Approvals</span>
+              <span class="text-sm font-extrabold">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECTION: NEEDS YOUR DECISION -->
+      <div id="needs-decision" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Needs Your Decision</h3>
+            <p class="text-xs text-gray-500">Pending requests that start soonest. Undecided requests are cancelled automatically 1 hour before they start.</p>
+          </div>
+          <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+            <span>View All Reservations</span>
+            <span class="text-sm font-extrabold">&rarr;</span>
+          </a>
+        </div>
+        <div id="adminPendingList" class="space-y-2.5">
+          <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+        </div>
+      </div>
+
+      <!-- SECTION: ACTIVE BOOKINGS -->
+      <div id="active-bookings" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Active Bookings</h3>
+            <p class="text-xs text-gray-500">Browse rooms, view every reservation on the timetable, and book a room as Admin (approved immediately)</p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <a href="all-reservations.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+              <span>View All Reservations</span>
+              <span class="text-sm font-extrabold">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+          <!-- Room Directory + timetable: admin-rooms.js draws it inside this slot -->
+          <div id="adminRoomBrowserSlot" class="lg:col-span-7 min-w-0 bg-slate-50 border border-gray-200 rounded-[4px] p-4">
+            <p class="text-xs text-gray-500">Loading room directory&hellip;</p>
+          </div>
+
+          <div class="lg:col-span-5 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-700 uppercase tracking-wider block">Live Sessions (Showing Top 3)</span>
+              <a href="all-reservations.html" class="text-[11px] font-semibold text-[#337ab7] hover:underline flex items-center gap-1">
+                <span>View Full List</span> &rarr;
+              </a>
+            </div>
+            <div id="adminLiveList" class="space-y-2.5">
+              <p class="text-xs text-gray-500 py-2">Loading&hellip;</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SECTION: RESERVATION ACTIVITY (TODAY) -->
+      <div id="reservation-history" class="bg-white p-5 rounded-[4px] border border-gray-200 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div>
+            <h3 class="text-lg font-bold text-[#111111]">Reservation Activity (Today)</h3>
+            <p class="text-xs text-gray-500">Requests made or decided today (latest 10)</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="logs.html" class="inline-flex items-center gap-1.5 text-xs font-bold text-[#880000] hover:text-[#5c0000] hover:underline transition">
+              <span>View Complete Logs</span>
+              <span class="text-sm font-extrabold">&rarr;</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border border-gray-200 rounded-[3px]">
+            <thead class="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th class="py-3 px-4">Ref Number</th>
+                <th class="py-3 px-4">Room</th>
+                <th class="py-3 px-4">Requester &amp; Role</th>
+                <th class="py-3 px-4">Time Slot</th>
+                <th class="py-3 px-4">Purpose / Course</th>
+                <th class="py-3 px-4">Tagged Faculty</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-gray-100 text-gray-700">
+              <tr><td colspan="8" class="py-6 px-4 text-center text-gray-500">Loading&hellip;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // ==========================================
+  // 11. NOTIFICATIONS LIST
+  // ==========================================
+  function renderNotifications() {
+    const notifList = document.getElementById('notifList');
+    if (!notifList) return;
+
+    notifList.innerHTML = State.notifications.map(n => `
+      <div class="p-3 hover:bg-gray-50 flex items-start gap-2.5 transition">
+        <span class="mt-1 w-2 h-2 rounded-full shrink-0 ${n.unread ? 'bg-[#880000]' : 'bg-transparent'}"></span>
+        <div class="space-y-0.5 flex-grow">
+          <p class="font-bold text-gray-800">${n.title}</p>
+          <p class="text-gray-600 leading-tight">${n.message}</p>
+          <span class="text-[10px] text-gray-400">${n.time}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ==========================================
+  // 12. EVENT HANDLERS & MODAL CONTROLS
+  // ==========================================
+  function setupEventHandlers() {
+    // 1. Notification dropdown toggle
+    const notifBtn = document.getElementById('notifBellBtn');
+    const notifDropdown = document.getElementById('notifDropdown');
+    if (notifBtn && notifDropdown) {
+      notifBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifDropdown.classList.toggle('hidden');
+        const profileDropdown = document.getElementById('profileDropdown');
+        if (profileDropdown) profileDropdown.classList.add('hidden');
+      });
+    }
+
+    // 2. Profile dropdown toggle
+    const profileBtn = document.getElementById('profileMenuBtn');
+    const profileDropdown = document.getElementById('profileDropdown');
+    if (profileBtn && profileDropdown) {
+      profileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileDropdown.classList.toggle('hidden');
+        if (notifDropdown) notifDropdown.classList.add('hidden');
+      });
+    }
+
+    // 3. Close on outside click
+    document.addEventListener('click', () => {
+      if (notifDropdown) notifDropdown.classList.add('hidden');
+      if (profileDropdown) profileDropdown.classList.add('hidden');
+    });
+
+    // 4. Mark all read
+    const btnMarkAllRead = document.getElementById('btnMarkAllRead');
+    if (btnMarkAllRead) {
+      btnMarkAllRead.addEventListener('click', () => {
+        State.notifications.forEach(n => n.unread = false);
+        const badge = document.getElementById('notifBadge');
+        if (badge) badge.classList.add('hidden');
+        renderNotifications();
+        window.showToast('All notifications marked as read', 'info');
+      });
+    }
+
+    // 5. Sign Out (real sign out, then replace history entry so Back can't return)
+    const btnSignOut = document.getElementById('btnSignOut');
+    if (btnSignOut) {
+      btnSignOut.addEventListener('click', async () => {
+        btnSignOut.disabled = true;
+        if (client && client.auth) {
+          try { await client.auth.signOut(); } catch (e) { console.error('Sign out error:', e); }
+        }
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('demoRole');
+        localStorage.removeItem('pup_user');
+        goToLogin();
+      });
+    }
+
+    // 6. Reservation Modal Controls
+    const resModal = document.getElementById('reservationModal');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const btnCancelModal = document.getElementById('btnCancelModal');
+    const resForm = document.getElementById('reservationForm');
+
+    if (btnCloseModal) btnCloseModal.addEventListener('click', () => resModal.classList.add('hidden'));
+    if (btnCancelModal) btnCancelModal.addEventListener('click', () => resModal.classList.add('hidden'));
+
+    if (resForm) {
+      resForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const room = document.getElementById('resRoomSelect').value;
+        const date = document.getElementById('resDate').value;
+        const subject = document.getElementById('resSubject').value;
+        const faculty = document.getElementById('resFaculty').value;
+
+        const newId = `RES-${Math.floor(1000 + Math.random() * 9000)}`;
+        State.studentReservations.unshift({
+          id: newId,
+          room,
+          subject,
+          faculty,
+          date: date || 'Upcoming',
+          time: 'Scheduled',
+          status: 'Pending Admin Confirmation',
+          statusType: 'pending'
+        });
+
+        resModal.classList.add('hidden');
+        resForm.reset();
+        window.showToast(`Reservation ${newId} submitted successfully!`, 'success');
+        renderViewForRole(State.detectedRole, State.user);
+      });
+    }
+
+    // 7. Slip Modal dismiss
+    const slipModal = document.getElementById('slipModal');
+    const btnCloseSlipModal = document.getElementById('btnCloseSlipModal');
+    const btnDismissSlip = document.getElementById('btnDismissSlip');
+    if (btnCloseSlipModal) btnCloseSlipModal.addEventListener('click', () => slipModal.classList.add('hidden'));
+    if (btnDismissSlip) btnDismissSlip.addEventListener('click', () => slipModal.classList.add('hidden'));
+
+    // 8. Toast Close
+    const btnCloseToast = document.getElementById('btnCloseToast');
+    if (btnCloseToast) {
+      btnCloseToast.addEventListener('click', () => {
+        const toast = document.getElementById('dashboardToast');
+        if (toast) toast.classList.add('translate-y-12', 'opacity-0');
+      });
+    }
+  }
+
+  // ==========================================
+  // 13. GLOBAL WINDOW ACTIONS
+  // ==========================================
+  window.openReservationModal = function (defaultRoom) {
+    const modal = document.getElementById('reservationModal');
+    const roomSelect = document.getElementById('resRoomSelect');
+    if (roomSelect && defaultRoom) {
+      for (let opt of roomSelect.options) {
+        if (opt.text.includes(defaultRoom) || opt.value.includes(defaultRoom)) {
+          opt.selected = true;
+          break;
+        }
+      }
+    }
+    if (modal) modal.classList.remove('hidden');
+  };
+
+  window.viewDigitalPass = function (resId) {
+    const modal = document.getElementById('slipModal');
+    const content = document.getElementById('slipContent');
+    if (!modal || !content) return;
+
+    const res = State.studentReservations.find(r => r.ref === resId) ||
+      State.adminActivity.find(r => r.ref === resId) ||
+      { id: resId, room: '-', subject: '-', time: '-', statusLabel: 'NOT FOUND', statusClass: 'text-gray-500' };
+
+    content.innerHTML = `
+      <div class="text-center pb-2 border-b border-gray-200">
+        <p class="font-bold text-xs text-[#880000]">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES</p>
+        <p class="text-[10px] text-gray-500 uppercase">Canlalay Campus &bull; Room Reservation Slip</p>
+      </div>
+      <div class="bg-gray-50 p-3 rounded-[3px] border border-gray-200 space-y-2 text-xs">
+        <div class="flex justify-between"><span class="text-gray-500">Pass Reference:</span><strong class="text-[#880000] font-mono">${esc(res.id || res.ref || resId)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Facility:</span><strong class="text-gray-800">${esc(res.room)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Subject:</span><strong class="text-gray-800">${esc(res.subject || res.purpose)}</strong></div>
+        <div class="flex justify-between"><span class="text-gray-500">Schedule:</span><span>${esc(res.time || '-')}</span></div>
+      </div>
+      <div class="border-2 border-dashed border-gray-300 p-2 text-center rounded text-xs font-mono">
+        ||| | ||||| || |||||| | ||||| ||| |||| |
+        <p class="text-[10px] ${res.statusClass || 'text-emerald-600'} font-bold mt-1">STATUS: ${esc(res.statusLabel || 'VERIFIED PASS')}</p>
+      </div>
+    `;
+
+    modal.classList.remove('hidden');
+  };
+
+  // Student cancels one of their own pending reservations (PATCH /api/reservations/{id}/cancel)
+  window.cancelReservation = async function (id) {
+    const res = State.studentReservations.find(r => r.reservation_id === id);
+    const ref = res ? res.ref : 'this reservation';
+
+    const ok = window.crsConfirm
+      ? await window.crsConfirm(`Cancel reservation ${ref}?`, {
+          title: 'Cancel Reservation',
+          type: 'warning',
+          confirmText: 'Yes, Cancel',
+          cancelText: 'Keep',
+          danger: true
+        })
+      : confirm(`Cancel reservation ${ref}?`);
+    if (!ok) return;
+
+    try {
+      await window.api.reservations.cancel(id);
+      window.showToast(`Reservation ${ref} cancelled`, 'info');
+      await loadStudentDashboard();
+    } catch (err) {
+      console.error('Cancel failed:', err);
+      window.showToast(err.message || 'Could not cancel the reservation.', 'warning');
+    }
+  };
+
+  // Toast System
+  let toastTimer = null;
+  window.showToast = function (message, type = 'info') {
+    const toast = document.getElementById('dashboardToast');
+    const msgEl = document.getElementById('toastMessage');
+    const iconContainer = document.getElementById('toastIconContainer');
+    if (!toast || !msgEl) return;
+
+    msgEl.textContent = message;
+
+    if (iconContainer) {
+      if (type === 'success') iconContainer.className = 'p-1 rounded bg-emerald-600 text-white shrink-0';
+      else if (type === 'warning') iconContainer.className = 'p-1 rounded bg-amber-600 text-white shrink-0';
+      else iconContainer.className = 'p-1 rounded bg-[#880000] text-white shrink-0';
+    }
+
+    toast.classList.remove('translate-y-12', 'opacity-0', 'pointer-events-none');
+    toast.classList.add('translate-y-0', 'opacity-100');
+
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.add('translate-y-12', 'opacity-0');
+      toast.classList.remove('translate-y-0', 'opacity-100');
+    }, 3200);
+  };
+
+  // ==========================================
+  // 14. INITIALIZE ON DOM READY
+  // ==========================================
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboard);
+  } else {
+    initDashboard();
+  }
+
+})();

@@ -1,0 +1,58 @@
+@base = http://localhost:8000
+@token = token
+### List reservations (admin sees all, student sees own)
+GET {{base}}/api/reservations
+Authorization: Bearer {{token}}
+
+### Only pending, newest first (admin approvals screen)
+GET {{base}}/api/reservations?status=pending
+Authorization: Bearer {{token}}
+
+### Only my own reservations
+GET {{base}}/api/reservations?mine=true
+Authorization: Bearer {{token}}
+
+### One reservation
+GET {{base}}/api/reservations/1
+Authorization: Bearer {{token}}
+
+### Taken slots of a room in a date range
+GET {{base}}/api/rooms/1/taken-slots?from=2026-11-09&to=2026-11-15
+Authorization: Bearer {{token}}
+
+### Create a reservation (student token). Use a future date, 07:00-21:00.
+POST {{base}}/api/reservations
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "room_id": 1,
+  "faculty_id": "PASTE_FACULTY_USER_ID",
+  "subject": "Capstone consultation",
+  "reservation_date": "2026-11-12",
+  "start_time": "13:00",
+  "end_time": "15:00"
+}
+
+### Approve (admin token)
+PATCH {{base}}/api/reservations/1/decision
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "approve": true
+}
+
+### Reject with a reason (admin token)
+PATCH {{base}}/api/reservations/1/decision
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "approve": false,
+  "reason": "Room is reserved for a department event."
+}
+
+### Cancel (owner or admin)
+PATCH {{base}}/api/reservations/1/cancel
+Authorization: Bearer {{token}}
