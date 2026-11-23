@@ -48,12 +48,12 @@ class EmailService
         $safeUrl = htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8');
 
         $text = "Hello {$name},\n\n"
-            . "Good news! Your account for the PUP Campus Reservation System has been approved. "
+            . "Good news! Your account for the PUP Canlalay Campus - CRS has been approved. "
             . "You can now log in and access the website:\n{$loginUrl}\n\n"
-            . "Thank you,\nPUP Canlalay Campus - CCIS";
+            . "Thank you,\nPUP Canlalay Campus - CRS";
 
         $body = '<p>Hello <strong>' . $safeName . '</strong>,</p>'
-            . '<p>Good news! Your account for the PUP Campus Reservation System has been <strong>approved</strong>. '
+            . '<p>Good news! Your account for the PUP Canlalay Campus - CRS has been <strong>approved</strong>. '
             . 'You can now log in and access the website.</p>'
             . '<p><a href="' . $safeUrl . '" style="display:inline-block;background:#800000;color:#ffffff;'
             . 'padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Log in</a></p>'
@@ -76,12 +76,12 @@ class EmailService
         $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
 
         $text = "Hello {$name},\n\n"
-            . "We're sorry, but your account registration for the PUP Campus Reservation System was not approved.\n"
+            . "We're sorry, but your account registration for the PUP Canlalay Campus - CRS was not approved.\n"
             . "If you think this was a mistake, please contact the campus administrator.\n\n"
-            . "Thank you,\nPUP Canlalay Campus - CCIS";
+            . "Thank you,\nPUP Canlalay Campus - CRS";
 
         $body = '<p>Hello <strong>' . $safeName . '</strong>,</p>'
-            . '<p>We\'re sorry, but your account registration for the PUP Campus Reservation System '
+            . '<p>We\'re sorry, but your account registration for the PUP Canlalay Campus - CRS '
             . 'was <strong>not approved</strong>.</p>'
             . '<p>If you think this was a mistake, please contact the campus administrator.</p>';
 
@@ -200,7 +200,7 @@ class EmailService
             . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</div>'
             . '<div style="padding:24px;color:#222222;font-size:15px;line-height:1.5;">' . $content . '</div>'
             . '<div style="padding:12px 24px;background:#fafafa;color:#888888;font-size:12px;">'
-            . 'PUP Canlalay Campus - This is an automated message.</div>'
+            . 'PUP Canlalay Campus - CRS - This is an automated message.</div>'
             . '</div></body></html>';
     }
 }
