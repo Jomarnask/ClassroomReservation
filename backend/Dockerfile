@@ -5,13 +5,12 @@ FROM php:8.2-cli-alpine
 RUN apk add --no-cache \
     postgresql-dev \
     libpq \
-    curl \
-    curl-dev \
     git \
     unzip
 
-# Install and configure PHP extensions
-RUN docker-php-ext-install pdo pdo_pgsql curl
+# Install PHP extensions
+# (Note: cURL is already compiled into the official php:8.2-cli-alpine image by default)
+RUN docker-php-ext-install pdo pdo_pgsql
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
