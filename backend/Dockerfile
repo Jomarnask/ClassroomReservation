@@ -6,6 +6,7 @@ RUN apk add --no-cache \
     postgresql-dev \
     libpq \
     curl \
+    curl-dev \
     git \
     unzip
 
