@@ -29,6 +29,11 @@ class Config
             'db_persistent' => filter_var($_ENV['DB_PERSISTENT'] ?? true, FILTER_VALIDATE_BOOLEAN),
             // Seconds to remember a verified access token. Set AUTH_CACHE_TTL=0 to turn off.
             'auth_cache_ttl' => max(0, (int) ($_ENV['AUTH_CACHE_TTL'] ?? 60)),
+             // Email (Brevo HTTPS API). Leave MAIL_ENABLED=false to send nothing.
+            'mail_enabled' => filter_var($_ENV['MAIL_ENABLED'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'mail_api_key' => $_ENV['MAIL_API_KEY'] ?? '',
+            'mail_from_email' => $_ENV['MAIL_FROM_EMAIL'] ?? '',
+            'mail_from_name' => $_ENV['MAIL_FROM_NAME'] ?? 'PUP CRS',
         ];
     }
 

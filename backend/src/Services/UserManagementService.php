@@ -24,10 +24,12 @@ class UserManagementService
     ];
 
     private UserManagementRepository $repository;
+    private EmailService $mailer;
 
-    public function __construct(?UserManagementRepository $repository = null)
+    public function __construct(?UserManagementRepository $repository = null, ?EmailService $mailer = null)
     {
         $this->repository = $repository ?? new UserManagementRepository();
+        $this->mailer = $mailer ?? new EmailService();
     }
 
     /** Admin only: list user accounts. */
@@ -44,8 +46,9 @@ class UserManagementService
     public function setStatus(AuthenticatedUser $admin, string $userId, array $input): array
     {
         $status = $this->validateStatusInput($input);
+        $previous = null;
 
-        return $this->run($admin, function (PDO $pdo) use ($admin, $userId, $status) {
+        $updated = $this->run($admin, function (PDO $pdo) use ($admin, $userId, $status, &$previous) {
             $this->assertAdmin($pdo, $admin);
 
             if (strtolower($userId) === strtolower($admin->getId())) {
@@ -59,6 +62,7 @@ class UserManagementService
             }
 
             $current = $target['account_status'];
+            $previous = $current;
 
             if ($current === $status) {
                 throw new ApiException('This account is already ' . $status . '.', 409);
@@ -79,6 +83,30 @@ class UserManagementService
 
             return $updated;
         });
+
+        // The change is already saved at this point. Sending the email can never undo it.
+        $this->notifyUser($previous, $status, $updated);
+
+        return $updated;
+    }
+
+    /**
+     * Emails the user when their registration is decided:
+     *  - pending/rejected -> active : "your account has been approved"
+     *  - pending -> rejected        : "we're sorry, your account was not approved"
+     * Deactivating or reactivating an inactive account sends nothing.
+     */
+    private function notifyUser(?string $previous, string $status, array $user): void
+    {
+        try {
+            if ($status === 'active' && in_array($previous, ['pending', 'rejected'], true)) {
+                $this->mailer->sendAccountApproved($user);
+            } elseif ($status === 'rejected' && $previous === 'pending') {
+                $this->mailer->sendAccountRejected($user);
+            }
+        } catch (Throwable $e) {
+            error_log('[Email] ' . $e->getMessage());
+        }
     }
 
     private function assertAdmin(PDO $pdo, AuthenticatedUser $user): void
