@@ -174,7 +174,8 @@
     reservations: [],           // reservations of the selected room (today & tomorrow)
     facultyMap: {},             // faculty user_id -> full name
     submitting: false,
-    toastTimer: null
+    toastTimer: null,
+    mobileDayIndex: 0
   };
 
   function normalizeRole(raw) {
@@ -666,6 +667,7 @@
   async function selectRoom(r) {
     if (!r || !r.active) return;
     state.selectedRoom = r;
+    state.mobileDayIndex = 0;
 
     document.querySelectorAll('.room').forEach(btn => {
       const matches = btn.dataset.id === String(r.id) || btn.dataset.number === String(r.number);
@@ -781,6 +783,45 @@
     return card;
   }
 
+  // ── Mobile Day Tab Switcher Logic ─────────────────────────────────────────
+  function updateMobileDayTabs(activeDays) {
+    if (!activeDays || activeDays.length < 2) return;
+    const tab0 = document.getElementById('ttTabDay0');
+    const tab1 = document.getElementById('ttTabDay1');
+    const p0 = document.getElementById('ttTabDay0Prefix');
+    const n0 = document.getElementById('ttTabDay0Name');
+    const p1 = document.getElementById('ttTabDay1Prefix');
+    const n1 = document.getElementById('ttTabDay1Name');
+
+    const day0Date = activeDays[0].shortDate.includes('• ') ? activeDays[0].shortDate.split('• ')[1] : activeDays[0].shortDate;
+    const day1Date = activeDays[1].shortDate.includes('• ') ? activeDays[1].shortDate.split('• ')[1] : activeDays[1].shortDate;
+
+    if (p0) p0.textContent = activeDays[0].labelPrefix;
+    if (n0) n0.textContent = `${activeDays[0].dayName} (${day0Date})${activeDays[0].closed ? ' • Closed' : ''}`;
+    if (p1) p1.textContent = activeDays[1].labelPrefix;
+    if (n1) n1.textContent = `${activeDays[1].dayName} (${day1Date})${activeDays[1].closed ? ' • Closed' : ''}`;
+
+    if (tab0 && tab1) {
+      const is0 = state.mobileDayIndex === 0;
+      tab0.className = 'tt-day-tab flex-1 py-2 px-3 text-xs font-bold rounded-md transition text-center ' +
+        (is0 ? 'bg-[#880000] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900');
+      tab1.className = 'tt-day-tab flex-1 py-2 px-3 text-xs font-bold rounded-md transition text-center ' +
+        (!is0 ? 'bg-[#880000] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900');
+    }
+  }
+
+  function setMobileDayIndex(idx) {
+    state.mobileDayIndex = idx;
+    const activeDays = getTodayAndTomorrowDates();
+    updateMobileDayTabs(activeDays);
+    document.querySelectorAll('#timetableDaysHeader .day-header-col').forEach(el => {
+      el.classList.toggle('mobile-hidden-day', Number(el.dataset.dayIndex) !== idx);
+    });
+    document.querySelectorAll('#timetableGridBody .day-column').forEach(el => {
+      el.classList.toggle('mobile-hidden-day', Number(el.dataset.dayIndex) !== idx);
+    });
+  }
+
   // ── Render Today & Tomorrow Room Timetable Overlay ───────────────────────
   function renderWeeklyTimetable() {
     const r = state.selectedRoom;
@@ -821,6 +862,7 @@
     }
 
     const activeDays = getTodayAndTomorrowDates();
+    updateMobileDayTabs(activeDays);
 
     const weekLabel = document.getElementById('ttWeekRangeLabel');
     if (weekLabel) {
@@ -830,7 +872,7 @@
     const headersContainer = document.getElementById('timetableDaysHeader');
     if (headersContainer) {
       headersContainer.innerHTML = activeDays.map((wd, idx) => `
-        <div class="p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} ${wd.closed ? 'bg-gray-100 opacity-60' : 'bg-red-50/50'}">
+        <div class="day-header-col p-2.5 sm:p-3 border-r border-gray-200 ${idx === 1 ? 'border-r-0' : ''} ${wd.closed ? 'bg-gray-100 opacity-60' : 'bg-red-50/50'} ${state.mobileDayIndex !== idx ? 'mobile-hidden-day' : ''}" data-day-index="${idx}">
           <div class="font-extrabold text-xs uppercase tracking-wider ${wd.closed ? 'text-gray-500' : 'text-[#880000]'}">${wd.labelPrefix} (${wd.dayName})</div>
           <div class="text-[11px] text-gray-600 font-bold mt-0.5">${wd.shortDate.split('• ')[1]}${wd.closed ? ' • Closed' : ''}</div>
         </div>
@@ -855,9 +897,10 @@
     const startBoundary = 7 * 60;   // 07:00 AM
     const endBoundary = 21 * 60;    // 09:00 PM
 
-    activeDays.forEach((wd) => {
+    activeDays.forEach((wd, dayIdx) => {
       const colEl = document.createElement('div');
-      colEl.className = 'day-column';
+      colEl.className = 'day-column' + (state.mobileDayIndex !== dayIdx ? ' mobile-hidden-day' : '');
+      colEl.dataset.dayIndex = String(dayIdx);
 
       let linesHtml = '';
       for (let h = 7; h < 21; h++) {
@@ -1444,6 +1487,16 @@
     const btnCloseTT = document.getElementById('btnCloseTimetablePanel');
     if (btnCloseTT) {
       btnCloseTT.addEventListener('click', closeTimetablePanel);
+    }
+
+    const tab0 = document.getElementById('ttTabDay0');
+    if (tab0) {
+      tab0.addEventListener('click', () => setMobileDayIndex(0));
+    }
+
+    const tab1 = document.getElementById('ttTabDay1');
+    if (tab1) {
+      tab1.addEventListener('click', () => setMobileDayIndex(1));
     }
 
     const ttOverlay = document.getElementById('timetableOverlay');
