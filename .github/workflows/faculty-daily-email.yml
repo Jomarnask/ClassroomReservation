@@ -1,0 +1,68 @@
+name: Faculty Daily Morning Schedule Email
+
+on:
+  schedule:
+    # 20:00 UTC = 04:00 AM Asia/Manila (PH Time), Monday through Saturday
+    - cron: '0 20 * * 1-6'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Target date (YYYY-MM-DD, PH time). Leave blank for today.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Simulate without sending emails or writing logs'
+        type: boolean
+        required: false
+        default: false
+      force:
+        description: 'Send even if already logged for this date'
+        type: boolean
+        required: false
+        default: false
+      to:
+        description: 'Optional test email override (redirects all emails here and skips logging)'
+        required: false
+        default: ''
+
+jobs:
+  send-faculty-daily-schedule:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake up backend service (Render cold-start check)
+        run: |
+          if [ -z "${{ secrets.BACKEND_URL }}" ]; then
+            echo "Missing BACKEND_URL repository secret."
+            exit 1
+          fi
+          curl -fsS --retry 5 --retry-delay 10 --retry-all-errors \
+            "${{ secrets.BACKEND_URL }}/api/health" > /dev/null
+
+      - name: Trigger faculty daily schedule email job
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          INPUT_DATE: ${{ github.event.inputs.date || '' }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          INPUT_FORCE: ${{ github.event.inputs.force || 'false' }}
+          INPUT_TO: ${{ github.event.inputs.to || '' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing CRON_SECRET repository secret."
+            exit 1
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg date "$INPUT_DATE" \
+            --argjson dry_run "$INPUT_DRY_RUN" \
+            --argjson force "$INPUT_FORCE" \
+            --arg to "$INPUT_TO" \
+            '{date: (if $date == "" then null else $date end), dry_run: $dry_run, force: $force, to: (if $to == "" then null else $to end)}')
+
+          RESPONSE=$(curl -fsS --retry 3 --retry-delay 10 --retry-all-errors \
+            -X POST "${BACKEND_URL%/}/api/cron/faculty-daily-schedule" \
+            -H "Content-Type: application/json" \
+            -H "X-Cron-Secret: ${CRON_SECRET}" \
+            -d "$PAYLOAD")
+
+          echo "$RESPONSE"
