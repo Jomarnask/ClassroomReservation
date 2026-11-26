@@ -34,6 +34,8 @@ class Config
             'mail_api_key' => $_ENV['MAIL_API_KEY'] ?? '',
             'mail_from_email' => $_ENV['MAIL_FROM_EMAIL'] ?? '',
             'mail_from_name' => $_ENV['MAIL_FROM_NAME'] ?? 'PUP CRS',
+            // Shared secret for scheduled cron endpoints (e.g. GitHub Actions).
+            'cron_secret' => $_ENV['CRON_SECRET'] ?? '',
         ];
     }
 

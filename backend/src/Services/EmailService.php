@@ -94,6 +94,96 @@ class EmailService
         );
     }
 
+    /**
+     * Sends a faculty member's daily schedule digest for a given date.
+     * Returns false without sending if both lists are empty.
+     *
+     * @param array<string, mixed>       $faculty
+     * @param string                     $date                YYYY-MM-DD
+     * @param array<int, array<string, mixed>> $reservedClasses
+     * @param array<int, array<string, mixed>> $unreservedSchedules
+     */
+    public function sendFacultyDailySchedule(
+        array $faculty,
+        string $date,
+        array $reservedClasses,
+        array $unreservedSchedules,
+        ?string $overrideTo = null
+    ): bool {
+        if (empty($reservedClasses) && empty($unreservedSchedules)) {
+            return false;
+        }
+
+        $name = $this->cleanName($faculty['full_name'] ?? 'Faculty');
+        $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $formattedDate = $this->formatDateLabel($date);
+        $safeDate = htmlspecialchars($formattedDate, ENT_QUOTES, 'UTF-8');
+        $scheduleUrl = $this->scheduleUrl();
+        $safeUrl = htmlspecialchars($scheduleUrl, ENT_QUOTES, 'UTF-8');
+
+        $htmlParts = [
+            '<p>Hello <strong>' . $safeName . '</strong>,</p>',
+            '<p>Here is your class summary for <strong>' . $safeDate . '</strong> (ordered from earliest to latest):</p>',
+        ];
+
+        $textParts = [
+            "Hello {$name},",
+            '',
+            "Here is your class summary for {$formattedDate} (ordered from earliest to latest):",
+        ];
+
+        if (!empty($reservedClasses)) {
+            $htmlParts[] = $this->buildReservedClassesHtml($reservedClasses);
+            $textParts[] = '';
+            $textParts[] = '=== RESERVED CLASSES FOR TODAY ===';
+            foreach ($reservedClasses as $row) {
+                $time = $this->formatTimeRange($row['start_time'] ?? '', $row['end_time'] ?? '');
+                $room = $this->formatRoomLabel($row);
+                $section = $this->formatProgramSection($row);
+                $subject = trim((string) ($row['subject'] ?? '—'));
+                $status = strtoupper((string) ($row['status'] ?? 'approved'));
+                $textParts[] = "- {$time} | {$room} | {$section} | {$subject} [{$status}]";
+            }
+        }
+
+        if (!empty($unreservedSchedules)) {
+            $htmlParts[] = $this->buildUnreservedSchedulesHtml($unreservedSchedules);
+            $textParts[] = '';
+            $textParts[] = '=== CLASS SCHEDULES NOT YET RESERVED ===';
+            foreach ($unreservedSchedules as $row) {
+                $time = $this->formatTimeRange($row['start_time'] ?? '', $row['end_time'] ?? '');
+                $room = $this->formatRoomLabel($row);
+                $section = $this->formatProgramSection($row);
+                $subject = $this->formatScheduleSubject($row);
+                $textParts[] = "- {$time} | {$room} | {$section} | {$subject} [Not yet reserved]";
+            }
+        }
+
+        $htmlParts[] = '<p style="margin-top:20px;"><a href="' . $safeUrl . '" style="display:inline-block;background:#800000;color:#ffffff;'
+            . 'padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Open My Schedule</a></p>';
+
+        $textParts[] = '';
+        $textParts[] = "View your schedule online: {$scheduleUrl}";
+        $textParts[] = '';
+        $textParts[] = "Thank you,\nPUP Canlalay Campus - CRS";
+
+        $originalEmail = (string) ($faculty['pup_webmail'] ?? '');
+        $overrideTo = $overrideTo !== null ? trim($overrideTo) : '';
+        $recipientEmail = $overrideTo !== '' ? $overrideTo : $originalEmail;
+        $subject = "Your Daily Class Schedule - {$formattedDate}";
+        if ($overrideTo !== '') {
+            $subject = "[TEST for {$originalEmail}] " . $subject;
+        }
+
+        return $this->send(
+            $recipientEmail,
+            $name,
+            $subject,
+            $this->wrap('Daily Class Schedule', implode("\n", $htmlParts)),
+            implode("\n", $textParts)
+        );
+    }
+
     private function send(string $toEmail, string $toName, string $subject, string $html, string $text): bool
     {
         if (empty($this->settings['enabled'])) {
@@ -181,9 +271,162 @@ class EmailService
         return ['status' => $status, 'body' => (string) $body];
     }
 
+    private function buildReservedClassesHtml(array $rows): string
+    {
+        $trs = [];
+        foreach ($rows as $row) {
+            $time = htmlspecialchars($this->formatTimeRange($row['start_time'] ?? '', $row['end_time'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $room = htmlspecialchars($this->formatRoomLabel($row), ENT_QUOTES, 'UTF-8');
+            $section = htmlspecialchars($this->formatProgramSection($row), ENT_QUOTES, 'UTF-8');
+            $subject = htmlspecialchars(trim((string) ($row['subject'] ?? '—')), ENT_QUOTES, 'UTF-8');
+            $status = strtolower((string) ($row['status'] ?? 'approved'));
+            $badge = $status === 'pending'
+                ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:#FEF3C7;color:#92400E;font-size:12px;font-weight:bold;">Pending</span>'
+                : '<span style="display:inline-block;padding:2px 8px;border-radius:12px;background:#ECFDF5;color:#065F46;font-size:12px;font-weight:bold;">Approved</span>';
+
+            $trs[] = '<tr>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">' . $time . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $room . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $section . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $subject . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $badge . '</td>'
+                . '</tr>';
+        }
+
+        return $this->buildScheduleTableHtml(
+            'Reserved Classes for Today',
+            'Confirmed and pending room reservations tagging you for today.',
+            ['Time', 'Room', 'Program / Section', 'Subject', 'Status'],
+            $trs
+        );
+    }
+
+    private function buildUnreservedSchedulesHtml(array $rows): string
+    {
+        $trs = [];
+        foreach ($rows as $row) {
+            $time = htmlspecialchars($this->formatTimeRange($row['start_time'] ?? '', $row['end_time'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $room = htmlspecialchars($this->formatRoomLabel($row), ENT_QUOTES, 'UTF-8');
+            $section = htmlspecialchars($this->formatProgramSection($row), ENT_QUOTES, 'UTF-8');
+            $subject = htmlspecialchars($this->formatScheduleSubject($row), ENT_QUOTES, 'UTF-8');
+
+            $trs[] = '<tr>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;white-space:nowrap;">' . $time . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $room . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $section . '</td>'
+                . '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">' . $subject . '</td>'
+                . '</tr>';
+        }
+
+        return $this->buildScheduleTableHtml(
+            'Class Schedules Not Yet Reserved',
+            'Your regular weekly classes today that do not have a room reservation yet.',
+            ['Time', 'Room', 'Program / Section', 'Subject'],
+            $trs
+        );
+    }
+
+    /**
+     * @param string[] $headers
+     * @param string[] $rowsHtml
+     */
+    private function buildScheduleTableHtml(string $heading, string $subtitle, array $headers, array $rowsHtml): string
+    {
+        $ths = implode('', array_map(
+            fn (string $h) => '<th style="text-align:left;padding:8px 10px;background:#800000;color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:0.03em;">'
+                . htmlspecialchars($h, ENT_QUOTES, 'UTF-8') . '</th>',
+            $headers
+        ));
+
+        return '<div style="margin-top:18px;">'
+            . '<h3 style="margin:0 0 4px 0;color:#800000;font-size:16px;">' . htmlspecialchars($heading, ENT_QUOTES, 'UTF-8') . '</h3>'
+            . '<p style="margin:0 0 10px 0;color:#4b5563;font-size:13px;">' . htmlspecialchars($subtitle, ENT_QUOTES, 'UTF-8') . '</p>'
+            . '<table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #e5e7eb;">'
+            . '<thead><tr>' . $ths . '</tr></thead>'
+            . '<tbody>' . implode('', $rowsHtml) . '</tbody>'
+            . '</table></div>';
+    }
+
+    private function formatDateLabel(string $date): string
+    {
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $date);
+
+        return $dt ? $dt->format('l, F j, Y') : $date;
+    }
+
+    private function formatTimeRange(mixed $start, mixed $end): string
+    {
+        return $this->formatSingleTime((string) $start) . ' - ' . $this->formatSingleTime((string) $end);
+    }
+
+    private function formatSingleTime(string $time): string
+    {
+        $time = trim($time);
+        foreach (['H:i:s', 'H:i'] as $fmt) {
+            $dt = \DateTimeImmutable::createFromFormat($fmt, $time);
+            if ($dt) {
+                return $dt->format('g:i A');
+            }
+        }
+
+        return $time !== '' ? $time : '—';
+    }
+
+    private function formatRoomLabel(array $row): string
+    {
+        $number = trim((string) ($row['room_number'] ?? ''));
+        $name = trim((string) ($row['room_name'] ?? ''));
+
+        if ($number !== '' && $name !== '' && strcasecmp($number, $name) !== 0) {
+            return $number . ' — ' . $name;
+        }
+
+        return $name !== '' ? $name : ($number !== '' ? $number : '—');
+    }
+
+    private function formatProgramSection(array $row): string
+    {
+        $program = trim((string) ($row['program_course'] ?? ''));
+        if ($program !== '' && preg_match('/\(([^)]+)\)\s*$/', $program, $m)) {
+            $program = trim($m[1]);
+        }
+
+        $year = $row['year_level'] ?? null;
+        $section = $row['section'] ?? null;
+
+        if ($program !== '' && $year !== null && $section !== null) {
+            return "{$program} {$year}-{$section}";
+        }
+
+        if ($program !== '') {
+            return $program;
+        }
+
+        $fallback = trim((string) ($row['course_section'] ?? ''));
+
+        return $fallback !== '' ? $fallback : '—';
+    }
+
+    private function formatScheduleSubject(array $row): string
+    {
+        $code = trim((string) ($row['subject_code'] ?? ''));
+        $title = trim((string) ($row['subject_title'] ?? ''));
+
+        if ($code !== '' && $title !== '') {
+            return $code . ' — ' . $title;
+        }
+
+        return $title !== '' ? $title : ($code !== '' ? $code : '—');
+    }
+
     private function loginUrl(): string
     {
         return rtrim((string) $this->settings['frontend_url'], '/') . '/login.html';
+    }
+
+    private function scheduleUrl(): string
+    {
+        return rtrim((string) $this->settings['frontend_url'], '/') . '/schedule.html';
     }
 
     /** Removes line breaks so a name can never inject extra email headers or lines. */
@@ -195,7 +438,7 @@ class EmailService
     private function wrap(string $title, string $content): string
     {
         return '<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">'
-            . '<div style="max-width:560px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;">'
+            . '<div style="max-width:680px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;">'
             . '<div style="background:#800000;color:#ffffff;padding:16px 24px;font-size:18px;font-weight:bold;">'
             . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</div>'
             . '<div style="padding:24px;color:#222222;font-size:15px;line-height:1.5;">' . $content . '</div>'

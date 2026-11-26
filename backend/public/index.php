@@ -8,6 +8,7 @@ use App\Auth\AuthMiddleware;
 use App\Controllers\AdminController;
 use App\Controllers\AdminDashboardController;
 use App\Controllers\AuditLogController;
+use App\Controllers\CronController;
 use App\Controllers\FacultyScheduleController;
 use App\Controllers\ScheduleController;
 use App\Controllers\HealthController;
@@ -96,6 +97,9 @@ $router->patch('/api/notifications/{notificationId}/read', [NotificationControll
 
 // 10. System audit trail - admin only, read-only (Protected)
 $router->get('/api/audit-logs', [AuditLogController::class, 'index'], [$authMiddleware]);
+
+// 11. Scheduled cron jobs (Protected by X-Cron-Secret header)
+$router->post('/api/cron/faculty-daily-schedule', [CronController::class, 'sendFacultyDailySchedule']);
 
 // -------------------------------------------------------------
 // Dispatch incoming request
