@@ -21,6 +21,7 @@ class ReservationRepository
             s.full_name AS student_name,
             s.pup_webmail AS student_webmail,
             s.student_number,
+            s.role::text AS student_role,
             COALESCE(r.program_course, s.program_course) AS program_course,
             COALESCE(r.year_level, s.year_level) AS year_level,
             COALESCE(r.section, s.section) AS section,
@@ -334,6 +335,36 @@ class ReservationRepository
             'room_id' => $roomId,
             'date_from' => $date,
             'date_to' => $date,
+            'start_time' => $start,
+            'end_time' => $end,
+        ]);
+
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * An approved reservation created by an administrator that overlaps the requested time.
+     * Used by admin bookings so admins can override student reservations, but not other admin bookings.
+     */
+    public function findApprovedAdminOverlap(PDO $pdo, int $roomId, string $date, string $start, string $end): ?array
+    {
+        $stmt = $pdo->prepare("
+            SELECT r.start_time, r.end_time
+            FROM public.room_reservations r
+            JOIN public.users u ON u.user_id = r.student_id
+            WHERE r.room_id = :room_id
+              AND r.reservation_date = CAST(:date AS date)
+              AND r.status = 'approved'
+              AND u.role = 'admin'
+              AND r.start_time < CAST(:end_time AS time)
+              AND r.end_time > CAST(:start_time AS time)
+            LIMIT 1
+        ");
+        $stmt->execute([
+            'room_id' => $roomId,
+            'date' => $date,
             'start_time' => $start,
             'end_time' => $end,
         ]);

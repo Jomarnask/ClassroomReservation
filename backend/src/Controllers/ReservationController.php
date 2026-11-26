@@ -119,11 +119,19 @@ class ReservationController
 
         $outcome = $this->service->createAsAdmin($user, $request->getBody());
         $rejected = (int) ($outcome['auto_rejected_competing_count'] ?? 0);
+        $overridden = (int) ($outcome['overridden_approved_count'] ?? 0);
+
+        $msgParts = ['Reservation created and approved.'];
+        if ($overridden > 0) {
+            $msgParts[] = "{$overridden} approved student reservation(s) were overridden.";
+        }
+        if ($rejected > 0) {
+            $msgParts[] = "{$rejected} overlapping pending request(s) were declined automatically.";
+        }
 
         Response::success(
             $outcome,
-            'Reservation created and approved.'
-                . ($rejected > 0 ? ' ' . $rejected . ' overlapping pending request(s) were declined automatically.' : ''),
+            implode(' ', $msgParts),
             201
         );
     }

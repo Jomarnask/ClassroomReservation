@@ -386,8 +386,9 @@ window.supabaseClient = client;
         status: r.status, subject: r.subject,
         faculty: r.faculty_name || state.facultyMap[r.faculty_id] || 'Tagged faculty',
         requester: r.student_name || 'Student',
+        studentRole: r.student_role || (r.class_booking ? 'admin' : 'student'),
         forClass: r.class_booking ? classText(r.program_course, r.year_level, r.section) : '',
-        adminBooking: !!(state.user && r.student_id === state.user.id),
+        adminBooking: r.student_role === 'admin' || (r.class_booking === true) || !!(state.user && r.student_id === state.user.id),
         detail: true
       };
     });
@@ -722,10 +723,25 @@ window.supabaseClient = client;
       var overlap = state.bk.reservations.filter(function (b) {
         return String(b.roomId) === String(room.id) && b.date === dateVal && b.startMinutes < eMin && b.endMinutes > sMin;
       });
-      var approved = overlap.filter(function (b) { return b.status === 'approved'; })[0];
+      var approved = overlap.filter(function (b) { return b.status === 'approved'; });
+      var approvedAdmin = approved.filter(function (b) { return b.adminBooking; })[0];
+      var approvedStudent = approved.filter(function (b) { return !b.adminBooking; });
       var pend = overlap.filter(function (b) { return b.status === 'pending'; });
-      if (approved) { type = 'bad'; msg = 'This time overlaps an approved reservation (' + approved.start + ' – ' + approved.end + ').'; valid = false; }
-      else if (pend.length) { type = 'warn'; msg = pend.length + ' pending student request(s) overlap this time. They will be automatically rejected when you reserve it.'; }
+
+      if (approvedAdmin) {
+        type = 'bad';
+        msg = 'This time overlaps an approved administrator booking (' + approvedAdmin.start + ' – ' + approvedAdmin.end + ').';
+        valid = false;
+      } else if (approvedStudent.length) {
+        type = 'warn';
+        var studentNames = approvedStudent.map(function (s) { return s.requester; }).filter(Boolean).join(', ');
+        msg = 'This time overlaps ' + approvedStudent.length + ' approved student reservation' + (approvedStudent.length > 1 ? 's' : '') +
+          (studentNames ? ' (' + studentNames + ')' : '') + '. Submitting will override and cancel ' + (approvedStudent.length > 1 ? 'them' : 'it') +
+          (pend.length ? ' and reject ' + pend.length + ' pending request(s)' : '') + '.';
+      } else if (pend.length) {
+        type = 'warn';
+        msg = pend.length + ' pending student request(s) overlap this time. They will be automatically rejected when you reserve it.';
+      }
     }
 
     // The booking must be assigned to a class so its students can see it
@@ -795,8 +811,11 @@ window.supabaseClient = client;
       renderTimetable();
     }
     var rejected = outcome && outcome.auto_rejected_competing_count ? outcome.auto_rejected_competing_count : 0;
-    toast('Reserved and approved for ' + classText(p.program, p.year, p.section) + ': ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.' +
-      (rejected ? ' ' + rejected + ' overlapping pending request(s) were declined automatically.' : ''));
+    var overridden = outcome && outcome.overridden_approved_count ? outcome.overridden_approved_count : 0;
+    var msgParts = ['Reserved and approved for ' + classText(p.program, p.year, p.section) + ': ' + displayName(room) + ', ' + p.start + ' – ' + p.end + '.'];
+    if (overridden) msgParts.push(overridden + ' approved student reservation(s) were overridden.');
+    if (rejected) msgParts.push(rejected + ' overlapping pending request(s) were declined automatically.');
+    toast(msgParts.join(' '));
   }
 
   // ── Mount into the admin dashboard ───────────────────────────────────────
