@@ -93,6 +93,7 @@ DECLARE
     v_program TEXT := BTRIM(COALESCE(p_program, ''));
     v_id INTEGER;
     v_rejected INTEGER := 0;
+    v_overridden INTEGER := 0;
 BEGIN
     IF v_admin IS NULL OR NOT EXISTS (
         SELECT 1 FROM public.users
@@ -144,16 +145,37 @@ BEGIN
         RAISE EXCEPTION 'The selected faculty member is not available.';
     END IF;
 
+    -- Block only if the overlapping approved booking belongs to another administrator
     IF EXISTS (
-        SELECT 1 FROM public.room_reservations
-        WHERE room_id = p_room_id
-          AND reservation_date = p_date
-          AND status = 'approved'
-          AND p_start < end_time AND p_end > start_time
+        SELECT 1 FROM public.room_reservations r
+        JOIN public.users u ON u.user_id = r.student_id
+        WHERE r.room_id = p_room_id
+          AND r.reservation_date = p_date
+          AND r.status = 'approved'
+          AND u.role = 'admin'
+          AND p_start < r.end_time AND p_end > r.start_time
     ) THEN
-        RAISE EXCEPTION 'Cannot book: this time overlaps an already approved reservation.';
+        RAISE EXCEPTION 'Cannot book: this time overlaps an already approved administrator booking.';
     END IF;
 
+    -- 1. OVERRIDE approved student reservations FIRST so that the table's
+    -- exclusion constraint (exclude_approved_reservation_overlap) is not violated
+    UPDATE public.room_reservations r
+    SET status = 'rejected',
+        admin_id = v_admin,
+        responded_at = now(),
+        admin_remarks = 'Overridden by Administrator booking (' || v_subject || ').'
+    FROM public.users u
+    WHERE r.student_id = u.user_id
+      AND u.role = 'student'
+      AND r.room_id = p_room_id
+      AND r.reservation_date = p_date
+      AND r.status = 'approved'
+      AND p_start < r.end_time AND p_end > r.start_time;
+
+    GET DIAGNOSTICS v_overridden = ROW_COUNT;
+
+    -- 2. Insert the new approved admin reservation
     INSERT INTO public.room_reservations (
         room_id, student_id, faculty_id, subject,
         reservation_date, start_time, end_time,
@@ -167,12 +189,12 @@ BEGIN
     )
     RETURNING reservation_id INTO v_id;
 
-    -- Competing pending requests for the same room and time are rejected
+    -- 3. Competing pending student requests for the same room and time are rejected
     UPDATE public.room_reservations
     SET status = 'rejected',
         admin_id = v_admin,
         responded_at = now(),
-        admin_remarks = 'Auto-rejected: Slot booked by another approved reservation.'
+        admin_remarks = 'Auto-rejected: Slot booked by an approved administrator reservation.'
     WHERE room_id = p_room_id
       AND reservation_date = p_date
       AND status = 'pending'
@@ -185,7 +207,8 @@ BEGIN
         'success', true,
         'reservation_id', v_id,
         'status', 'approved',
-        'auto_rejected_competing_count', v_rejected
+        'auto_rejected_competing_count', v_rejected,
+        'overridden_approved_count', v_overridden
     );
 END;
 $$;

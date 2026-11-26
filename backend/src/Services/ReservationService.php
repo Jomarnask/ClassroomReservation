@@ -162,7 +162,7 @@ class ReservationService
                 throw new ApiException('The selected faculty member is not available.', 422);
             }
 
-            $approved = $this->repository->findApprovedOverlap(
+            $adminApproved = $this->repository->findApprovedAdminOverlap(
                 $pdo,
                 $data['room_id'],
                 $data['reservation_date'],
@@ -170,10 +170,10 @@ class ReservationService
                 $data['end_time']
             );
 
-            if ($approved) {
+            if ($adminApproved) {
                 throw new ApiException(
-                    'This time overlaps an approved reservation ('
-                    . $this->shortTime($approved['start_time']) . ' - ' . $this->shortTime($approved['end_time']) . ').',
+                    'This time overlaps an approved administrator booking ('
+                    . $this->shortTime($adminApproved['start_time']) . ' - ' . $this->shortTime($adminApproved['end_time']) . ').',
                     409
                 );
             }
@@ -183,6 +183,7 @@ class ReservationService
             return [
                 'reservation' => $this->repository->findById($pdo, (int) $outcome['reservation_id']),
                 'auto_rejected_competing_count' => (int) ($outcome['auto_rejected_competing_count'] ?? 0),
+                'overridden_approved_count' => (int) ($outcome['overridden_approved_count'] ?? 0),
             ];
         });
     }

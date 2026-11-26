@@ -340,8 +340,10 @@
       data = await api.rooms.list();
     } catch (error) {
       console.error('Load rooms failed:', error);
-      if (floorsEl) floorsEl.innerHTML = `<div class="muted" style="padding:16px">Could not load rooms: ${esc(error.message)}</div>`;
-      state.rooms = [];
+      // Only display the error placeholder if we do not already have rooms rendered
+      if ((!state.rooms || state.rooms.length === 0) && floorsEl) {
+        floorsEl.innerHTML = `<div class="muted" style="padding:16px">Could not load rooms: ${esc(error.message)}</div>`;
+      }
       return;
     }
 
@@ -371,6 +373,69 @@
     }
 
     renderFloors();
+  }
+
+  // ── Realtime Subscription for Room Management Changes ─────────────────────
+  let roomRealtimeChannel = null;
+
+  async function handleRoomsUpdate() {
+    await loadRooms();
+
+    if (state.selectedRoom) {
+      const updated = state.byId[String(state.selectedRoom.id)];
+      if (!updated) {
+        closeReservationModal();
+        closeTimetablePanel();
+        state.selectedRoom = null;
+        showToast('The classroom you were viewing has been removed.');
+        return;
+      }
+
+      const wasActive = state.selectedRoom.active;
+      state.selectedRoom = updated;
+
+      const ttOverlay = document.getElementById('timetableOverlay');
+      const isTtOpen = ttOverlay && !ttOverlay.classList.contains('hidden');
+
+      if (isTtOpen) {
+        if (wasActive && !updated.active) {
+          closeReservationModal();
+          showToast(`${displayName(updated)} was marked inactive and is unavailable.`);
+        }
+        renderWeeklyTimetable();
+      }
+    }
+  }
+
+  function initRoomRealtimeSubscription() {
+    if (!client || !client.channel) return;
+
+    if (roomRealtimeChannel) {
+      try { client.removeChannel(roomRealtimeChannel); } catch (e) { /* ignore */ }
+      roomRealtimeChannel = null;
+    }
+
+    try {
+      roomRealtimeChannel = client
+        .channel('public:rooms')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'rooms' },
+          async (payload) => {
+            console.log('[Realtime] Room change event received:', payload.eventType);
+            await handleRoomsUpdate();
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[Realtime] Subscribed to rooms table changes.');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] Channel error on rooms subscription:', err);
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to initialize room realtime channel:', err);
+    }
   }
 
   // ── Faculty dropdown (real faculty from the database) ───────────────────
@@ -849,9 +914,12 @@
       }
     }
 
-    // Only students can reserve: hide the Reserve button for admin / faculty
+    // Only students can reserve: hide the Reserve button for admin / faculty, or if room is inactive
     const btnReserve = document.getElementById('btnReserveTime');
-    if (btnReserve) btnReserve.classList.toggle('hidden', !state.canReserve);
+    if (btnReserve) {
+      btnReserve.classList.toggle('hidden', !state.canReserve || !r.active);
+      btnReserve.disabled = !r.active;
+    }
 
     const titleEl = document.getElementById('ttRoomTitle');
     if (titleEl) titleEl.textContent = displayName(r);
@@ -1597,6 +1665,7 @@
       wireEvents();
       await loadRooms();
       await loadFacultyList();
+      initRoomRealtimeSubscription();
     } catch (err) {
       console.error('Browse rooms initialization error:', err);
       goToLogin(); // fail closed
@@ -1605,9 +1674,42 @@
 
   if (client && client.auth) {
     client.auth.onAuthStateChange(event => {
-      if (event === 'SIGNED_OUT') goToLogin();
+      if (event === 'SIGNED_OUT') {
+        if (roomRealtimeChannel) {
+          try { client.removeChannel(roomRealtimeChannel); } catch (e) { /* ignore */ }
+          roomRealtimeChannel = null;
+        }
+        goToLogin();
+      }
     });
   }
+
+  window.addEventListener('beforeunload', () => {
+    if (client && roomRealtimeChannel) {
+      try { client.removeChannel(roomRealtimeChannel); } catch (e) { /* ignore */ }
+      roomRealtimeChannel = null;
+    }
+  });
+
+  // Re-sync rooms when returning to the tab (safety net for sleep/background drops)
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      await handleRoomsUpdate();
+      if (state.selectedRoom && state.selectedRoom.active) {
+        const ttOverlay = document.getElementById('timetableOverlay');
+        if (ttOverlay && !ttOverlay.classList.contains('hidden')) {
+          await refreshReservations();
+          renderWeeklyTimetable();
+        }
+      }
+    }
+  });
+
+  window.addEventListener('focus', async () => {
+    if (document.visibilityState === 'visible') {
+      await handleRoomsUpdate();
+    }
+  });
 
   window.addEventListener('pageshow', (e) => {
     if (e.persisted) window.location.reload();
