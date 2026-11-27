@@ -23,10 +23,12 @@ class ReservationService
     private const MIN_LEAD_MINUTES = 120;
 
     private ReservationRepository $repository;
+    private EmailService $mailer;
 
-    public function __construct(?ReservationRepository $repository = null)
+    public function __construct(?ReservationRepository $repository = null, ?EmailService $mailer = null)
     {
         $this->repository = $repository ?? new ReservationRepository();
+        $this->mailer = $mailer ?? new EmailService();
     }
 
     // ------------------------------------------------------------------
@@ -232,7 +234,7 @@ class ReservationService
     {
         $decision = $this->validateDecision($input);
 
-        return $this->run($user, function (PDO $pdo) use ($user, $reservationId, $decision) {
+        $outcome = $this->run($user, function (PDO $pdo) use ($user, $reservationId, $decision) {
             $access = $this->repository->findUserAccess($pdo, $user->getId());
 
             if (!$access
@@ -253,18 +255,74 @@ class ReservationService
                 'result' => $result,
             ];
         });
+
+        // The decision is already saved at this point. Sending the email can never undo it.
+        $this->emailDecision($outcome['reservation'] ?? null);
+
+        return $outcome;
     }
 
     /** The owner (or an admin) cancels a pending or approved reservation. */
     public function cancel(AuthenticatedUser $user, int $reservationId): array
     {
-        return $this->run($user, function (PDO $pdo) use ($user, $reservationId) {
+        $actorIsAdmin = false;
+
+        $reservation = $this->run($user, function (PDO $pdo) use ($user, $reservationId, &$actorIsAdmin) {
             $this->assertActiveAccount($pdo, $user);
+
+            $access = $this->repository->findUserAccess($pdo, $user->getId());
+            $actorIsAdmin = ($access['role'] ?? '') === 'admin';
 
             $this->repository->cancel($pdo, $reservationId);
 
             return $this->repository->findById($pdo, $reservationId);
         });
+
+        // A student who cancels their own reservation does not need an email about it.
+        if ($actorIsAdmin) {
+            $this->emailCancellation($reservation, $user->getId());
+        }
+
+        return $reservation;
+    }
+
+    // ------------------------------------------------------------------
+    // Emails (sent after the change is saved; a failed email never undoes it)
+    // ------------------------------------------------------------------
+
+    /** Approved or declined by an admin -> email the student who asked. */
+    private function emailDecision(?array $reservation): void
+    {
+        if (!$reservation || ($reservation['student_role'] ?? '') !== 'student') {
+            return; // admin bookings (made for a class) have no student to email
+        }
+
+        try {
+            if (($reservation['status'] ?? '') === 'approved') {
+                $this->mailer->sendReservationApproved($reservation);
+            } elseif (($reservation['status'] ?? '') === 'rejected') {
+                $this->mailer->sendReservationDeclined($reservation);
+            }
+        } catch (Throwable $e) {
+            error_log('[Email] ' . $e->getMessage());
+        }
+    }
+
+    /** Cancelled by an admin -> email the student whose reservation it was. */
+    private function emailCancellation(?array $reservation, string $actorId): void
+    {
+        if (!$reservation
+            || ($reservation['status'] ?? '') !== 'cancelled'
+            || ($reservation['student_role'] ?? '') !== 'student'
+            || (string) ($reservation['student_id'] ?? '') === $actorId) {
+            return;
+        }
+
+        try {
+            $this->mailer->sendReservationCancelled($reservation);
+        } catch (Throwable $e) {
+            error_log('[Email] ' . $e->getMessage());
+        }
     }
 
     // ------------------------------------------------------------------
