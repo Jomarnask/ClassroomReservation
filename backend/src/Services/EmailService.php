@@ -244,6 +244,46 @@ class EmailService
     }
 
     /**
+     * Emails the student about a reservation the SYSTEM changed for them
+     * (not the admin's own click): an auto-cancel, an override by an admin
+     * booking, or a competing request that was auto-rejected.
+     *
+     * @param array<string, mixed> $row needs status and admin_remarks plus the usual reservation fields
+     */
+    public function sendReservationSystemChange(array $row): bool
+    {
+        $status = (string) ($row['status'] ?? '');
+        $remarks = $this->cleanName($row['admin_remarks'] ?? '');
+
+        if ($status === 'cancelled') {
+            // "Automatically cancelled: no admin decision was made ..." -> keep only the reason part.
+            $reason = preg_match('/^Automatically cancelled:\s*(.+)$/i', $remarks, $m) ? $m[1] : $remarks;
+            $reason = trim($reason) !== '' ? ucfirst(trim($reason)) : 'No admin decision was made in time.';
+
+            return $this->sendReservationCancelled($row, $reason);
+        }
+
+        if ($status === 'rejected') {
+            // An admin booking took over an already approved reservation.
+            if (stripos($remarks, 'Overridden by Administrator booking') === 0) {
+                return $this->sendReservationCancelled(
+                    $row,
+                    'An administrator booking replaced your reserved time slot.'
+                );
+            }
+
+            // "Auto-rejected: Slot booked by another ..." -> keep only the reason part.
+            if (preg_match('/^Auto-rejected:\s*(.+)$/i', $remarks, $m)) {
+                $row['admin_remarks'] = trim($m[1]);
+            }
+
+            return $this->sendReservationDeclined($row);
+        }
+
+        return false;
+    }
+
+    /**
      * Shared layout of the three reservation emails: greeting, one sentence,
      * the reservation details, optional notes and one button.
      *

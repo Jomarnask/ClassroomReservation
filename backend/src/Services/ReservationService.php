@@ -22,8 +22,18 @@ class ReservationService
     // A new request must start at least this many minutes from now (2 hours).
     private const MIN_LEAD_MINUTES = 120;
 
+    // Most system-triggered emails one request may send (each email takes a moment).
+    private const MAX_SYSTEM_EMAILS = 20;
+
     private ReservationRepository $repository;
     private EmailService $mailer;
+
+    // Set while an action runs: did the database reject or cancel OTHER people's
+    // reservations too (auto-cancel, competing requests, admin override)?
+    private bool $needsEmailFollowUp = false;
+    private ?string $emailStamp = null;
+    /** @var int[] reservations that already get their own email (the one the admin decided) */
+    private array $emailSkipIds = [];
 
     public function __construct(?ReservationRepository $repository = null, ?EmailService $mailer = null)
     {
@@ -182,10 +192,17 @@ class ReservationService
 
             $outcome = $this->repository->createAdminReservation($pdo, $data);
 
+            $autoRejected = (int) ($outcome['auto_rejected_competing_count'] ?? 0);
+            $overridden = (int) ($outcome['overridden_approved_count'] ?? 0);
+
+            if ($autoRejected > 0 || $overridden > 0) {
+                $this->needsEmailFollowUp = true;
+            }
+
             return [
                 'reservation' => $this->repository->findById($pdo, (int) $outcome['reservation_id']),
-                'auto_rejected_competing_count' => (int) ($outcome['auto_rejected_competing_count'] ?? 0),
-                'overridden_approved_count' => (int) ($outcome['overridden_approved_count'] ?? 0),
+                'auto_rejected_competing_count' => $autoRejected,
+                'overridden_approved_count' => $overridden,
             ];
         });
     }
@@ -249,6 +266,14 @@ class ReservationService
                 $decision['approve'],
                 $decision['reason']
             );
+
+            // The decided reservation gets its own email below; competing requests that
+            // the database auto-rejected get theirs from emailSideEffects().
+            $this->emailSkipIds[] = $reservationId;
+
+            if ((int) ($result['auto_rejected_competing_count'] ?? 0) > 0) {
+                $this->needsEmailFollowUp = true;
+            }
 
             return [
                 'reservation' => $this->repository->findById($pdo, $reservationId),
@@ -601,17 +626,70 @@ class ReservationService
 
     private function run(AuthenticatedUser $user, callable $callback): mixed
     {
+        $this->needsEmailFollowUp = false;
+        $this->emailStamp = null;
+        $this->emailSkipIds = [];
+
         try {
-            return Database::runInUserContext($user, function (PDO $pdo) use ($callback) {
+            $result = Database::runInUserContext($user, function (PDO $pdo) use ($callback) {
                 // Pending requests that reached 1 hour before their start time are
                 // cancelled first, so every action below sees up-to-date statuses
                 // (an admin can no longer approve a request that is already overdue).
                 $this->expireStalePending($pdo);
 
-                return $callback($pdo);
+                $result = $callback($pdo);
+
+                // Remember when this transaction started: every row it changed carries
+                // that exact time in responded_at, which is how we find them afterwards.
+                if ($this->needsEmailFollowUp) {
+                    try {
+                        $this->emailStamp = $this->repository->transactionTimestamp($pdo);
+                    } catch (Throwable $e) {
+                        error_log('[Email] ' . $e->getMessage());
+                    }
+                }
+
+                return $result;
             });
         } catch (PDOException $e) {
             throw $this->translate($e);
+        }
+
+        // Everything is saved now. Sending emails can never undo it.
+        $this->emailSideEffects();
+
+        return $result;
+    }
+
+    /**
+     * Emails the students whose reservations the database changed on its own during
+     * the action that just finished (see needsEmailFollowUp). Never throws.
+     */
+    private function emailSideEffects(): void
+    {
+        if ($this->emailStamp === null) {
+            return;
+        }
+
+        try {
+            $rows = $this->repository->findChangesForEmail(Database::getConnection(), $this->emailStamp);
+            $sent = 0;
+
+            foreach ($rows as $row) {
+                if (in_array((int) $row['reservation_id'], $this->emailSkipIds, true)) {
+                    continue;
+                }
+
+                if ($sent >= self::MAX_SYSTEM_EMAILS) {
+                    error_log('[Email] Stopped after ' . self::MAX_SYSTEM_EMAILS . ' system emails in one request.');
+                    break;
+                }
+
+                $sent++;
+                $this->mailer->sendReservationSystemChange($row);
+            }
+        } catch (Throwable $e) {
+            error_log('[Email] ' . $e->getMessage());
         }
     }
 
@@ -623,8 +701,13 @@ class ReservationService
     {
         try {
             $pdo->exec('SAVEPOINT crs_expire_pending');
-            $this->repository->expireStalePending($pdo);
+            $cancelled = $this->repository->expireStalePending($pdo);
             $pdo->exec('RELEASE SAVEPOINT crs_expire_pending');
+
+            // Someone's pending request was auto-cancelled: they must be emailed afterwards.
+            if ($cancelled > 0) {
+                $this->needsEmailFollowUp = true;
+            }
         } catch (Throwable $e) {
             error_log('[Auto-cancel] ' . $e->getMessage());
 

@@ -187,6 +187,26 @@ class ReservationRepository
         return (int) $pdo->query('SELECT public.expire_stale_pending_reservations()')->fetchColumn();
     }
 
+    /** The start time of the current transaction (the same value now() returns inside it). */
+    public function transactionTimestamp(PDO $pdo): string
+    {
+        return (string) $pdo->query('SELECT transaction_timestamp()')->fetchColumn();
+    }
+
+    /**
+     * Reservations that one transaction rejected or cancelled, with the student's
+     * email, for the notification emails. Uses a database function because a
+     * student may not read other students' emails (Row Level Security).
+     * Run it on the normal backend connection, after the transaction is committed.
+     */
+    public function findChangesForEmail(PDO $pdo, string $stamp): array
+    {
+        $stmt = $pdo->prepare('SELECT * FROM public.get_reservation_email_changes(CAST(:stamp AS timestamptz))');
+        $stmt->execute(['stamp' => $stamp]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     // ------------------------------------------------------------------
     // Lookups used by the booking rules
     // ------------------------------------------------------------------
