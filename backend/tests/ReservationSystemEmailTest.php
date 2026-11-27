@@ -31,7 +31,7 @@ class ReservationSystemEmailTest extends TestCase
         ];
     }
 
-    private function run(array $row): ?array
+    private function sendAndCapture(array $row): ?array
     {
         $sent = [];
         $service = new EmailService(function (array $payload) use (&$sent) {
@@ -47,7 +47,7 @@ class ReservationSystemEmailTest extends TestCase
 
     public function testAutoCancelSaysCancelledWithTheReason(): void
     {
-        $mail = $this->run($this->row(
+        $mail = $this->sendAndCapture($this->row(
             'cancelled',
             'Automatically cancelled: no admin decision was made at least 1 hour before the start time.'
         ));
@@ -62,7 +62,7 @@ class ReservationSystemEmailTest extends TestCase
 
     public function testOverrideByAdminBookingSaysCancelled(): void
     {
-        $mail = $this->run($this->row('rejected', 'Overridden by Administrator booking (Class Meeting).'));
+        $mail = $this->sendAndCapture($this->row('rejected', 'Overridden by Administrator booking (Class Meeting).'));
 
         $this->assertStringContainsString('cancelled', $mail['subject']);
         $this->assertStringContainsString('An administrator booking replaced your reserved time slot.', $mail['textContent']);
@@ -70,7 +70,7 @@ class ReservationSystemEmailTest extends TestCase
 
     public function testCompetingRequestSaysDeclinedWithoutThePrefix(): void
     {
-        $mail = $this->run($this->row('rejected', 'Auto-rejected: Slot booked by another approved reservation.'));
+        $mail = $this->sendAndCapture($this->row('rejected', 'Auto-rejected: Slot booked by another approved reservation.'));
 
         $this->assertStringContainsString('declined', $mail['subject']);
         $this->assertStringContainsString('Reason: Slot booked by another approved reservation.', $mail['textContent']);
@@ -79,7 +79,7 @@ class ReservationSystemEmailTest extends TestCase
 
     public function testOtherStatusesSendNothing(): void
     {
-        $this->assertNull($this->run($this->row('approved', null)));
-        $this->assertNull($this->run($this->row('pending', null)));
+        $this->assertNull($this->sendAndCapture($this->row('approved', null)));
+        $this->assertNull($this->sendAndCapture($this->row('pending', null)));
     }
 }
