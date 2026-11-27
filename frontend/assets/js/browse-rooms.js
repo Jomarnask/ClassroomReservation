@@ -375,8 +375,10 @@
     renderFloors();
   }
 
-  // ── Realtime Subscription for Room Management Changes ─────────────────────
+  // ── Realtime Subscription for Room, Schedule & Reservation Changes ─────────
   let roomRealtimeChannel = null;
+  let roomRealtimeTimer = null;
+  let timetableRealtimeTimer = null;
 
   async function handleRoomsUpdate() {
     await loadRooms();
@@ -407,6 +409,31 @@
     }
   }
 
+  function scheduleRoomsUpdate() {
+    clearTimeout(roomRealtimeTimer);
+    roomRealtimeTimer = setTimeout(() => {
+      handleRoomsUpdate();
+    }, 300);
+  }
+
+  function scheduleTimetableRefresh() {
+    clearTimeout(timetableRealtimeTimer);
+    timetableRealtimeTimer = setTimeout(async () => {
+      if (!state.selectedRoom || !state.selectedRoom.active) return;
+      const ttOverlay = document.getElementById('timetableOverlay');
+      if (!ttOverlay || ttOverlay.classList.contains('hidden')) return;
+
+      await refreshReservations();
+      renderWeeklyTimetable();
+
+      // Re-validate open reservation form without clearing user inputs
+      const resOverlay = document.getElementById('reservationOverlay');
+      if (resOverlay && !resOverlay.hidden) {
+        validateReservationForm();
+      }
+    }, 350);
+  }
+
   function initRoomRealtimeSubscription() {
     if (!client || !client.channel) return;
 
@@ -421,16 +448,27 @@
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'rooms' },
-          async (payload) => {
-            console.log('[Realtime] Room change event received:', payload.eventType);
-            await handleRoomsUpdate();
+          () => {
+            scheduleRoomsUpdate();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'room_schedules' },
+          () => {
+            scheduleTimetableRefresh();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'room_reservations' },
+          () => {
+            scheduleTimetableRefresh();
           }
         )
         .subscribe((status, err) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('[Realtime] Subscribed to rooms table changes.');
-          } else if (status === 'CHANNEL_ERROR') {
-            console.warn('[Realtime] Channel error on rooms subscription:', err);
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] Channel error on browse-rooms subscription:', err);
           }
         });
     } catch (err) {

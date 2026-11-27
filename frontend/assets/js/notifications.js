@@ -355,6 +355,49 @@
     });
   }
 
+  // ── Realtime Notifications ──────────────────────────────────────────────
+  let notifChannel = null;
+  let notifRealtimeTimer = null;
+
+  function scheduleNotifRefresh() {
+    clearTimeout(notifRealtimeTimer);
+    notifRealtimeTimer = setTimeout(() => {
+      refresh();
+    }, 300);
+  }
+
+  function initNotificationsRealtime() {
+    const sb = window.supabaseClient;
+    if (!sb || !sb.channel) return;
+
+    if (notifChannel) {
+      try { sb.removeChannel(notifChannel); } catch (e) { /* ignore */ }
+      notifChannel = null;
+    }
+
+    try {
+      notifChannel = sb
+        .channel('notifications-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, scheduleNotifRefresh)
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] Notifications channel error:', err);
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to subscribe to notifications:', err);
+    }
+  }
+
+  function cleanupNotificationsRealtime() {
+    clearTimeout(notifRealtimeTimer);
+    const sb = window.supabaseClient;
+    if (sb && notifChannel) {
+      try { sb.removeChannel(notifChannel); } catch (e) { /* ignore */ }
+      notifChannel = null;
+    }
+  }
+
   // ── Boot ────────────────────────────────────────────────────────────────
   async function init() {
     if (!(await hasSession())) return;        // signed out: no bell
@@ -363,16 +406,20 @@
     render();
     wireEvents();
     refresh();
+    initNotificationsRealtime();
 
     // Sign-out from any page removes the bell and stops polling
     if (window.supabaseClient && window.supabaseClient.auth) {
       window.supabaseClient.auth.onAuthStateChange(event => {
         if (event === 'SIGNED_OUT') {
           clearInterval(state.timer);
+          cleanupNotificationsRealtime();
           if (els.wrap) els.wrap.remove();
         }
       });
     }
+
+    window.addEventListener('beforeunload', cleanupNotificationsRealtime);
   }
 
   if (document.readyState === 'loading') {

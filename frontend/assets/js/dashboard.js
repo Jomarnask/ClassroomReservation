@@ -125,6 +125,7 @@
       updateHeaderUserMeta(role, user);
       renderNavbarForRole(role);
       renderViewForRole(role, user);
+      initDashboardRealtime();
       renderNotifications();
       setupEventHandlers();
 
@@ -137,12 +138,65 @@
     }
   }
 
+  // ==========================================
+  // 4B. REALTIME DASHBOARD SYNC (Supabase)
+  // ==========================================
+  let dashboardRealtimeChannel = null;
+  let dashboardRealtimeTimer = null;
+
+  function scheduleDashboardRefresh() {
+    clearTimeout(dashboardRealtimeTimer);
+    dashboardRealtimeTimer = setTimeout(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (State.detectedRole === 'Admin') loadAdminDashboard();
+      else if (State.detectedRole === 'Student') loadStudentDashboard();
+      else if (State.detectedRole === 'Faculty') loadFacultyDashboard();
+    }, 350);
+  }
+
+  function initDashboardRealtime() {
+    if (!client || !client.channel) return;
+
+    if (dashboardRealtimeChannel) {
+      try { client.removeChannel(dashboardRealtimeChannel); } catch (e) { /* ignore */ }
+      dashboardRealtimeChannel = null;
+    }
+
+    try {
+      dashboardRealtimeChannel = client
+        .channel('dashboard-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, scheduleDashboardRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'room_reservations' }, scheduleDashboardRefresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'room_schedules' }, scheduleDashboardRefresh)
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Realtime] Dashboard channel error:', err);
+          }
+        });
+    } catch (err) {
+      console.warn('[Realtime] Failed to initialize dashboard channel:', err);
+    }
+  }
+
+  function cleanupDashboardRealtime() {
+    clearTimeout(dashboardRealtimeTimer);
+    if (client && dashboardRealtimeChannel) {
+      try { client.removeChannel(dashboardRealtimeChannel); } catch (e) { /* ignore */ }
+      dashboardRealtimeChannel = null;
+    }
+  }
+
   // If the user signs out in another tab, kick this tab to login too.
   if (client && client.auth) {
     client.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') goToLogin();
+      if (event === 'SIGNED_OUT') {
+        cleanupDashboardRealtime();
+        goToLogin();
+      }
     });
   }
+
+  window.addEventListener('beforeunload', cleanupDashboardRealtime);
 
   // Back/forward cache can show a stale dashboard after logout; force a re-check.
   window.addEventListener('pageshow', (e) => {
