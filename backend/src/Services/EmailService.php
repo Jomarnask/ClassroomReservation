@@ -184,6 +184,187 @@ class EmailService
         );
     }
 
+    /** Tells a student that their room reservation request was approved. */
+    public function sendReservationApproved(array $reservation): bool
+    {
+        return $this->sendReservationEmail(
+            $reservation,
+            'Your room reservation has been approved',
+            'Reservation approved',
+            'Good news! Your room reservation request has been approved.',
+            ['Please claim the physical key from the guard.'],
+            'View My Reservations',
+            'my-reservations.html'
+        );
+    }
+
+    /** Tells a student that their room reservation request was declined (with the admin's reason). */
+    public function sendReservationDeclined(array $reservation): bool
+    {
+        $notes = [];
+        $reason = $this->cleanName($reservation['admin_remarks'] ?? '');
+
+        // "Declined by Administrator" is only the system's default text, not a real reason.
+        if ($reason !== '' && strcasecmp($reason, 'Declined by Administrator') !== 0) {
+            $notes[] = 'Reason: ' . $reason;
+        }
+
+        $notes[] = 'You are welcome to submit a new request for another time or room.';
+
+        return $this->sendReservationEmail(
+            $reservation,
+            'Your room reservation was declined',
+            'Reservation declined',
+            "We're sorry, but your room reservation request was declined.",
+            $notes,
+            'Browse Rooms',
+            'browse-rooms.html'
+        );
+    }
+
+    /**
+     * Tells a student that their reservation was cancelled by an administrator or the system.
+     * Pass $reason for system cancellations; without it the email says an administrator did it.
+     */
+    public function sendReservationCancelled(array $reservation, ?string $reason = null): bool
+    {
+        $reason = $reason !== null ? $this->cleanName($reason) : '';
+
+        return $this->sendReservationEmail(
+            $reservation,
+            'Your room reservation was cancelled',
+            'Reservation cancelled',
+            $reason !== ''
+                ? 'Your room reservation was cancelled.'
+                : 'Your room reservation was cancelled by an administrator.',
+            $reason !== '' ? ['Reason: ' . $reason] : [],
+            'View My Reservations',
+            'my-reservations.html'
+        );
+    }
+
+    /**
+     * Emails the student about a reservation the SYSTEM changed for them
+     * (not the admin's own click): an auto-cancel, an override by an admin
+     * booking, or a competing request that was auto-rejected.
+     *
+     * @param array<string, mixed> $row needs status and admin_remarks plus the usual reservation fields
+     */
+    public function sendReservationSystemChange(array $row): bool
+    {
+        $status = (string) ($row['status'] ?? '');
+        $remarks = $this->cleanName($row['admin_remarks'] ?? '');
+
+        if ($status === 'cancelled') {
+            // "Automatically cancelled: no admin decision was made ..." -> keep only the reason part.
+            $reason = preg_match('/^Automatically cancelled:\s*(.+)$/i', $remarks, $m) ? $m[1] : $remarks;
+            $reason = trim($reason) !== '' ? ucfirst(trim($reason)) : 'No admin decision was made in time.';
+
+            return $this->sendReservationCancelled($row, $reason);
+        }
+
+        if ($status === 'rejected') {
+            // An admin booking took over an already approved reservation.
+            if (stripos($remarks, 'Overridden by Administrator booking') === 0) {
+                return $this->sendReservationCancelled(
+                    $row,
+                    'An administrator booking replaced your reserved time slot.'
+                );
+            }
+
+            // "Auto-rejected: Slot booked by another ..." -> keep only the reason part.
+            if (preg_match('/^Auto-rejected:\s*(.+)$/i', $remarks, $m)) {
+                $row['admin_remarks'] = trim($m[1]);
+            }
+
+            return $this->sendReservationDeclined($row);
+        }
+
+        return false;
+    }
+
+    /**
+     * Shared layout of the three reservation emails: greeting, one sentence,
+     * the reservation details, optional notes and one button.
+     *
+     * @param array<int, string> $notes
+     */
+    private function sendReservationEmail(
+        array $reservation,
+        string $subject,
+        string $title,
+        string $intro,
+        array $notes,
+        string $buttonLabel,
+        string $page
+    ): bool {
+        $name = $this->cleanName($reservation['student_name'] ?? '');
+        $greetingName = $name !== '' ? $name : 'Student';
+        $url = $this->pageUrl($page);
+        $details = $this->reservationDetails($reservation);
+
+        $rowsHtml = '';
+        $detailsText = [];
+
+        foreach ($details as $label => $value) {
+            $rowsHtml .= '<tr><td style="padding:6px 16px 6px 0;color:#666666;">'
+                . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</td>'
+                . '<td style="padding:6px 0;font-weight:bold;">'
+                . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . '</td></tr>';
+            $detailsText[] = $label . ': ' . $value;
+        }
+
+        $htmlParts = [
+            '<p>Hello <strong>' . htmlspecialchars($greetingName, ENT_QUOTES, 'UTF-8') . '</strong>,</p>',
+            '<p>' . htmlspecialchars($intro, ENT_QUOTES, 'UTF-8') . '</p>',
+            '<table style="border-collapse:collapse;margin:12px 0;">' . $rowsHtml . '</table>',
+        ];
+
+        $textParts = ["Hello {$greetingName},", '', $intro, '', ...$detailsText];
+
+        foreach ($notes as $note) {
+            $htmlParts[] = '<p>' . htmlspecialchars($note, ENT_QUOTES, 'UTF-8') . '</p>';
+            $textParts[] = '';
+            $textParts[] = $note;
+        }
+
+        $htmlParts[] = '<p style="margin-top:20px;"><a href="' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8')
+            . '" style="display:inline-block;background:#800000;color:#ffffff;padding:10px 20px;'
+            . 'border-radius:6px;text-decoration:none;font-weight:bold;">'
+            . htmlspecialchars($buttonLabel, ENT_QUOTES, 'UTF-8') . '</a></p>';
+
+        $textParts[] = '';
+        $textParts[] = "{$buttonLabel}: {$url}";
+        $textParts[] = '';
+        $textParts[] = "Thank you,\nPUP Canlalay Campus - CRS";
+
+        return $this->send(
+            (string) ($reservation['student_webmail'] ?? ''),
+            $name,
+            $subject,
+            $this->wrap($title, implode('', $htmlParts)),
+            implode("\n", $textParts)
+        );
+    }
+
+    /** @return array<string, string> label => value */
+    private function reservationDetails(array $reservation): array
+    {
+        $subject = trim((string) ($reservation['subject'] ?? ''));
+
+        return [
+            'Room' => $this->formatRoomLabel($reservation),
+            'Date' => $this->formatDateLabel((string) ($reservation['reservation_date'] ?? '')),
+            'Time' => $this->formatTimeRange($reservation['start_time'] ?? '', $reservation['end_time'] ?? ''),
+            'Subject' => $subject !== '' ? $subject : '—',
+        ];
+    }
+
+    private function pageUrl(string $page): string
+    {
+        return rtrim((string) $this->settings['frontend_url'], '/') . '/' . $page;
+    }
+
     private function send(string $toEmail, string $toName, string $subject, string $html, string $text): bool
     {
         if (empty($this->settings['enabled'])) {
